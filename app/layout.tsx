@@ -3,6 +3,7 @@ import { Providers } from './providers'
 import { headers } from 'next/headers'
 import { Toaster } from 'react-hot-toast'
 import { Vollkorn } from 'next/font/google'
+import Navbar from '@/components/Navbar'
 
 const VollkornFont = Vollkorn({
   subsets: ['latin'],
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body className={`${VollkornFont.variable} font-sans`}>
         <Providers>
           <Toaster position="bottom-right" reverseOrder={false}></Toaster>
+          <Navbar></Navbar>
           {children}
         </Providers>
       </body>
