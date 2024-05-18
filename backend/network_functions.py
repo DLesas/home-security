@@ -26,6 +26,7 @@ def get_local_ip():
 def find_ip_by_mac(mac):
     mac = mac.lower()
     cmd_out = os.popen("arp -a").read()
+    print(cmd_out)
     ip_pattern = re.compile(r"\d+\.\d+\.\d+\.\d+")
     for line in cmd_out.split("\n"):
         if mac in line.lower():
