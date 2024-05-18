@@ -5,26 +5,66 @@ from picozero import pico_temp_sensor, pico_led
 import machine
 import json
 import _thread
-from network_functions import get_local_ip, get_broadcast_address, get_network_mask
+import select
 
 switch = machine.Pin(22, machine.Pin.IN, machine.Pin.PULL_UP)
 
+defaultPIs = [
+    {
+        "name": "[Pico] livingRoom-frenchDoor1",
+        "delay": 0.3,
+        "mac": "28-CD-C1-0F-33-3A",
+        "potentialIP": "192.168.1.111",
+    },
+    {
+        "name": "[Pico] livingRoom-frenchDoor2",
+        "delay": 0.3,
+        "mac": "28-CD-C1-0F-31-62",
+        "potentialIP": "192.168.1.241",
+    },
+    {
+        "name": "[Pico] backDoor",
+        "delay": 0.3,
+        "mac": "28-CD-C1-0F-34-5E",
+        "potentialIP": "192.168.1.191",
+    },
+    {
+        "name": "[Pico] frontDoor",
+        "delay": 0.3,
+        "mac": "28-CD-C1-0F-2B-25",
+        "potentialIP": "192.168.1.75",
+    },
+]
+
 ssid = "BT-P8A5PT"
 password = "hARMLTPd7caeHf"
-keep_alive_interval = 60
 
-static_ip = "xxxxxxx"
+
+def find_device(mac_address, devices):
+    for device in devices:
+        if device["mac"] == mac_address:
+            return device
+    return None
 
 
 def connect():
+    print('connecting')
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
     wlan.connect(ssid, password)
-    gateway = wlan.config("gateway")
     while not wlan.isconnected():
         print("Waiting for connection...")
         sleep(1)
-    wlan.ifconfig((static_ip, "255.255.255.0", gateway, gateway))
+    # Retrieve network configuration
+    config = wlan.ifconfig()
+    gateway = config[2]  # Gateway is the third element in the tuple
+    mac = wlan.config('mac')
+    # Format MAC address
+    mac_address = '-'.join('%02x' % b for b in mac).upper()
+    deviceInfo = find_device(mac_address, defaultPIs)
+    if deviceInfo:
+        # Configure with static IP, subnet mask, gateway, and gateway (DNS)
+        wlan.ifconfig((deviceInfo['potentialIP'], config[1], config[2], config[3]))
     ip = wlan.ifconfig()[0]
     print(f"Connected on {ip}")
     return ip
@@ -34,69 +74,88 @@ def open_socket(ip):
     address = (ip, 80)
     connection = socket.socket()
     connection.bind(address)
-    connection.listen(1)
+    connection.listen(5)
     print(f"Listening on {ip}:80")
     return connection
 
 
 def serve(connection):
+    blink_light_range(20)
+    print('ready')
     while True:
         try:
-            client, addr = connection.accept()
-            print("Connection from", addr)
-            _thread.start_new_thread(handle_client, (client,))
+           client, addr = connection.accept()
+           print("Connection from", addr)
+           handle_client(client)
         except KeyboardInterrupt:
             print("Server stopped by user")
             break
+        except Exception as e:
+            print("Error in serve:", e)
 
 
 def handle_client(client):
     try:
         request = client.recv(1024)
-        request = str(request)
-        request = request.split()[1]
+        print('handling request')
         temperature = pico_temp_sensor.temp
         door_state = "open" if switch.value() else "closed"
         data = {"door_state": door_state, "temperature": temperature}
         response = json.dumps(data)
+        print('sending response')
+        # Set a timeout for sending data
+        # Adjust the timeout value as needed
         client.send("HTTP/1.1 200 OK\r\n")
         client.send("Content-Type: application/json\r\n\r\n")
         client.send(response)
+        print('closing connection')
+    except Exception as e:
+        print("Error handling client:", e)
     finally:
         client.close()
+    return True
 
 
 def light_control():
+    print('started light control')
     while True:
         val = switch.value()
         if val == 1:
             pico_led.on()
         else:
             pico_led.off()
-        sleep(0.5)
+        sleep(0.1)
 
 
-def send_keep_alive():
-    ip = get_local_ip()
-    mask = get_network_mask(ip)
-    broadcastAddress = get_broadcast_address(ip, mask)
-    udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+def blink_light():
     while True:
-        try:
-            udp_socket.sendto(
-                b"Keep alive", (broadcastAddress, 60000)
-            )  # Change IP and port as needed
-            sleep(keep_alive_interval)
-        except Exception as e:
-            print("Error:", e)
+        pico_led.on()
+        sleep(0.3)
+        pico_led.off()
+        sleep(0.3)
+
+def blink_light_range(ran):
+    for i in range(ran):
+        pico_led.on()
+        sleep(0.3)
+        pico_led.off()
+        sleep(0.3)
+
+def main():
+    ip = connect()
+    connection = open_socket(ip)
+    serve(connection)
+    #_thread.start_new_thread(serve, (connection,))
+    #light_control()
 
 
 try:
-    ip = connect()
-    connection = open_socket(ip)
-    _thread.start_new_thread(serve, (connection,))
-    _thread.start_new_thread(light_control, ())
-    _thread.start_new_thread(send_keep_alive, ())
+    main()
 except Exception as e:
     print("Error:", e)
-    machine.reset()
+    blink_light()
+
+
+
+
+
