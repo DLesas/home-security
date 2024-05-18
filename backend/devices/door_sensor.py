@@ -13,18 +13,18 @@ ssid = "***REMOVED_SSID***"
 password = "***REMOVED_PASSWORD***"
 keep_alive_interval = 60
 
-ip = get_local_ip()
-mask = get_network_mask(ip)
-broadcastAddress = get_broadcast_address(ip, mask)
+static_ip = "xxxxxxx"
 
 
 def connect():
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
     wlan.connect(ssid, password)
+    gateway = wlan.config("gateway")
     while not wlan.isconnected():
         print("Waiting for connection...")
         sleep(1)
+    wlan.ifconfig((static_ip, "255.255.255.0", gateway, gateway))
     ip = wlan.ifconfig()[0]
     print(f"Connected on {ip}")
     return ip
@@ -77,6 +77,9 @@ def light_control():
 
 
 def send_keep_alive():
+    ip = get_local_ip()
+    mask = get_network_mask(ip)
+    broadcastAddress = get_broadcast_address(ip, mask)
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     while True:
         try:
