@@ -11,9 +11,9 @@ const VollkornFont = Vollkorn({
 })
 
 export const metadata = {
-  title: 'placeholder Inventory System',
+  title: 'Home security',
   description:
-    'Home page for Balanced horse feeds, an equine feed company specialising in innovative, cheap and efficient equine products',
+    'Home security system monitoring.',
 }
 
 export default function RootLayout({
