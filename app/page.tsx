@@ -62,10 +62,13 @@ function SensorCard({
         <p> {temperature} </p>
       </CardFooter>
       <div>
-        {humanizeDuration(new Date() - date, {
-          units: ['s', 'ms'],
-          round: true,
-        })}
+        {
+          // @ts-ignore
+          humanizeDuration(new Date() - date, {
+            units: ['s', 'ms'],
+            round: true,
+          })
+        }
       </div>
       <div>{new Date().toLocaleTimeString()}</div>
       <div>{date.toLocaleTimeString()}</div>

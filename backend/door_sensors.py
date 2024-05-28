@@ -16,6 +16,7 @@ from torch import device
 from ultralytics import YOLO
 from flask_sock import Sock
 import cv2
+import requests as r
 
 model = YOLO(
     os.path.join(os.path.split(os.path.realpath(__file__))[0], "models", "yolov8m.pt")
@@ -59,20 +60,22 @@ sensors = [
     #     "potentialIP": "192.168.1.76",
     #     'location': 'Stables',
     # },
-    # {
-    #     "name": "[Pico] Barn front door",
-    #     "delay": 0.3,
-    #     "mac": "28-CD-C1-0F-2B-27",
-    #     "potentialIP": "192.168.1.77",
-    #     'location': 'Stables',
-    # },
-    # {
-    #     "name": "[Pico] Barn back door",
-    #     "delay": 0.3,
-    #     "mac": "28-CD-C1-0F-2B-28",
-    #     "potentialIP": "192.168.1.78",
-    #     'location': 'Stables',
-    # },
+    {
+        "name": "[Pico] Barn front door",
+        "delay": 0.0,
+        "mac": "28-CD-C1-0F-2B-79",
+        "localIP": "192.168.0.195",
+        "potentialIP": "192.168.1.214:8555",
+        "location": "Stables",
+    },
+    {
+        "name": "[Pico] Barn back door",
+        "delay": 0.3,
+        "mac": "28-CD-C1-0F-34-CE",
+        "localIP": "192.168.0.235",
+        "potentialIP": "192.168.1.214:8556",
+        "location": "Stables",
+    },
     # {
     #     "name": "[Pico] Shed door",
     #     "delay": 0.3,
@@ -87,6 +90,16 @@ sensors = [
     #     "potentialIP": "192.168.1.80",
     #     'location': 'Garage',
     # },
+]
+
+
+alarms = [
+    {
+        "name": "[Pico] Shed alarm",
+        "mac": "28-CD-C1-0F-34-B1",
+        "potentialIP": "192.168.1.84",
+        "location": "Shed",
+    },
 ]
 
 cameras = os.path.join(os.path.split(os.path.realpath(__file__))[0], "test_video.mp4")
@@ -142,7 +155,7 @@ def sensorWork(addr: str, sensorDict: dict):
             t1 = time.time()
             res = requests.get(addr, timeout=1)
             t2 = time.time()
-            print(f"request for {sensorDict['name']} took {t2 - t1} seconds")
+            # print(f"request for {sensorDict['name']} took {t2 - t1} seconds")
             resJson = json.loads(res.content)
             # print(f"{sensorDict['name']}: {resJson}")
             name = sensorDict["name"].split("] ")[1]
@@ -287,6 +300,36 @@ def status():
 @app.route("/logs", methods=["GET"])
 def logs():
     return jsonify(baseObj)
+
+
+@app.route("/on", methods=["GET"])
+def turnOn():
+    for alarm in alarms:
+        ip = alarm["potentialIP"]
+        ret = 0
+        while ret == 0:
+            res = r.get(f"http://{ip}" + "/alarm/on")
+            retu = res.json()
+            print(retu)
+            ret = retu["state"]
+    return jsonify(True)
+
+
+@app.route("/off", methods=["GET"])
+def turnOff():
+    for alarm in alarms:
+        ip = alarm["potentialIP"]
+        ret = 1
+        while ret == 1:
+            res = r.get(f"http://{ip}" + "/alarm/off")
+            try:
+                retu = res.json()
+                print(retu)
+                ret = retu["state"]
+            except Exception as e:
+                print(e)
+
+    return jsonify(False)
 
 
 @sock.route("/echo")
