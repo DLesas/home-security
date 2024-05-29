@@ -16,30 +16,7 @@ import { AcmeLogo } from './AcmeLogo'
 
 export default function App() {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false)
-  const [status, setStatus] = React.useState<Boolean>(true)
 
-  useEffect(() => {
-    const intervalId = setInterval(async () => {
-      try {
-        const response = await fetch(
-          `http://${process.env.NEXT_PUBLIC_IP}:5000/status`,
-          {
-            method: 'GET',
-          }
-        )
-        const data: any = await response.json()
-        setStatus(data['armed'])
-        // You might need to handle the response based on the actual content type
-      } catch (error) {
-        console.error('Error fetching sensor data:', error)
-      }
-    }, 500)
-
-    // Clean up intervals on component unmount
-    return () => {
-      clearInterval(intervalId)
-    }
-  }, [])
 
   const menuItems = [
     'Profile',
@@ -63,7 +40,7 @@ export default function App() {
         />
         <NavbarBrand>
           <AcmeLogo />
-          <p className="font-bold text-inherit">ACME</p>
+          <p className="font-bold text-inherit">Dimitri's too good</p>
         </NavbarBrand>
       </NavbarContent>
 
@@ -86,30 +63,8 @@ export default function App() {
       </NavbarContent>
       <NavbarContent justify="end">
         <NavbarItem>
-          {status ? (
-            <Button
-              onClick={() => {
-                fetch(`http://${process.env.NEXT_PUBLIC_IP}:5000/disarm`)
-              }}
-              color="primary"
-              variant="flat"
-            >
-              Disarm
-            </Button>
-          ) : (
-            <Button
-              onClick={() => {
-                fetch(`http://${process.env.NEXT_PUBLIC_IP}:5000/arm`)
-              }}
-              color="primary"
-              variant="flat"
-            >
-              Arm
-            </Button>
-          )}
         </NavbarItem>
         <NavbarItem>
-          <span>Armed: {JSON.stringify(status)}</span>
         </NavbarItem>
       </NavbarContent>
       <NavbarMenu>
