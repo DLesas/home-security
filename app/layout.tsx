@@ -21,8 +21,6 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  const headersList = headers()
-  const pathname = headersList.get('x-invoke-path') || ''
 
   return (
     <html lang="en" className="bg-background text-foreground theme-blue-dark">
