@@ -116,7 +116,6 @@
 #     return jsonify(tosend)
 
 
-
 # # return everything here including status
 # # {
 # #   armed: false,
@@ -190,6 +189,7 @@
 #     # cv2.destroyAllWindows()
 
 
+from datetime import timedelta
 import time
 from flask import Flask, jsonify
 from alarm_funcs import turnOffAlarms, turnOnAlarms
@@ -199,27 +199,86 @@ import pandas as pd
 import requests
 import json
 import threading
+import hashlib
 from flask_cors import CORS
 from flask_sock import Sock
+import gevent
+from gevent.lock import BoundedSemaphore
 
-latestLog = {
-    "Dining room - French door": None,
-    "Living room - French door": None,
-    "Back door": None,
-    "Front door": None,
-}
+# example = {
+#   'armed': False,
+#   'alarm': False,
+#   'logs': {
+#     'House': {
+#       'Back door': {
+#         'status': 'closed',
+#       },
+#       'Dining room - French door': {
+#         'status': 'closed',
+#       },
+#       'Front door': {
+#         'status': 'closed',
+#       },
+#       'Living room - French door': {
+#         'status': 'closed',
+#       },
+#     },
+#   },
+#   'issues': [{'msg': 'test', 'time': pd.to_datetime('now')}],
+# }
 
-logbase = {"name": None, "time": None, "status": None, "temp": None}
-latestLogbase = [
-    {"location": "House", "logs": []},
-    {"location": "Stables", "logs": []},
-    {"location": "Shed", "logs": []},
-    {"location": "Garage", "logs": []},
-]
-
+latestLogTiming = {}
 baseObj = {}
 armed = False
 alarm = False
+last_sent_data_per_client = {}
+semaphore = BoundedSemaphore(1)
+
+
+def hash_data(data):
+    """Hash the given data for efficient comparison."""
+    return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
+
+
+def handle_client(ws):
+    global baseObj, armed, alarm, last_sent_data_per_client
+    client_id = ws.environ.get("REMOTE_ADDR", None)  # Get client identifier
+    if not client_id:
+        return
+
+    if client_id not in last_sent_data_per_client:
+        last_sent_data_per_client[client_id] = None  # Initialize for new client
+
+    try:
+        while True:
+            current_data = {
+                "armed": armed,
+                "alarm": alarm,
+                "logs": baseObj,
+                # "issues": issues,  # Uncomment and add issues if needed
+            }
+            current_data_hash = hash_data(current_data)
+            last_sent_data_hash = last_sent_data_per_client[client_id]
+
+            # Compare current data hash with last sent data hash for this client
+            if current_data_hash != last_sent_data_hash:
+                newJSON = json.dumps(
+                    {"alarm": alarm, "armed": armed},
+                    indent=4,
+                    sort_keys=True,
+                    default=str,
+                )
+                semaphore.acquire()
+                print(newJSON)  # Ensure only one thread sends at a time
+                ws.send(newJSON)
+                semaphore.release()
+                last_sent_data_per_client[client_id] = current_data_hash
+    except gevent.socket.error as e:
+        print(f"WebSocket error: {e}")
+    finally:
+        if client_id in last_sent_data_per_client:
+            del last_sent_data_per_client[client_id]
+
 
 def create_app():
     app = Flask(__name__)
@@ -254,25 +313,29 @@ def create_app():
         alarm = False
         return jsonify({"success": True})
 
-    @app.route("/logs", methods=["GET"])
+    @app.route("/log", methods=["GET"])
     def getLogs():
-        global baseObj, armed, alarm
-        tosend = {'armed': armed, 'alarm': alarm, 'logs': baseObj}
+        global baseObj, armed, alarm, last_sent_data_per_client
+        tosend = {
+            "armed": armed,
+            "alarm": alarm,
+            "logs": baseObj,
+            # "issues": issues,
+        }
         return jsonify(tosend)
 
-    @sock.route("/logs")
-    def echo(sock):
-        global baseObj, armed, alarm
-        while True:
-            tosend = {'armed': armed, 'alarm': alarm, 'logs': baseObj}
-            js = json.dumps(tosend, indent=4, sort_keys=True, default=str)
-            sock.send(js)
-            time.sleep(0.5)  # Adjust as needed
+    @sock.route("/wslogs")
+    def echo(ws):
+        gevent.spawn(handle_client, ws)
 
     return app
 
+
+# Update last sent data for this client
+
+
 def sensorWork(addr: str, sensorDict: dict):
-    global armed, latestLog, baseObj, alarm
+    global armed, baseObj, alarm, latestLogTiming
     print("started work for", addr)
     while True:
         try:
@@ -280,24 +343,25 @@ def sensorWork(addr: str, sensorDict: dict):
             resJson = res.json()
             name = sensorDict["name"].split("] ")[1]
             loc = sensorDict["location"]
-            dateTime = pd.to_datetime("now")
+            latestLogTiming[name] = pd.to_datetime("now")
             status = resJson["door_state"]
-            temp = resJson["temperature"]
-            log = {"time": dateTime, "status": status, "temp": temp}
+            log = {"status": status}
+            print(name, status)
             if loc not in baseObj.keys():
                 baseObj[loc] = {}
             baseObj[loc][name] = log
-
             if resJson["temperature"] > 50:
                 continue
             if resJson["door_state"] == "open" and armed and not alarm:
                 alarm = True
-                print(name, 'is open')
+                print(name, "is open")
                 turnOnAlarms()
             time.sleep(sensorDict["delay"])
         except Exception as e:
-            print(e)
+            name = sensorDict["name"].split("] ")[1]
+            print(f"got the following for {name}: {e}")
             time.sleep(0.5)
+
 
 def start_sensor_threads():
     for sensor in sensors:
@@ -305,6 +369,7 @@ def start_sensor_threads():
         addr = f"http://{ip}/"
         t = threading.Thread(target=sensorWork, args=(addr, sensor))
         t.start()
+
 
 if __name__ == "__main__":
     app = create_app()

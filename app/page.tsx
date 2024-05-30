@@ -1,6 +1,31 @@
 'use client'
 import { Button, ButtonProps } from '@nextui-org/button'
 import { useEffect, useState } from 'react'
+import { Card, CardHeader } from '@nextui-org/card'
+
+type LogStatus = 'open' | 'closed' // Define the possible log status values
+
+interface LogEntry {
+  status: LogStatus
+}
+
+interface LogEntries {
+  [key: string]: LogEntry
+}
+
+interface Example {
+  armed: boolean
+  alarm: boolean
+  logs: {
+    [key: string]: LogEntries
+  }
+  issues:
+    | {
+        msg: string
+        time: Date
+      }[]
+    | [] // Update to allow for an empty array
+}
 
 const example = {
   armed: false,
@@ -9,42 +34,34 @@ const example = {
     House: {
       'Back door': {
         status: 'closed',
-        temp: 28.44887,
-        time: 'Wed, 22 May 2024 00:08:59 GMT',
       },
-      'Dining room - French door': {
+      'Dining room': {
         status: 'closed',
-        temp: 28.91698,
-        time: 'Wed, 22 May 2024 00:08:59 GMT',
       },
       'Front door': {
         status: 'closed',
-        temp: 28.91698,
-        time: 'Wed, 22 May 2024 00:08:59 GMT',
       },
-      'Living room - French door': {
+      'Living room': {
         status: 'closed',
-        temp: 31.72584,
-        time: 'Wed, 22 May 2024 00:08:59 GMT',
       },
     },
   },
+  issues: [{ msg: 'test', time: new Date() }],
 }
 
-type data = typeof example
+type data = Example
 
 export default function Index() {
-  const [data, setData] = useState<data>(example)
-  const [armed, setArmed] = useState(false)
+  const [data, setData] = useState<data>(example as data)
   const [buttons, setButtons] = useState([
     {
-      name: 'test',
+      name: 'Test',
       loading: false,
       color: 'primary',
       function: test,
     },
-    { name: 'disarm', loading: false, color: 'success', function: disarm },
-    { name: 'arm', loading: false, color: 'danger', function: arm },
+    { name: 'Arm', loading: false, color: 'danger', function: arm },
+    { name: 'Disarm', loading: false, color: 'success', function: disarm },
   ])
 
   async function test() {
@@ -62,7 +79,6 @@ export default function Index() {
     const res = await fetch(
       'http://' + process.env.NEXT_PUBLIC_IP + ':5000/disarm'
     )
-    setArmed(false)
     const json = await res.json()
     return json['success']
   }
@@ -73,7 +89,6 @@ export default function Index() {
     const res = await fetch(
       'http://' + process.env.NEXT_PUBLIC_IP + ':5000/arm'
     )
-    setArmed(true)
     const json = await res.json()
     return json['success']
   }
@@ -118,16 +133,38 @@ export default function Index() {
   // ]
 
   useEffect(() => {
+    const fetchData = async () => {
+      const res = await fetch('http://' + process.env.NEXT_PUBLIC_IP + ':5000' + '/log')
+      const resJson = await res.json()
+      setData(resJson)
+    }
+    fetchData();
+  }, [])
+
+  useEffect(() => {
     // const socket = new WebSocket(
     //   'ws://' + process.env.NEXT_PUBLIC_IP + ':5000' + '/logs'
     // )
+    console.log('fired')
     const socket = new WebSocket(
-      'ws://' + process.env.NEXT_PUBLIC_IP + ':5000' + '/logs'
+      'ws://' + process.env.NEXT_PUBLIC_IP + ':5000' + '/wslogs'
     )
-    socket.addEventListener('message', (ev) => {
-      setData(JSON.parse(ev.data))
-      console.log(JSON.parse(ev.data))
-    })
+    socket.onopen = function(e) {
+      console.log("[open] Connection established");
+    };
+    
+    socket.onmessage = function(event) {
+      console.log(`[message] Data received from server: ${event.data}`);
+    };
+    
+    socket.onclose = function(event) {
+      if (event.wasClean) {
+        console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+      } else {
+        console.log(event)
+        console.log('[close] Connection died');
+      }
+    };
     return () => {
       socket.close()
     }
@@ -135,21 +172,31 @@ export default function Index() {
 
   return (
     <div className="mt-10 flex justify-center">
-      <div className="flex w-full flex-col items-center justify-between gap-28">
-        <div className="flex flex-col items-center">
+      <div className="flex w-full flex-col items-center justify-between gap-32">
+        <div className="flex flex-col items-center text-lg font-semibold">
           <div>
-            system is{' '}
-            {armed ? (
+            System is{' '}
+            {data.armed ? (
               <span className="text-red-400"> armed </span>
             ) : (
               <span className="text-green-400">disarmed</span>
             )}
           </div>
+          <div>
+            Alarm is{' '}
+            {data.alarm ? (
+              <span className="text-red-400"> playing </span>
+            ) : (
+              <span className="text-green-400">not playing</span>
+            )}
+          </div>
         </div>
-        <div className="flex w-2/5 flex-col gap-5">
+        <div className="flex flex-row gap-3">
           {buttons.map((button) => (
             <Button
               variant="solid"
+              size="lg"
+              className="w-24"
               color={button.color as ButtonProps['color']}
               key={button.name}
               isLoading={button.loading}
@@ -171,7 +218,33 @@ export default function Index() {
             </Button>
           ))}
         </div>
-        <div className="flex flex-row">info boxes coming here soon</div>
+        <div className="flex flex-col gap-4">
+          <div className="text-lg">Door logs</div>
+          <div className="flex flex-col gap-4">
+            {Object.keys(data.logs).map((key) => (
+              <Card key={key} className="flex flex-col gap-4 p-2">
+                <span className="text-center text-lg">{key}</span>
+                <div className="flex flex-row justify-around gap-6">
+                  {Object.keys(data.logs[key]).map((key2) => (
+                    <div
+                      key={key2}
+                      className="flex flex-col gap-4 text-center text-sm font-light"
+                    >
+                      <span className="flex flex-row">{key2}</span>
+                      <div className="font-bold">
+                        {data.logs[key][key2].status == 'open' ? (
+                          <span className="text-danger-400">Open</span>
+                        ) : (
+                          <span className="text-success-400">Closed</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )

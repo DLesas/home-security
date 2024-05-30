@@ -40,7 +40,7 @@ export default function App() {
         />
         <NavbarBrand>
           <AcmeLogo />
-          <p className="font-bold text-inherit">Dimitri's too good</p>
+          <p className="font-bold text-inherit">Dimitri's security</p>
         </NavbarBrand>
       </NavbarContent>
 
