@@ -2,6 +2,7 @@
 import { Button, ButtonProps } from '@nextui-org/button'
 import { useEffect, useState } from 'react'
 import { Card, CardHeader } from '@nextui-org/card'
+import { socket } from '@/lib/socket'
 
 type LogStatus = 'open' | 'closed' // Define the possible log status values
 
@@ -53,6 +54,7 @@ type data = Example
 
 export default function Index() {
   const [data, setData] = useState<data>(example as data)
+  const [isConnected, setIsConnected] = useState(false)
   const [buttons, setButtons] = useState([
     {
       name: 'Test',
@@ -64,33 +66,21 @@ export default function Index() {
     { name: 'Disarm', loading: false, color: 'success', function: disarm },
   ])
 
-  async function test() {
+  async function test(callback: () => void) {
     // send a request to '192.168.5.157' + ':5000' + '/test'
     console.log('testing')
-    const res = await fetch(
-      'http://' + process.env.NEXT_PUBLIC_IP + ':5000/test'
-    )
-    const json = await res.json()
-    return json['success']
+    socket.timeout(5000).emit('test', 'test', callback)
   }
-  async function disarm() {
+  async function disarm(callback: () => void) {
     // send a request to '192.168.5.157' + ':5000' + '/disarm'
     console.log('disarming')
-    const res = await fetch(
-      'http://' + process.env.NEXT_PUBLIC_IP + ':5000/disarm'
-    )
-    const json = await res.json()
-    return json['success']
+    socket.timeout(5000).emit('disarm', 'disarm', callback)
   }
 
-  async function arm() {
+  async function arm(callback: () => void) {
     // send a request to '192.168.5.157' + ':5000' + '/arm'
     console.log('arming')
-    const res = await fetch(
-      'http://' + process.env.NEXT_PUBLIC_IP + ':5000/arm'
-    )
-    const json = await res.json()
-    return json['success']
+    socket.timeout(5000).emit('arm', 'arm', callback)
   }
 
   //   const doorSensors = [
@@ -132,48 +122,46 @@ export default function Index() {
   //     },
   // ]
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const res = await fetch('http://' + process.env.NEXT_PUBLIC_IP + ':5000' + '/log')
-      const resJson = await res.json()
-      setData(resJson)
-    }
-    fetchData();
-  }, [])
+  // useEffect(() => {
+  //   const fetchData = async () => {
+  //     const res = await fetch('http://' + process.env.NEXT_PUBLIC_IP + ':5000' + '/log')
+  //     const resJson = await res.json()
+  //     setData(resJson)
+  //   }
+  //   fetchData();
+  // }, [])
 
   useEffect(() => {
-    // const socket = new WebSocket(
-    //   'ws://' + process.env.NEXT_PUBLIC_IP + ':5000' + '/logs'
-    // )
-    console.log('fired')
-    const socket = new WebSocket(
-      'ws://' + process.env.NEXT_PUBLIC_IP + ':5000' + '/wslogs'
-    )
-    socket.onopen = function(e) {
-      console.log("[open] Connection established");
-    };
-    
-    socket.onmessage = function(event) {
-      console.log(`[message] Data received from server: ${event.data}`);
-    };
-    
-    socket.onclose = function(event) {
-      if (event.wasClean) {
-        console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
-      } else {
-        console.log(event)
-        console.log('[close] Connection died');
-      }
-    };
-    return () => {
-      socket.close()
+    socket.connect()
+    function onConnect() {
+      setIsConnected(true);
     }
-  }, [])
+
+    function onDisconnect() {
+      setIsConnected(false);
+    }
+
+    function onData(value: data) {
+      setData(value);
+    }
+
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    socket.on('data', onData);
+
+    return () => {
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+      socket.off('foo', onData);
+      socket.disconnect()
+    };
+  }, []);
 
   return (
     <div className="mt-10 flex justify-center">
       <div className="flex w-full flex-col items-center justify-between gap-32">
         <div className="flex flex-col items-center text-lg font-semibold">
+          <div>{isConnected ? <span className="text-green-400"> Connected </span> : <span className="text-red-400"> Disconnected </span>}</div>
           <div>
             System is{' '}
             {data.armed ? (
@@ -206,12 +194,11 @@ export default function Index() {
                     btn.name === button.name ? { ...btn, loading: true } : btn
                   )
                 )
-                const res = await button.function()
-                setButtons((prevButtons) =>
+                const res = await button.function(() => setButtons((prevButtons) =>
                   prevButtons.map((btn) =>
                     btn.name === button.name ? { ...btn, loading: false } : btn
                   )
-                )
+                ))  
               }}
             >
               {button.name}
