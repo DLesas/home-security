@@ -11,14 +11,14 @@ switch = machine.Pin(22, machine.Pin.IN, machine.Pin.PULL_UP)
 
 defaultPIs = [
     {
-        "name": "[Pico] Dining room - French door",
+        "name": "[Pico] Dining room",
         "delay": 0.0,
         "mac": "28-CD-C1-0F-33-3A",
         "potentialIP": "192.168.1.111",
         "location": "House",
     },
     {
-        "name": "[Pico] Living room - French door",
+        "name": "[Pico] Living room",
         "delay": 0.0,
         "mac": "28-CD-C1-0F-31-62",
         "potentialIP": "192.168.1.241",
@@ -46,33 +46,33 @@ defaultPIs = [
     #     'location': 'Stables',
     # },
     {
-        "name": "[Pico] Barn front door",
+        "name": "[Pico] ront door",
         "delay": 0.0,
         "mac": "28-CD-C1-0F-2B-79",
         "potentialIP": "192.168.0.195",
         "location": "Stables",
     },
     {
-        "name": "[Pico] Barn back door",
+        "name": "[Pico] Back door",
         "delay": 0.3,
         "mac": "28-CD-C1-0F-34-CE",
         "potentialIP": "192.168.0.235",
         'location': 'Stables',
     },
-    # {
-    #     "name": "[Pico] Shed door",
-    #     "delay": 0.3,
-    #     "mac": "28-CD-C1-0F-2B-29",
-    #     "potentialIP": "192.168.1.79",
-    #     'location': 'Shed',
-    # },
-    # {
-    #     "name": "[Pico] Garage door",
-    #     "delay": 0.3,
-    #     "mac": "28-CD-C1-0F-2B-2A",
-    #     "potentialIP": "192.168.1.80",
-    #     'location': 'Garage',
-    # },
+    {
+        "name": "[Pico] Shed door",
+        "delay": 0.3,
+        "mac": "28-CD-C1-0F-2B-42",
+        "potentialIP": "192.168.1.120",
+        'location': 'Shed',
+    },
+    {
+        "name": "[Pico] Garage door",
+        "delay": 0.3,
+        "mac": "28-CD-C1-0F-33-F4",
+        "potentialIP": "192.168.1.105",
+        'location': 'Garage',
+    },
 ]
 
 
