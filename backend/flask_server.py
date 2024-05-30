@@ -188,9 +188,9 @@
 #     #     print(result.probs)
 #     # cv2.destroyAllWindows()
 
-
 from datetime import timedelta
 import time
+from tkinter.tix import Tree
 from flask import Flask, jsonify
 from alarm_funcs import turnOffAlarms, turnOnAlarms
 from sensor_funcs import writeToFile
@@ -201,9 +201,7 @@ import json
 import threading
 import hashlib
 from flask_cors import CORS
-from flask_sock import Sock
-import gevent
-from gevent.lock import BoundedSemaphore
+from flask_socketio import SocketIO, emit
 
 # example = {
 #   'armed': False,
@@ -231,8 +229,7 @@ latestLogTiming = {}
 baseObj = {}
 armed = False
 alarm = False
-last_sent_data_per_client = {}
-semaphore = BoundedSemaphore(1)
+sent = None
 
 
 def hash_data(data):
@@ -240,70 +237,30 @@ def hash_data(data):
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
 
 
-def handle_client(ws):
-    global baseObj, armed, alarm, last_sent_data_per_client
-    client_id = ws.environ.get("REMOTE_ADDR", None)  # Get client identifier
-    if not client_id:
-        return
-
-    if client_id not in last_sent_data_per_client:
-        last_sent_data_per_client[client_id] = None  # Initialize for new client
-
-    try:
-        while True:
-            current_data = {
-                "armed": armed,
-                "alarm": alarm,
-                "logs": baseObj,
-                # "issues": issues,  # Uncomment and add issues if needed
-            }
-            current_data_hash = hash_data(current_data)
-            last_sent_data_hash = last_sent_data_per_client[client_id]
-
-            # Compare current data hash with last sent data hash for this client
-            if current_data_hash != last_sent_data_hash:
-                newJSON = json.dumps(
-                    {"alarm": alarm, "armed": armed},
-                    indent=4,
-                    sort_keys=True,
-                    default=str,
-                )
-                semaphore.acquire()
-                print(newJSON)  # Ensure only one thread sends at a time
-                ws.send(newJSON)
-                semaphore.release()
-                last_sent_data_per_client[client_id] = current_data_hash
-    except gevent.socket.error as e:
-        print(f"WebSocket error: {e}")
-    finally:
-        if client_id in last_sent_data_per_client:
-            del last_sent_data_per_client[client_id]
-
-
 def create_app():
     app = Flask(__name__)
-    sock = Sock(app)
+    socketio = SocketIO(
+        app, cors_allowed_origins="*", logger=True, async_mode="threading"
+    )
     CORS(app)
 
-    @app.route("/arm", methods=["GET"])
-    def arm():
+    @socketio.on("arm")
+    def arm(ev):
         global armed, alarm
         armed = True
-        if alarm:
-            alarm = False
-        return jsonify({"success": True})
+        return {"success": True}
 
-    @app.route("/disarm", methods=["GET"])
-    def disarm():
+    @socketio.on("disarm")
+    def disarm(ev):
         global armed, alarm
         armed = False
         turnOffAlarms()
         alarm = False
         print("turned off alarms")
-        return jsonify({"success": True})
+        return {"success": True}
 
-    @app.route("/test", methods=["GET"])
-    def test():
+    @socketio.on("test")
+    def test(ev):
         global alarm
         print("testing")
         turnOnAlarms()
@@ -311,31 +268,45 @@ def create_app():
         time.sleep(1)
         turnOffAlarms()
         alarm = False
-        return jsonify({"success": True})
+        return {"success": True}
 
-    @app.route("/log", methods=["GET"])
-    def getLogs():
-        global baseObj, armed, alarm, last_sent_data_per_client
+    # @app.route("/log", methods=["GET"])
+    # def getLogs():
+    #     global baseObj, armed, alarm
+    #     tosend = {
+    #         "armed": armed,
+    #         "alarm": alarm,
+    #         "logs": baseObj,
+    #         # "issues": issues,
+    #     }
+    #     return jsonify(tosend)
+
+    @socketio.on("connect")
+    def test_connect(auth):
+        global baseObj, armed, alarm
         tosend = {
             "armed": armed,
             "alarm": alarm,
             "logs": baseObj,
             # "issues": issues,
         }
-        return jsonify(tosend)
+        emit("data", tosend)
 
-    @sock.route("/wslogs")
-    def echo(ws):
-        gevent.spawn(handle_client, ws)
+    @socketio.on("disconnect")
+    def test_disconnect():
+        print("Client disconnected")
 
-    return app
+    return app, socketio
 
 
 # Update last sent data for this client
 
 
-def sensorWork(addr: str, sensorDict: dict):
+# def sensorWork(addr: str, sensorDict: dict):
+def sensorWork(args):
     global armed, baseObj, alarm, latestLogTiming
+    addr = args[0]
+    sensorDict = args[1]
     print("started work for", addr)
     while True:
         try:
@@ -359,7 +330,7 @@ def sensorWork(addr: str, sensorDict: dict):
             time.sleep(sensorDict["delay"])
         except Exception as e:
             name = sensorDict["name"].split("] ")[1]
-            print(f"got the following for {name}: {e}")
+            # print(f"got the following for {name}: {e}")
             time.sleep(0.5)
 
 
@@ -367,11 +338,26 @@ def start_sensor_threads():
     for sensor in sensors:
         ip = sensor.get("potentialIP")
         addr = f"http://{ip}/"
-        t = threading.Thread(target=sensorWork, args=(addr, sensor))
-        t.start()
+        t = socketio.start_background_task(target=sensorWork, args=(addr, sensor))
+
+
+def check_for_new_logs(args):
+    global baseObj, armed, alarm, sent
+    while True:
+        tosend = {
+            "armed": armed,
+            "alarm": alarm,
+            "logs": baseObj,
+            # "issues": issues,
+        }
+        hash = hash_data(tosend)
+        if hash != sent:
+            socketio.emit("data", tosend)
+            sent = hash
 
 
 if __name__ == "__main__":
-    app = create_app()
-    threading.Thread(target=app.run, kwargs={"host": "0.0.0.0", "port": 5000}).start()
+    app, socketio = create_app()
     start_sensor_threads()
+    mainT = socketio.start_background_task(target=check_for_new_logs, args=())
+    socketio.run(app, host="0.0.0.0", port=5000)
