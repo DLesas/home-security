@@ -190,17 +190,14 @@
 
 from datetime import timedelta
 import time
-from tkinter.tix import Tree
-from flask import Flask, jsonify
+from flask import Flask
 from alarm_funcs import turnOffAlarms, turnOnAlarms
 from sensor_funcs import writeToFile
 from devices import sensors, cameras
 import pandas as pd
 import requests
 import json
-import threading
 import hashlib
-from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 
 # example = {
@@ -226,8 +223,49 @@ from flask_socketio import SocketIO, emit
 # }
 
 latestLogTiming = {}
-baseObj = {}
-armed = False
+baseObj = {
+    "House": {
+        "Front door": {
+            "status": "unknown",
+            "armed": False,
+        },
+        "Dining room": {
+            "status": "unknown",
+            "armed": False,
+        },
+        "Living room": {
+            "status": "unknown",
+            "armed": False,
+        },
+        "Back door": {
+            "status": "unknown",
+            "armed": False,
+        },
+    },
+    "Shed": {
+        "Front door": {
+            "status": "unknown",
+            "armed": False,
+        }
+    },
+    "Stables": {
+        "Front door": {
+            "status": "unknown",
+            "armed": False,
+        },
+        "Back door": {
+            "status": "unknown",
+            "armed": False,
+        },
+    },
+    "Garage": {
+        "Front door": {
+            "status": "unknown",
+            "armed": False,
+        },
+    },
+}
+issues = []
 alarm = False
 sent = None
 
@@ -242,21 +280,24 @@ def create_app():
     socketio = SocketIO(
         app, cors_allowed_origins="*", logger=True, async_mode="threading"
     )
-    CORS(app)
 
-    @socketio.on("arm")
+    @socketio.on("arm/building")
     def arm(ev):
-        global armed, alarm
-        armed = True
+        global alarm, baseObj
+        building = ev
+        for door in baseObj[building].keys():
+            baseObj[building][door]["armed"] = True
         return {"success": True}
 
-    @socketio.on("disarm")
+    @socketio.on("disarm/building")
     def disarm(ev):
-        global armed, alarm
-        armed = False
+        global alarm, baseObj
+        building = ev
         turnOffAlarms()
         alarm = False
         print("turned off alarms")
+        for door in baseObj[building].keys():
+            baseObj[building][door]["armed"] = False
         return {"success": True}
 
     @socketio.on("test")
@@ -268,6 +309,13 @@ def create_app():
         time.sleep(1)
         turnOffAlarms()
         alarm = False
+        return {"success": True}
+
+    @socketio.on("dismiss")
+    def dismiss(ev):
+        global issues
+        evDismiss = ev
+        issues = list(filter(lambda x: x["id"] != evDismiss, issues))
         return {"success": True}
 
     # @app.route("/log", methods=["GET"])
@@ -283,12 +331,11 @@ def create_app():
 
     @socketio.on("connect")
     def test_connect(auth):
-        global baseObj, armed, alarm
+        global baseObj, alarm
         tosend = {
-            "armed": armed,
             "alarm": alarm,
             "logs": baseObj,
-            # "issues": issues,
+            "issues": issues,
         }
         emit("data", tosend)
 
@@ -304,7 +351,7 @@ def create_app():
 
 # def sensorWork(addr: str, sensorDict: dict):
 def sensorWork(args):
-    global armed, baseObj, alarm, latestLogTiming
+    global baseObj, alarm, latestLogTiming, issues
     addr = args[0]
     sensorDict = args[1]
     print("started work for", addr)
@@ -314,23 +361,86 @@ def sensorWork(args):
             resJson = res.json()
             name = sensorDict["name"].split("] ")[1]
             loc = sensorDict["location"]
-            latestLogTiming[name] = pd.to_datetime("now")
+            latestLogTiming[f"{loc}_{name}"] = pd.to_datetime("now")
             status = resJson["door_state"]
-            log = {"status": status}
-            print(name, status)
+            log = {"status": status, "temp": resJson["temperature"]}
+            # print(name, status)
             if loc not in baseObj.keys():
                 baseObj[loc] = {}
-            baseObj[loc][name] = log
+                baseObj[loc][name] = {
+                    "status": status,
+                    "armed": False,
+                }
+            else:
+                baseObj[loc][name]["status"] = status
+            id_exists = any(d["id"] == f"response_{name}_{loc}" for d in issues)
+            if id_exists:
+                issues = list(
+                    filter(lambda x: x["id"] != f"response_{name}_{loc}", issues)
+                )
+            #hotID_exists = any(d["id"] == f"hot_{name}_{loc}" for d in issues)
             if resJson["temperature"] > 50:
-                continue
-            if resJson["door_state"] == "open" and armed and not alarm:
-                alarm = True
-                print(name, "is open")
+                issues.append(
+                    {
+                        "msg": f"sensor by the {name} at {loc} is running a bit hot (>50C) please check it",
+                        "time": pd.to_datetime("now"),
+                        "id": f"hot_{name}_{loc}",
+                    }
+                )
+            # elif hotID_exists:
+            #     issues = list(filter(lambda x: x["id"] != f"hot_{name}_{loc}", issues))
+            alarmID_exists = any(d["id"] == f"alarm_{name}_{loc}" for d in issues)
+            if (
+                resJson["door_state"] == "open"
+                and baseObj[loc][name]["armed"]
+                and not alarm
+            ):
+                print(f"{name} at {loc} is open")
                 turnOnAlarms()
+                alarm = True
+                issues.append(
+                    {
+                        "msg": f"alarm triggered by {name} at {loc}",
+                        "time": pd.to_datetime("now"),
+                        "id": f"alarm_{name}_{loc}",
+                    }
+                )
+            elif alarmID_exists:
+                alarm_obj = next(
+                    filter(lambda x: x["id"] == f"alarm_{name}_{loc}", issues)
+                )
+                if (
+                    pd.to_datetime("now") - alarm_obj["time"] > pd.Timedelta(seconds=30)
+                    and alarm
+                    and not resJson["door_state"] == "open"
+                ):
+                    turnOffAlarms()
+                    alarm = False
+                    issues.append(
+                        {
+                            "msg": f"alarm autmatically turned off after 30 seconds since {name} at {loc} was closed",
+                            "time": pd.to_datetime("now"),
+                            "id": f"cleared_{name}_{loc}",
+                        }
+                    )
+            # write to file here
             time.sleep(sensorDict["delay"])
         except Exception as e:
             name = sensorDict["name"].split("] ")[1]
-            # print(f"got the following for {name}: {e}")
+            loc = sensorDict["location"]
+            if latestLogTiming[f"{loc}_{name}"] < pd.to_datetime("now") - pd.Timedelta(
+                seconds=30
+            ):
+                id_exists = any(d["id"] == f"response_{name}_{loc}" for d in issues)
+                if not id_exists:
+                    issues.append(
+                        {
+                            "msg": f"no response from {name} at {loc} for a while please contact dimitri",
+                            "time": pd.to_datetime("now"),
+                            "id": f"response_{name}_{loc}",
+                        }
+                    )
+            print(f"got the following for {name}: {e}")
             time.sleep(0.5)
 
 
@@ -342,13 +452,12 @@ def start_sensor_threads():
 
 
 def check_for_new_logs(args):
-    global baseObj, armed, alarm, sent
+    global baseObj, alarm, sent
     while True:
         tosend = {
-            "armed": armed,
             "alarm": alarm,
             "logs": baseObj,
-            # "issues": issues,
+            "issues": issues,
         }
         hash = hash_data(tosend)
         if hash != sent:
