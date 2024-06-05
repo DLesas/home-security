@@ -46,7 +46,7 @@ defaultPIs = [
     #     'location': 'Stables',
     # },
     {
-        "name": "[Pico] ront door",
+        "name": "[Pico] Front door",
         "delay": 0.0,
         "mac": "28-CD-C1-0F-2B-79",
         "potentialIP": "192.168.0.195",
