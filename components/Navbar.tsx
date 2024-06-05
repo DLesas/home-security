@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   Navbar,
   NavbarBrand,
@@ -10,12 +10,72 @@ import {
   NavbarMenu,
   NavbarMenuItem,
 } from '@nextui-org/navbar'
+import { socket } from '@/lib/socket'
 import { Link } from '@nextui-org/link'
 import { Button } from '@nextui-org/button'
 import { AcmeLogo } from './AcmeLogo'
 
+type LogStatus = 'open' | 'closed' 
+interface DoorValues {
+  status: LogStatus
+  armed: boolean
+}
+
+interface DoorEntries {
+  [key: string]: DoorValues
+}
+
+interface Example {
+  alarm: boolean
+  logs: {
+    [key: string]: DoorEntries | {}
+  }
+  issues:
+    | {
+        msg: string
+        time: Date
+      }[]
+    | [] // Update to allow for an empty array
+}
+
+// const example = {
+//   alarm: false,
+//   logs: {
+//     House: {
+//       'Back door': {
+//         status: 'closed',
+//       },
+//       'Dining room': {
+//         status: 'closed',
+//       },
+//       'Front door': {
+//         status: 'closed',
+//       },
+//       'Living room': {
+//         status: 'closed',
+//       },
+//     },
+//   },
+//   issues: [{ msg: 'test', time: new Date() }],
+// }
+
+type data = Example
+
 export default function App() {
+  const [data, setData] = useState<data>({} as data)
   const [isMenuOpen, setIsMenuOpen] = React.useState(false)
+
+  useEffect(() => {
+    function onData(value: data) {
+      setData(value)
+    }
+
+    socket.on('data', onData)
+
+    return () => {
+      socket.off('data', onData)
+    }
+  }, [])
 
 
   const menuItems = [
@@ -65,6 +125,7 @@ export default function App() {
         <NavbarItem>
         </NavbarItem>
         <NavbarItem>
+          
         </NavbarItem>
       </NavbarContent>
       <NavbarMenu>
