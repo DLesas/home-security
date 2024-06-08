@@ -85,8 +85,8 @@ relays = [
     },
 ]
 
-# ssid = "MillFarm_House_Yard"
-# password = "Matraville56!"
+# ssid = "Millfarm-House-LongRange"
+# password = "hARMLTPd7caeHf"
 ssid = "BT-P8A5PT"
 password = "hARMLTPd7caeHf"
 
