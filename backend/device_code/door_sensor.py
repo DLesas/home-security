@@ -85,8 +85,8 @@ relays = [
     },
 ]
 
-# ssid = "MillFarm_House_Yard"
-# password = "Matraville56!"
+# ssid = "***REMOVED_SSID***"
+# password = "***REMOVED_PASSWORD***"
 ssid = "***REMOVED_SSID***"
 password = "***REMOVED_PASSWORD***"
 

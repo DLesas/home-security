@@ -9,80 +9,6 @@ import select
 
 #switch = machine.Pin(22, machine.Pin.IN, machine.Pin.PULL_UP)
 relay = machine.Pin(22, machine.Pin.OUT)
-defaultPIs = [
-    {
-        "name": "[Pico] Dining room - French door",
-        "delay": 0.0,
-        "mac": "28-CD-C1-0F-33-3A",
-        "potentialIP": "192.168.1.111",
-        "location": "House",
-    },
-    {
-        "name": "[Pico] Living room - French door",
-        "delay": 0.0,
-        "mac": "28-CD-C1-0F-31-62",
-        "potentialIP": "192.168.1.241",
-        "location": "House",
-    },
-    {
-        "name": "[Pico] Back door",
-        "delay": 0.0,
-        "mac": "28-CD-C1-0F-34-5E",
-        "potentialIP": "192.168.1.191",
-        "location": "House",
-    },
-    {
-        "name": "[Pico] Front door",
-        "delay": 0.0,
-        "mac": "28-CD-C1-0F-2B-25",
-        "potentialIP": "192.168.1.75",
-        "location": "House",
-    },
-    # {
-    #     "name": "[Pico] Claude's door",
-    #     "delay": 0.3,
-    #     "mac": "28-CD-C1-0F-2B-26",
-    #     "potentialIP": "192.168.1.76",
-    #     'location': 'Stables',
-    # },
-    {
-        "name": "[Pico] Barn front door",
-        "delay": 0.0,
-        "mac": "28-CD-C1-0F-2B-79",
-        "potentialIP": "192.168.0.195",
-        'location': 'Stables',
-    },
-    # {
-    #     "name": "[Pico] Barn back door",
-    #     "delay": 0.3,
-    #     "mac": "28-CD-C1-0F-2B-28",
-    #     "potentialIP": "192.168.1.78",
-    #     'location': 'Stables',
-    # },
-    # {
-    #     "name": "[Pico] Shed door",
-    #     "delay": 0.3,
-    #     "mac": "28-CD-C1-0F-2B-29",
-    #     "potentialIP": "192.168.1.79",
-    #     'location': 'Shed',
-    # },
-    # {
-    #     "name": "[Pico] Garage door",
-    #     "delay": 0.3,
-    #     "mac": "28-CD-C1-0F-2B-2A",
-    #     "potentialIP": "192.168.1.80",
-    #     'location': 'Garage',
-    # },
-]
-
-relays = [
-     {
-         "name": "[Pico] Shed alarm",
-         "mac": "28-CD-C1-0F-34-B1",
-         "potentialIP": "192.168.1.84",
-         'location': 'Shed',
-     },
-]
 
 #ssid = "MillFarm_House_Yard"
 #password = "Matraville56!"
@@ -115,11 +41,6 @@ def connect():
     # Format MAC address
     mac_address = '-'.join('%02x' % b for b in mac).upper()
     print('my mac : ', mac_address)
-    deviceInfo = find_device(mac_address, relays)
-    if deviceInfo:
-        print('found my mac')
-        # Configure with static IP, subnet mask, gateway, and gateway (DNS)
-        wlan.ifconfig((deviceInfo['potentialIP'], config[1], config[2], config[3]))
     ip = wlan.ifconfig()[0]
     print(f"Connected on {ip}")
     return ip
