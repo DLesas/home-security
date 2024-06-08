@@ -25,6 +25,7 @@ interface Example {
     | {
         msg: string
         time: Date
+        id: string
       }[]
     | [] // Update to allow for an empty array
 }
@@ -192,7 +193,6 @@ export default function Index() {
     function onData(value: data) {
       setData(value)
     }
-
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
     socket.on('data', onData)
@@ -329,7 +329,9 @@ const LogCard: React.FC<LogCardProps> = ({
       <div className="flex flex-row justify-around">
         {buttons.map((button) => (
           <Button
-            variant={armStatus!.slice(0, -2) === button.name ? 'solid' : 'ghost'}
+            variant={
+              armStatus!.slice(0, -2) === button.name ? 'solid' : 'ghost'
+            }
             color={button.color as ButtonProps['color']}
             key={button.name}
             isLoading={button.loading}
