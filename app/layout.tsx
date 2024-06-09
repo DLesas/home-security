@@ -4,17 +4,25 @@ import { headers } from 'next/headers'
 import { Toaster } from 'react-hot-toast'
 import { Vollkorn } from 'next/font/google'
 import Navbar from '@/components/Navbar'
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  applicationName: "Dimitri's home security",
+  manifest: "/manifest.json", // we are accessing our manifest file here
+  title: 'Home security',
+  description:
+    'Home security system monitoring.',
+  icons: [
+    { rel: "apple-touch-icon", url: "/securityIcon.webp" },
+    { rel: "icon", url: "/securityIcon.webp" },
+  ],
+  // ... other options    
+};
 
 const VollkornFont = Vollkorn({
   subsets: ['latin'],
   variable: '--font-vollkorn',
 })
-
-export const metadata = {
-  title: 'Home security',
-  description:
-    'Home security system monitoring.',
-}
 
 export default function RootLayout({
   children,
