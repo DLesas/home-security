@@ -11,6 +11,12 @@ from alarm_funcs import turnOffAlarms, turnOnAlarms
 from devices import sensors
 from sensor_funcs import writeToFile
 
+VAPID_PUBLIC="BGaYMfU2J2yBlWchiwx_W4Jn6b-TwJisl8C-6z23y5qFSN_E2riZKjdbBhZs08PgfGYZeewCICCinGG4bscvzU4"
+VAPID_PRIVATE="WGibkvRHns3AH3qIfGHCpWOgVmFtb2jUFOlUBn5JnVc"
+VAPID_CLAIMS = {"sub": "mailto:***REMOVED_EMAIL***"}
+
+subscriptions = []
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -82,6 +88,12 @@ def create_app():
         time.sleep(1)
         turnOffAlarms()
         alarm = False
+        return {"success": True}
+    
+    @socketio.on("subscribe")
+    def subscribe(ev):
+        subscription = ev
+        subscriptions.append(subscription)
         return {"success": True}
 
     @socketio.on("dismiss")

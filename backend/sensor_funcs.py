@@ -3,14 +3,9 @@ import os
 from devices import sensors
 
 # import network_functions
-import requests
-import json
-import threading
-import time
 import numpy as np
 from typing import List
 from alarm_funcs import turnOnAlarms, turnOffAlarms
-import cv2
 
 
 fileDir = os.path.dirname(os.path.realpath(__file__))
