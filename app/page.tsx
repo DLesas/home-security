@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { Card, CardHeader } from '@nextui-org/card'
 import { socket } from '@/lib/socket'
 import { FaCircle, FaRegCircle } from 'react-icons/fa6'
+import usePushNotifications from './usePushNotifications'
+
 
 type LogStatus = 'open' | 'closed' // Define the possible log status values
 
@@ -115,6 +117,9 @@ export default function Index() {
   const [data, setData] = useState<data>({} as data)
   const [isConnected, setIsConnected] = useState(false)
   const armed = checkArmedState(countDoorEntries(data))
+
+  const publicVapidKey = process.env.VAPID_PUBLIC!;
+  usePushNotifications(publicVapidKey);
 
   // async function test(callback: () => void) {
   //   // send a request to '192.168.5.157' + ':5000' + '/test'
