@@ -10,9 +10,10 @@ import hashlib
 from alarm_funcs import turnOffAlarms, turnOnAlarms
 from devices import sensors
 from sensor_funcs import writeToFile
+from pywebpush import webpush, WebPushException
 
-VAPID_PUBLIC="BGaYMfU2J2yBlWchiwx_W4Jn6b-TwJisl8C-6z23y5qFSN_E2riZKjdbBhZs08PgfGYZeewCICCinGG4bscvzU4"
-VAPID_PRIVATE="WGibkvRHns3AH3qIfGHCpWOgVmFtb2jUFOlUBn5JnVc"
+VAPID_PUBLIC = "BGaYMfU2J2yBlWchiwx_W4Jn6b-TwJisl8C-6z23y5qFSN_E2riZKjdbBhZs08PgfGYZeewCICCinGG4bscvzU4"
+VAPID_PRIVATE = "WGibkvRHns3AH3qIfGHCpWOgVmFtb2jUFOlUBn5JnVc"
 VAPID_CLAIMS = {"sub": "mailto:dlesas@hotmail.com"}
 
 subscriptions = []
@@ -48,6 +49,35 @@ base_obj = {
 def hash_data(data):
     """Hash the given data for efficient comparison."""
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
+
+
+def raise_issue(title: str, body: str, time: str, id: str):
+    global subscriptions, VAPID_PRIVATE, issues
+    issues.append(
+        {
+            "msg": body,
+            "time": time,
+            "id": id,
+        }
+    )
+    for subscription in subscriptions:
+        try:
+            webpush(
+                subscription_info=subscription,
+                data=json.dumps({"title": title, "body": body}),
+                vapid_private_key=VAPID_PRIVATE,
+                vapid_claims=VAPID_CLAIMS,
+            )
+        except WebPushException as ex:
+            print("I'm sorry, Dave, but I can't do that: {}", repr(ex))
+            if ex.response and ex.response.json():
+                extra = ex.response.json()
+                print(
+                    "Remote service replied with a {}:{}, {}",
+                    extra.code,
+                    extra.errno,
+                    extra.message,
+                )
 
 
 def create_app():
@@ -89,9 +119,10 @@ def create_app():
         turnOffAlarms()
         alarm = False
         return {"success": True}
-    
+
     @socketio.on("subscribe")
     def subscribe(ev):
+        global subscriptions
         subscription = ev
         subscriptions.append(subscription)
         return {"success": True}
@@ -159,12 +190,11 @@ def handle_issues(res_json, name, loc):
         issues = list(filter(lambda x: x["id"] != f"response_{name}_{loc}", issues))
 
     if res_json["temperature"] > 50:
-        issues.append(
-            {
-                "msg": f"Sensor by the {name} at {loc} is running hot (>50C), please check it",
-                "time": pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
-                "id": f"hot_{name}_{loc}",
-            }
+        raise_issue(
+            "Sensor running hot",
+            f"Sensor by the {name} at {loc} is running hot (>50C), please check it",
+            pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
+            f"hot_{name}_{loc}",
         )
 
     alarm_id_exists = any(d["id"] == f"alarm_{name}_{loc}" for d in issues)
@@ -172,12 +202,11 @@ def handle_issues(res_json, name, loc):
         logger.info(f"{name} at {loc} is open")
         turnOnAlarms()
         alarm = True
-        issues.append(
-            {
-                "msg": f"Alarm triggered by {name} at {loc}",
-                "time": pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
-                "id": f"alarm_{name}_{loc}",
-            }
+        raise_issue(
+            "Alarm triggered!",
+            f"Alarm triggered by {name} at {loc} at {pd.to_datetime('now').strftime('%d-%m-%Y %H:%M:%S')}",
+            pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
+            f"alarm_{name}_{loc}",
         )
     elif alarm_id_exists:
         alarm_obj = next(filter(lambda x: x["id"] == f"alarm_{name}_{loc}", issues))
@@ -189,12 +218,11 @@ def handle_issues(res_json, name, loc):
         ):
             turnOffAlarms()
             alarm = False
-            issues.append(
-                {
-                    "msg": f"Alarm automatically turned off after 30 seconds since {name} at {loc} was closed",
-                    "time": pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
-                    "id": f"cleared_{name}_{loc}",
-                }
+            raise_issue(
+                "Alarm turned off automatically",
+                f"Alarm automatically turned off after 30 seconds since {name} at {loc} was closed at {pd.to_datetime('now').strftime('%d-%m-%Y %H:%M:%S')}",
+                pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
+                f"cleared_{name}_{loc}",
             )
 
 
@@ -212,13 +240,7 @@ def handle_exception(e, sensor_dict):
     ):
         id_exists = any(d["id"] == f"response_{name}_{loc}" for d in issues)
         if not id_exists:
-            issues.append(
-                {
-                    "msg": f"No response from {name} at {loc} for a while, please contact Dimitri",
-                    "time": pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
-                    "id": f"response_{name}_{loc}",
-                }
-            )
+            raise_issue("Sensor having connectivity issues", f"No response from {name} at {loc} for a while, please contact Dimitri", pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"), f"response_{name}_{loc}")
     logger.error(f"Got the following for {name} at {loc}: {e}")
     time.sleep(0.5)
 
