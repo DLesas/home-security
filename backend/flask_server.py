@@ -61,6 +61,8 @@ def raise_issue(title: str, body: str, time: str, id: str):
         }
     )
     for subscription in subscriptions:
+        for i in range(20):
+            print('raising')
         try:
             webpush(
                 subscription_info=subscription,
@@ -84,7 +86,7 @@ def create_app():
     """Create and configure the Flask application."""
     app = Flask(__name__)
     socketio = SocketIO(
-        app, cors_allowed_origins="*", logger=True, async_mode="threading"
+        app, cors_allowed_origins="*", async_mode="threading"
     )
 
     @socketio.on("arm/building")
@@ -125,6 +127,7 @@ def create_app():
         global subscriptions
         subscription = ev
         subscriptions.append(subscription)
+        print(subscriptions)
         return {"success": True}
 
     @socketio.on("dismiss")
