@@ -1,0 +1,20 @@
+{
+    "id": "Security System",
+    "name": "Security System",
+    "short_name": "Security System",
+    "description": "Dimitri's Security System.",
+    "icons": [
+      {
+        "src": "securityIcon.webp",
+        "sizes": "144x144",
+        "type": "image/webp",
+        "purpose": "maskable any"
+      }
+    ],
+    "theme_color": "#FFFFFF",
+    "background_color": "#FFFFFF",
+    "start_url": "/",
+    "scope": ".",
+    "display": "standalone",
+    "orientation": "portrait"
+  }

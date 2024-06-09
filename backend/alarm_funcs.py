@@ -20,13 +20,13 @@ def turnOffAlarms():
 def turnOnAlarms():
     for alarm in alarms:
         print("alarm on")
-        # ip = alarm["potentialIP"]
-        # ret = 0
-        # while ret == 0:
-        #     res = r.get(f"http://{ip}" + "/alarm/on")
-        #     try:
-        #         retu = res.json()
-        #         print(retu)
-        #         ret = retu["state"]
-        #     except Exception as e:
-        #         print(e)
+        ip = alarm["potentialIP"]
+        ret = 0
+        while ret == 0:
+            res = r.get(f"http://{ip}" + "/alarm/on")
+            try:
+                retu = res.json()
+                print(retu)
+                ret = retu["state"]
+            except Exception as e:
+                print(e)
