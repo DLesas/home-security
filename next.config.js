@@ -9,7 +9,7 @@ const withPWA = require("@ducanh2912/next-pwa").default({
   /** @type {import('next').NextConfig} */
   const nextConfig = {
     reactStrictMode: true,      // Enable React strict mode for improved error handling
-    swcMinify: true, 
+    swcMinify: true,
   };
   
   module.exports = withPWA(nextConfig);
