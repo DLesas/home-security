@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import {
   Navbar,
   NavbarBrand,
@@ -11,18 +11,13 @@ import {
   NavbarMenuItem,
 } from '@nextui-org/navbar'
 import { Badge } from '@nextui-org/badge'
-import { socket } from '@/lib/socket'
 import { Link } from '@nextui-org/link'
 import { Button } from '@nextui-org/button'
-import { AcmeLogo } from './AcmeLogo'
+import { AcmeLogo } from '../components/AcmeLogo'
 import { MdNotifications } from 'react-icons/md'
-import {
-  Dropdown,
-  DropdownTrigger,
-  DropdownMenu,
-  DropdownItem,
-} from '@nextui-org/dropdown'
 import { Popover, PopoverTrigger, PopoverContent } from '@nextui-org/popover'
+import { useSocket } from './socketInitializer'
+import { useSocketData } from './socketData'
 
 type LogStatus = 'open' | 'closed'
 interface DoorValues {
@@ -48,38 +43,26 @@ interface Example {
     | [] // Update to allow for an empty array
 }
 
-// const example = {
-//   alarm: false,
-//   logs: {
-//     House: {
-//       'Back door': {
-//         status: 'closed',
-//       },
-//       'Dining room': {
-//         status: 'closed',
-//       },
-//       'Front door': {
-//         status: 'closed',
-//       },
-//       'Living room': {
-//         status: 'closed',
-//       },
-//     },
-//   },
-//   issues: [{ msg: 'test', time: new Date() }],
-// }
+type Data = Example
 
-type data = Example
-
-function dismiss(callback: () => void, subject: String) {
-  // send a request to '192.168.5.157' + ':5000' + '/arm')
-  socket.timeout(5000).emit('dismiss', subject, callback)
+function dismiss(socket: any, callback: () => void, subject: string) {
+  if (socket) {
+    socket.timeout(5000).emit('dismiss', subject, callback)
+  }
 }
 
-function Notifications({ data }: { data: data }) {
+function Notifications({ data }: { data: Data }) {
+  const socket = useSocket()
+
   return (
     <Badge
-      content={data.issues ? data.issues.length > 0? data.issues.length : undefined: undefined}
+      content={
+        data.issues
+          ? data.issues.length > 0
+            ? data.issues.length
+            : undefined
+          : undefined
+      }
       shape="circle"
       color="danger"
     >
@@ -96,40 +79,21 @@ function Notifications({ data }: { data: data }) {
           <div className="flex flex-col gap-4">
             {data.issues
               ? data.issues.map((issue) => (
-                  <div className="flex flex-row justify-between gap-4 items-center">
+                  <div
+                    className="flex flex-row items-center justify-between gap-4"
+                    key={issue.id}
+                  >
                     <div className="whitespace-break-spaces">{issue.msg}</div>
-                    <Button size="sm" onClick={() => dismiss(() => {}, issue.id)}>dismiss</Button>
+                    <Button
+                      size="sm"
+                      onClick={() => dismiss(socket, () => {}, issue.id)}
+                    >
+                      dismiss
+                    </Button>
                   </div>
                 ))
               : null}
           </div>
-          {/* <DropdownItem key="new" shortcut="⌘N" description="Create a new file">
-            New file
-          </DropdownItem>
-          <DropdownItem
-            key="copy"
-            shortcut="⌘C"
-            description="Copy the file link"
-          >
-            Copy link
-          </DropdownItem>
-          <DropdownItem
-            key="edit"
-            shortcut="⌘⇧E"
-            showDivider
-            description="Allows you to edit the file"
-          >
-            Edit file
-          </DropdownItem>
-          <DropdownItem
-            key="delete"
-            className="text-danger"
-            color="danger"
-            shortcut="⌘⇧D"
-            description="Permanently delete the file"
-          >
-            Delete file
-          </DropdownItem> */}
         </PopoverContent>
       </Popover>
     </Badge>
@@ -137,20 +101,8 @@ function Notifications({ data }: { data: data }) {
 }
 
 export default function App() {
-  const [data, setData] = useState<data>({} as data)
+  const { data, isConnected } = useSocketData()
   const [isMenuOpen, setIsMenuOpen] = React.useState(false)
-
-  useEffect(() => {
-    function onData(value: data) {
-      setData(value)
-    }
-
-    socket.on('data', onData)
-
-    return () => {
-      socket.off('data', onData)
-    }
-  }, [])
 
   const menuItems = [
     'Profile',
@@ -198,7 +150,7 @@ export default function App() {
       <NavbarContent justify="end">
         <NavbarItem></NavbarItem>
         <NavbarItem>
-          <Notifications data={data}></Notifications>
+          <Notifications data={data} />
         </NavbarItem>
       </NavbarContent>
       <NavbarMenu>
