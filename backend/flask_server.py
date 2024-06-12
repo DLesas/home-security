@@ -7,7 +7,7 @@ import pandas as pd
 import requests
 import json
 import hashlib
-from alarm_funcs import turnOffAlarms, turnOnAlarms
+from alarm_funcs import turnOffAlarms, turnOnAlarms, send_mail
 from devices import sensors
 from sensor_funcs import writeToFile
 from pywebpush import webpush, WebPushException
@@ -66,14 +66,7 @@ def send_email_thread():
         pythoncom.CoUninitialize()
 
 
-def send_mail(body: str, subject: str):
-    # Ensure the Outlook object is created in the current thread context
-    outlook = win32.Dispatch("outlook.application")
-    mail = outlook.CreateItem(0)
-    mail.To = "dlesas@hotmail.com"
-    mail.Subject = subject
-    mail.Body = body
-    mail.Send()
+
 
 
 def hash_data(data):
