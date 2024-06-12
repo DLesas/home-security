@@ -12,7 +12,6 @@ from devices import sensors
 from sensor_funcs import writeToFile
 from pywebpush import webpush, WebPushException
 import win32com.client as win32
-import threading
 import queue
 import pythoncom
 

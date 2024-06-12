@@ -1,23 +1,25 @@
+// app/layout.tsx
 import './globals.css'
 import { Providers } from './providers'
 import { headers } from 'next/headers'
 import { Toaster } from 'react-hot-toast'
 import { Vollkorn } from 'next/font/google'
-import Navbar from '@/components/Navbar'
-import { Metadata } from "next";
+import { Metadata } from 'next'
+import SocketInitializer from './socketInitializer'
+import { SocketDataProvider } from './socketData'
+import Navbar from './Navbar'
 
 export const metadata: Metadata = {
   applicationName: "Dimitri's home security",
-  manifest: "/manifest.json", // we are accessing our manifest file here
+  manifest: '/manifest.json',
   title: 'Home security',
-  description:
-    'Home security system monitoring.',
+  description: 'Home security system monitoring.',
   icons: [
-    { rel: "apple-touch-icon", url: "/securityIcon.webp" },
-    { rel: "icon", url: "/securityIcon.webp" },
+    { rel: 'apple-touch-icon', url: '/securityIcon.webp' },
+    { rel: 'icon', url: '/securityIcon.webp' },
   ],
-  // ... other options    
-};
+  // ... other options
+}
 
 const VollkornFont = Vollkorn({
   subsets: ['latin'],
@@ -29,14 +31,17 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-
   return (
     <html lang="en" className="bg-background text-foreground theme-blue-dark">
       <body className={`${VollkornFont.variable} font-sans`}>
         <Providers>
-          <Toaster position="bottom-right" reverseOrder={false}></Toaster>
-          <Navbar></Navbar>
-          {children}
+          <Toaster position="bottom-right" reverseOrder={false} />
+          <SocketInitializer>
+            <SocketDataProvider>
+              <Navbar></Navbar>
+              {children}
+            </SocketDataProvider>
+          </SocketInitializer>
         </Providers>
       </body>
     </html>
