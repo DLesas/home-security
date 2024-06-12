@@ -30,3 +30,13 @@ def turnOnAlarms():
                 ret = retu["state"]
             except Exception as e:
                 print(e)
+
+def send_mail(body: str, subject: str):
+    # Ensure the Outlook object is created in the current thread context
+    outlook = win32.Dispatch("outlook.application")
+    mail = outlook.CreateItem(0)
+    mail.To = "dlesas@hotmail.com; deborah@leabeater.co.uk; david.leabeater57@icloud.com; victoria.leabeater@gmail.com"
+    mail.Subject = subject
+    mail.Body = body
+    mail.Send()
+
