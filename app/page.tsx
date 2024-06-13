@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { useSocket } from './socketInitializer'
 
 const vpnIP = '100.77.41.71'
-const homeIP = '192.168.226.94' //'192.168.0.126'
+//const homeIP = '192.168.226.94' //'192.168.0.126'
+const homeIP = '192.168.0.116'
 
 export default function SelectSocket() {
   const router = useRouter()
