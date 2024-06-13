@@ -1,9 +1,9 @@
 const withPWA = require('@ducanh2912/next-pwa').default({
   dest: 'public',
   reloadOnOnline: true,
-  register: true, // register the PWA service worker
+  //register: true, // register the PWA service worker
   skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development',
+  //disable: process.env.NODE_ENV === 'development',
   // ... other options you like
 })
 
@@ -16,4 +16,4 @@ const nextConfig = {
 module.exports = withPWA(nextConfig)
 
 
-module.exports = nextConfig
+//module.exports = nextConfig
