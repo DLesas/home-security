@@ -7,11 +7,11 @@ import pandas as pd
 import requests
 import json
 import hashlib
-from alarm_funcs import turnOffAlarms, turnOnAlarms, send_mail
+from alarm_funcs import send_SMS, turnOffAlarms, turnOnAlarms, send_mail
 from devices import sensors
-from sensor_funcs import writeToFile
+from logging_funcs import writeToFile,issuesToFile
 from pywebpush import webpush, WebPushException
-import win32com.client as win32
+
 import queue
 import pythoncom
 
@@ -82,7 +82,11 @@ def raise_issue(title: str, body: str, time: str, id: str, severity: str):
             "id": id,
         }
     )
-    email_queue.put({"body": body, "subject": title})
+    if severity == 'warning' or severity == 'critical':
+        email_queue.put({"body": body, "subject": title})
+    issuesToFile({"title": title, "body": body, "severity": severity})
+    if severity == 'critical':
+        send_SMS(body)
     # for subscription in subscriptions:
     #     for i in range(20):
     #         print("raising")
@@ -114,6 +118,7 @@ def create_app():
     def arm_building(ev):
         """Arm all sensors in the specified building."""
         global base_obj
+        print(f'arming {ev}')
         building = ev
         for door in base_obj[building].keys():
             base_obj[building][door]["armed"] = True
@@ -198,11 +203,12 @@ def sensor_work(args):
                 name, {"status": status, "armed": False}
             )
             base_obj[loc][name]["status"] = status
-            # writeToFile(log, name)
+            writeToFile(log, name)
             handle_issues(res_json, name, loc)
             time.sleep(sensor_dict["delay"])
         except Exception as e:
             handle_exception(e, sensor_dict)
+            print(f'issue for {name} at {loc}: {e}')
 
 
 def handle_issues(res_json, name, loc):
@@ -219,12 +225,12 @@ def handle_issues(res_json, name, loc):
             f"Sensor by the {name} at {loc} is running hot (>50C), please check it",
             pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
             f"hot_{name}_{loc}",
-            severity="critical",
+            severity="warning",
         )
 
     alarm_id_exists = any(d["id"] == f"alarm_{name}_{loc}" for d in issues)
     if res_json["door_state"] == "open" and base_obj[loc][name]["armed"] and not alarm:
-        logger.info(f"{name} at {loc} is open")
+        logger.info(f"{name} at {loc} is open, alarm triggered!")
         turnOnAlarms()
         alarm = True
         raise_issue(
@@ -272,7 +278,7 @@ def handle_exception(e, sensor_dict):
                 f"No response from {name} at {loc} for a while, please contact Dimitri",
                 pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
                 f"response_{name}_{loc}",
-                severity="warning",
+                severity="debug",
             )
     # logger.error(f"Got the following for {name} at {loc}: {e}")
     time.sleep(0.5)
