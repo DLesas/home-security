@@ -52,7 +52,7 @@ function dismiss(socket: any, callback: () => void, subject: string) {
 }
 
 function Notifications({ data }: { data: Data }) {
-  const socket = useSocket()
+  const {socket} = useSocket()
 
   return (
     <Badge

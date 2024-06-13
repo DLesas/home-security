@@ -1,0 +1,24 @@
+title,body,severity,date
+Alarm triggered!,Alarm triggered by Front door at House at 12-06-2024 19:52:59,critical,12-06-2024 19:52:59
+title,body,severity,date
+Alarm triggered!,Alarm triggered by Front door at House at 12-06-2024 19:55:38,critical,12-06-2024 19:55:38
+title,body,severity,date
+Alarm triggered!,Alarm triggered by Front door at House at 12-06-2024 20:54:49,critical,12-06-2024 20:54:49
+title,body,severity,date
+Alarm triggered!,Alarm triggered by Front door at Garage at 12-06-2024 20:57:58,critical,12-06-2024 20:57:58
+title,body,severity,date
+Sensor having connectivity issues,"No response from Front door at Garage for a while, please contact Dimitri",warning,12-06-2024 23:15:47
+title,body,severity,date
+Sensor having connectivity issues,"No response from Living room at House for a while, please contact Dimitri",warning,12-06-2024 23:15:47
+title,body,severity,date
+Sensor having connectivity issues,"No response from Dining room at House for a while, please contact Dimitri",warning,12-06-2024 23:16:06
+title,body,severity,date
+Sensor having connectivity issues,"No response from Back door at House for a while, please contact Dimitri",warning,12-06-2024 23:16:07
+title,body,severity,date
+Sensor having connectivity issues,"No response from Living room at House for a while, please contact Dimitri",warning,12-06-2024 23:22:12
+title,body,severity,date
+Sensor having connectivity issues,"No response from Dining room at House for a while, please contact Dimitri",warning,12-06-2024 23:22:12
+title,body,severity,date
+Sensor having connectivity issues,"No response from Front door at Garage for a while, please contact Dimitri",warning,12-06-2024 23:22:12
+title,body,severity,date
+Sensor having connectivity issues,"No response from Back door at House for a while, please contact Dimitri",warning,12-06-2024 23:22:12
