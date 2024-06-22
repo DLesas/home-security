@@ -226,9 +226,10 @@ const LogCard: React.FC<LogCardProps> = ({
                   // @ts-ignore
                   data.logs[logKey][key2].status === 'open' ? (
                     <span className="text-danger-400">Open</span>
-                  ) : (
+                    // @ts-ignore
+                  ) : data.logs[logKey][key2].status === 'closed' ? (
                     <span className="text-success-400">Closed</span>
-                  )
+                  ) : <span className="text-gray-400">Unknown</span>
                 }
               </div>
             </div>
