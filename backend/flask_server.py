@@ -207,11 +207,12 @@ def sensor_work(args):
             handle_issues(res_json, name, loc)
             time.sleep(sensor_dict["delay"])
         except Exception as e:
+            timeOfIssue = pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S")
             name = sensor_dict["name"].split("] ")[1]
             loc = sensor_dict["location"]
             handle_exception(e, sensor_dict)
             base_obj[loc][name]["status"] = 'unknown'
-            print(f'issue for {name} at {loc}: {e}')
+            print(f'{timeOfIssue}: issue for {name} at {loc}: {e}')
 
 
 def handle_issues(res_json, name, loc):
