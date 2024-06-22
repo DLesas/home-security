@@ -292,7 +292,6 @@ def handle_exception(e, sensor_dict):
                 severity="debug",
             )
     # logger.error(f"Got the following for {name} at {loc}: {e}")
-    time.sleep(0.5)
 
 
 def start_sensor_threads(socketio):
