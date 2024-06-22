@@ -84,7 +84,7 @@ def raise_issue(title: str, body: str, time: str, id: str, severity: str):
     )
     if severity == 'warning' or severity == 'critical':
         email_queue.put({"body": body, "subject": title})
-    issuesToFile({"title": title, "body": body, "severity": severity})
+    issuesToFile({"title": title, "body": body, "severity": severity, 'id': id})
     if severity == 'critical':
         send_SMS(body)
     # for subscription in subscriptions:
@@ -207,7 +207,10 @@ def sensor_work(args):
             handle_issues(res_json, name, loc)
             time.sleep(sensor_dict["delay"])
         except Exception as e:
+            name = sensor_dict["name"].split("] ")[1]
+            loc = sensor_dict["location"]
             handle_exception(e, sensor_dict)
+            base_obj[loc][name]["status"] = 'unknown'
             print(f'issue for {name} at {loc}: {e}')
 
 
@@ -218,6 +221,13 @@ def handle_issues(res_json, name, loc):
     id_exists = any(d["id"] == f"response_{name}_{loc}" for d in issues)
     if id_exists:
         issues = list(filter(lambda x: x["id"] != f"response_{name}_{loc}", issues))
+        raise_issue(
+            "Connection to Sensor restored",
+            f"Connection to {name} at {loc} restored",
+            pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
+            f"!response_{name}_{loc}",
+            severity="debug",
+        )
 
     if res_json["temperature"] > 50:
         raise_issue(
