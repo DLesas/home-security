@@ -33,6 +33,7 @@ latest_log_timing = {}
 issues = []
 alarm = False
 sent = None
+timeWithoutStatusRaiseIssueInS = 10
 
 # Initial sensor states
 base_obj = {
@@ -277,10 +278,10 @@ def handle_exception(e, sensor_dict):
     loc = sensor_dict["location"]
     if f"{loc}_{name}" not in latest_log_timing:
         latest_log_timing[f"{loc}_{name}"] = pd.to_datetime("now") - timedelta(
-            seconds=30
+            seconds=timeWithoutStatusRaiseIssueInS
         )
     if latest_log_timing[f"{loc}_{name}"] < pd.to_datetime("now") - timedelta(
-        seconds=30
+        seconds=timeWithoutStatusRaiseIssueInS
     ):
         id_exists = any(d["id"] == f"response_{name}_{loc}" for d in issues)
         if not id_exists:
