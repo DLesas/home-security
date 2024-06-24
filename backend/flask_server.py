@@ -148,11 +148,16 @@ def create_app():
         """Disarm all sensors in the specified building and turn off alarms."""
         global base_obj, alarm
         building = ev
+        if alarm == True:
+            for building in base_obj.keys():
+                for door in base_obj[building].keys():
+                    base_obj[building][door]["armed"] = False
+        else:
+            for door in base_obj[building].keys():
+                base_obj[building][door]["armed"] = False
         turnOffAlarms()
         alarm = False
         logger.info("Turned off alarms")
-        for door in base_obj[building].keys():
-            base_obj[building][door]["armed"] = False
         return {"success": True}
 
     @socketio.on("test")
