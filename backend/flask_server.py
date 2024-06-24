@@ -9,7 +9,7 @@ import json
 import hashlib
 from alarm_funcs import send_SMS, turnOffAlarms, turnOnAlarms, send_mail
 from devices import sensors
-from logging_funcs import writeToFile,issuesToFile
+from logging_funcs import writeToFile,issuesToFile, readIssueFile
 from pywebpush import webpush, WebPushException
 
 import queue
@@ -74,8 +74,30 @@ def hash_data(data):
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
 
 
-def raise_issue(title: str, body: str, time: str, id: str, severity: str):
+def raise_issue(title: str, body: str, time: str, id: str, severity: str, delayTillNextInSeconds: int):
     global subscriptions, VAPID_PRIVATE, issues
+    df = readIssueFile(pd.to_datetime('now'))
+    triggeredNotification = False
+    if df != None:
+        df["date"] = pd.to_datetime(df["date"])
+        df['TriggeredNotification'] = df['TriggeredNotification'].astype(bool) 
+        df = df.loc[(df['id'] == id) & (df['TriggeredNotification'] == True)]
+        df = df.sort_values(by='date', ascending=False)
+        if df.shape[0] > 0:
+            relevantIssue = df.iloc[0]
+            nextNotif = relevantIssue['date'] + timedelta(seconds=relevantIssue['delayTillNextInSeconds'])
+            allowNotif = pd.to_datetime('now') > nextNotif
+        else:
+            allowNotif = True
+    else:
+        allowNotif = True
+    if severity == 'critical' and allowNotif:
+        send_SMS(body)
+        triggeredNotification = True
+    if (severity == 'warning' or severity == 'critical') and allowNotif:
+        email_queue.put({"body": body, "subject": title})
+        triggeredNotification = True
+    #next = (pd.to_datetime(time, infer_datetime_format=True) + timedelta(seconds=delayTillNextInSeconds)).strftime('%d-%m-%Y %H:%M:%S')
     issues.append(
         {
             "msg": body,
@@ -83,11 +105,7 @@ def raise_issue(title: str, body: str, time: str, id: str, severity: str):
             "id": id,
         }
     )
-    if severity == 'warning' or severity == 'critical':
-        email_queue.put({"body": body, "subject": title})
-    issuesToFile({"title": title, "body": body, "severity": severity, 'id': id})
-    if severity == 'critical':
-        send_SMS(body)
+    issuesToFile({"title": title, "body": body, "severity": severity, 'id': id, 'delayTillNextInSeconds': delayTillNextInSeconds, 'TriggeredNotification': triggeredNotification})
     # for subscription in subscriptions:
     #     for i in range(20):
     #         print("raising")
@@ -229,16 +247,27 @@ def handle_issues(res_json, name, loc):
             pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
             f"!response_{name}_{loc}",
             severity="debug",
+            delayTillNextInSeconds=0
         )
-
-    if res_json["temperature"] > 50:
+    if res_json["temperature"] > 75:
+        raise_issue(
+            "Sensor running very hot"
+            f"Sensor by the {name} at {loc} is running very hot ({int(res_json["temperature"])}C), please check it. These devices are rated to work between -20C and 80C. This was detected at {pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S")}.",
+            pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
+            f"75_{name}_{loc}",
+            severity="critical",
+            delayTillNextInSeconds=(60 * 10)
+        ) 
+    elif res_json["temperature"] > 60:
         raise_issue(
             "Sensor running hot",
-            f"Sensor by the {name} at {loc} is running hot (>50C), please check it",
+            f"Sensor by the {name} at {loc} is running hot ({int(res_json["temperature"])}C), please check it. These devices are rated to work between -20C and 80C. This was detected at {pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S")}.",
             pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
-            f"hot_{name}_{loc}",
+            f"65_{name}_{loc}",
             severity="warning",
+            delayTillNextInSeconds=(60 * 60)
         )
+    
 
     alarm_id_exists = any(d["id"] == f"alarm_{name}_{loc}" for d in issues)
     if res_json["door_state"] == "open" and base_obj[loc][name]["armed"] and not alarm:
@@ -251,6 +280,7 @@ def handle_issues(res_json, name, loc):
             pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
             f"alarm_{name}_{loc}",
             severity="critical",
+            delayTillNextInSeconds=0
         )
     elif alarm_id_exists:
         alarm_obj = next(filter(lambda x: x["id"] == f"alarm_{name}_{loc}", issues))
@@ -268,6 +298,7 @@ def handle_issues(res_json, name, loc):
                 pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
                 f"cleared_{name}_{loc}",
                 severity="info",
+                delayTillNextInSeconds=0
             )
 
 
@@ -291,6 +322,7 @@ def handle_exception(e, sensor_dict):
                 pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
                 f"response_{name}_{loc}",
                 severity="debug",
+                delayTillNextInSeconds=0
             )
     # logger.error(f"Got the following for {name} at {loc}: {e}")
 
