@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 from devices import sensors
-
+import datetime
 # import network_functions
 import numpy as np
 from typing import List
@@ -45,3 +45,11 @@ def issuesToFile(data:dict):
         header=(not os.path.exists(filename)),
         index=False,
     )
+
+def readIssueFile(date: datetime) -> pd.DataFrame | None:
+    date.strftime("%d_%m_%Y")
+    filename = os.path.join(issuesFolder, f'{date}.csv')
+    if os.path.exists(filename):
+        return pd.read_csv(filename)
+    else:
+        return None
