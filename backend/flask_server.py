@@ -97,7 +97,6 @@ def raise_issue(title: str, body: str, time: str, id: str, severity: str, delayT
     if (severity == 'warning' or severity == 'critical') and allowNotif:
         email_queue.put({"body": body, "subject": title})
         triggeredNotification = True
-    #next = (pd.to_datetime(time, infer_datetime_format=True) + timedelta(seconds=delayTillNextInSeconds)).strftime('%d-%m-%Y %H:%M:%S')
     issues.append(
         {
             "msg": body,
@@ -148,7 +147,7 @@ def create_app():
         """Disarm all sensors in the specified building and turn off alarms."""
         global base_obj, alarm
         building = ev
-        if alarm == True:
+        if alarm:
             for building in base_obj.keys():
                 for door in base_obj[building].keys():
                     base_obj[building][door]["armed"] = False
