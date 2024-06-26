@@ -265,8 +265,21 @@ const LogCard: React.FC<LogCardProps> = ({ logKey, data, arm, disarm }) => {
                 )
               )
               // @ts-ignore
-              buildingOpen === 'open' || buildingOpen === 'unknown'
-                ? onOpen()
+              // TODO: clear up this mess!
+              button.name === 'Arm'
+                ? buildingOpen === 'open' || buildingOpen === 'unknown'
+                  ? onOpen()
+                  : button.function(
+                      () =>
+                        setButtons((prevButtons) =>
+                          prevButtons.map((btn) =>
+                            btn.name === button.name
+                              ? { ...btn, loading: false }
+                              : btn
+                          )
+                        ),
+                      logKey
+                    )
                 : button.function(
                     () =>
                       setButtons((prevButtons) =>
@@ -301,14 +314,25 @@ const LogCard: React.FC<LogCardProps> = ({ logKey, data, arm, disarm }) => {
                 ) : (
                   <p>
                     A door in the {logKey} is currently in an unknown state, if
-                    you arm this building and the door turns to be open (once it
-                    starts responding again) this will trigger the alarm. Are
+                    you arm this building and the door turns out to be open (once it
+                    starts responding again) it will trigger the alarm. Are
                     you sure you wish to continue?
                   </p>
                 )}
               </ModalBody>
               <ModalFooter>
-                <Button color="danger" variant="light" onPress={onClose}>
+                <Button
+                  color="danger"
+                  variant="light"
+                  onPress={() => {
+                    setButtons((prevButtons) =>
+                      prevButtons.map((btn) =>
+                        btn.name === 'Arm' ? { ...btn, loading: false } : btn
+                      )
+                    )
+                    onClose()
+                  }}
+                >
                   Go back
                 </Button>
                 <Button
