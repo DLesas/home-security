@@ -7,6 +7,14 @@ import { FaCircle, FaRegCircle } from 'react-icons/fa6'
 // import usePushNotifications from './usePushNotifications'
 import { useSocket } from '../socketInitializer'
 import { useSocketData } from '../socketData'
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  useDisclosure,
+} from '@nextui-org/modal'
 
 type LogStatus = 'open' | 'closed'
 
@@ -54,6 +62,20 @@ function countDoorEntriesBuilding(
   return { armed: armedCount, disarmed: disarmedCount }
 }
 
+function checkBuildingOpen(data: Data, building: string) {
+  for (const door in data.logs[building]) {
+    // @ts-ignore
+    if (data.logs[building][door].status == 'open') {
+      return 'open' as const
+    }
+    // @ts-ignore
+    if (data.logs[building][door].status == 'unknown') {
+      return 'unknown' as const
+    }
+  }
+  return 'closed' as const
+}
+
 function countDoorEntries(data: Data): { armed: number; disarmed: number } {
   let armedCount = 0
   let disarmedCount = 0
@@ -95,7 +117,7 @@ function checkArmedState({
 
 export default function Index() {
   const { data, isConnected } = useSocketData()
-  const {socket} = useSocket()
+  const { socket } = useSocket()
   const armed = checkArmedState(countDoorEntries(data))
 
   const publicVapidKey = process.env.VAPID_PUBLIC!
@@ -160,8 +182,6 @@ export default function Index() {
                     key={key}
                     logKey={key}
                     data={data}
-                    checkArmedState={checkArmedState}
-                    countDoorEntriesBuilding={countDoorEntriesBuilding}
                     arm={arm}
                     disarm={disarm}
                   />
@@ -177,25 +197,17 @@ export default function Index() {
 type LogCardProps = {
   logKey: string
   data: Example
-  checkArmedState: typeof checkArmedState
-  countDoorEntriesBuilding: typeof countDoorEntriesBuilding
   arm: (callback: () => void, subject: String) => void
   disarm: (callback: () => void, subject: String) => void
 }
 
-const LogCard: React.FC<LogCardProps> = ({
-  logKey,
-  data,
-  checkArmedState,
-  countDoorEntriesBuilding,
-  arm,
-  disarm,
-}) => {
+const LogCard: React.FC<LogCardProps> = ({ logKey, data, arm, disarm }) => {
+  const buildingOpen = checkBuildingOpen(data, logKey)
   const [buttons, setButtons] = useState([
     { name: 'Arm', loading: false, color: 'danger', function: arm },
     { name: 'Disarm', loading: false, color: 'success', function: disarm },
   ])
-
+  const { isOpen, onOpen, onOpenChange } = useDisclosure()
   const armStatus = checkArmedState(countDoorEntriesBuilding(data, logKey))
 
   const cardClassName =
@@ -226,10 +238,12 @@ const LogCard: React.FC<LogCardProps> = ({
                   // @ts-ignore
                   data.logs[logKey][key2].status === 'open' ? (
                     <span className="text-danger-400">Open</span>
-                    // @ts-ignore
-                  ) : data.logs[logKey][key2].status === 'closed' ? (
+                  ) : // @ts-ignore
+                  data.logs[logKey][key2].status === 'closed' ? (
                     <span className="text-success-400">Closed</span>
-                  ) : <span className="text-gray-400">Unknown</span>
+                  ) : (
+                    <span className="text-gray-400">Unknown</span>
+                  )
                 }
               </div>
             </div>
@@ -250,23 +264,77 @@ const LogCard: React.FC<LogCardProps> = ({
                   btn.name === button.name ? { ...btn, loading: true } : btn
                 )
               )
-              await button.function(
-                () =>
-                  setButtons((prevButtons) =>
-                    prevButtons.map((btn) =>
-                      btn.name === button.name
-                        ? { ...btn, loading: false }
-                        : btn
-                    )
-                  ),
-                logKey
-              )
+              // @ts-ignore
+              buildingOpen === 'open' || buildingOpen === 'unknown'
+                ? onOpen()
+                : button.function(
+                    () =>
+                      setButtons((prevButtons) =>
+                        prevButtons.map((btn) =>
+                          btn.name === button.name
+                            ? { ...btn, loading: false }
+                            : btn
+                        )
+                      ),
+                    logKey
+                  )
             }}
           >
             {armStatus!.slice(0, -2) === button.name ? armStatus : button.name}
           </Button>
         ))}
       </div>
+      <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                {logKey} is currently in an {buildingOpen} state
+              </ModalHeader>
+              <ModalBody>
+                {buildingOpen === 'open' ? (
+                  <p>
+                    A door in the {logKey} is currently open, arming this
+                    building will cause the alarm to go off. Are you sure you
+                    wish to continue?
+                  </p>
+                ) : (
+                  <p>
+                    A door in the {logKey} is currently in an unknown state, if
+                    you arm this building and the door turns to be open (once it
+                    starts responding again) this will trigger the alarm. Are
+                    you sure you wish to continue?
+                  </p>
+                )}
+              </ModalBody>
+              <ModalFooter>
+                <Button color="danger" variant="light" onPress={onClose}>
+                  Go back
+                </Button>
+                <Button
+                  color="primary"
+                  onPress={() => {
+                    buttons[0].function(
+                      () =>
+                        setButtons((prevButtons) =>
+                          prevButtons.map((btn) =>
+                            btn.name === buttons[0].name
+                              ? { ...btn, loading: false }
+                              : btn
+                          )
+                        ),
+                      logKey
+                    )
+                    onClose()
+                  }}
+                >
+                  Arm building
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </Card>
   )
 }
