@@ -322,7 +322,7 @@ const LogCard: React.FC<LogCardProps> = ({ logKey, data, arm, disarm }) => {
               </ModalBody>
               <ModalFooter>
                 <Button
-                  color="danger"
+                  color="primary"
                   variant="light"
                   onPress={() => {
                     setButtons((prevButtons) =>
@@ -336,7 +336,7 @@ const LogCard: React.FC<LogCardProps> = ({ logKey, data, arm, disarm }) => {
                   Go back
                 </Button>
                 <Button
-                  color="primary"
+                  color="danger"
                   onPress={() => {
                     buttons[0].function(
                       () =>
