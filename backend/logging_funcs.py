@@ -17,6 +17,7 @@ def writeToFile(data: dict,  building: str):
         os.makedirs(sensorFolder)
         print("created sensor log path")
     data["date"] = pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S")
+    data["microseconds"] = pd.to_datetime("now").strftime("%f")
     date = pd.to_datetime("now").strftime("%d_%m_%Y")
     filename = os.path.join(sensorFolder, f'{date + " " + building}.csv')
     df = pd.DataFrame(data, index=[0])
