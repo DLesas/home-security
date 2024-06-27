@@ -7,9 +7,14 @@ import pandas as pd
 import requests
 import json
 import hashlib
-from alarm_funcs import send_SMS, turnOffAlarms, turnOnAlarms, send_mail
+from alarm_funcs import (
+    send_SMS,
+    turnOffAlarmsUseCase,
+    turnOnAlarmsUseCase,
+    send_mail,
+)
 from devices import sensors
-from logging_funcs import writeToFile,issuesToFile, readIssueFile
+from logging_funcs import writeToFile, issuesToFile, readIssueFile
 from pywebpush import webpush, WebPushException
 
 import queue
@@ -66,35 +71,41 @@ def send_email_thread():
         pythoncom.CoUninitialize()
 
 
-
-
-
 def hash_data(data):
     """Hash the given data for efficient comparison."""
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
 
 
-def raise_issue(title: str, body: str, time: str, id: str, severity: str, delayTillNextInSeconds: int):
+def raise_issue(
+    title: str,
+    body: str,
+    time: str,
+    id: str,
+    severity: str,
+    delayTillNextInSeconds: int,
+):
     global subscriptions, VAPID_PRIVATE, issues
-    df = readIssueFile(pd.to_datetime('now'))
+    df = readIssueFile(pd.to_datetime("now"))
     triggeredNotification = False
-    if df != None:
+    if df is not None:
         df["date"] = pd.to_datetime(df["date"])
-        df['TriggeredNotification'] = df['TriggeredNotification'].astype(bool) 
-        df = df.loc[(df['id'] == id) & (df['TriggeredNotification'] == True)]
-        df = df.sort_values(by='date', ascending=False)
+        df["TriggeredNotification"] = df["TriggeredNotification"].astype(bool)
+        df = df.loc[(df["id"] == id) & (df["TriggeredNotification"] == True)]
+        df = df.sort_values(by="date", ascending=False)
         if df.shape[0] > 0:
             relevantIssue = df.iloc[0]
-            nextNotif = relevantIssue['date'] + timedelta(seconds=relevantIssue['delayTillNextInSeconds'])
-            allowNotif = pd.to_datetime('now') > nextNotif
+            nextNotif = relevantIssue["date"] + timedelta(
+                seconds=relevantIssue["delayTillNextInSeconds"]
+            )
+            allowNotif = pd.to_datetime("now") > nextNotif
         else:
             allowNotif = True
     else:
         allowNotif = True
-    if severity == 'critical' and allowNotif:
+    if severity == "critical" and allowNotif:
         send_SMS(body)
         triggeredNotification = True
-    if (severity == 'warning' or severity == 'critical') and allowNotif:
+    if (severity == "warning" or severity == "critical") and allowNotif:
         email_queue.put({"body": body, "subject": title})
         triggeredNotification = True
     issues.append(
@@ -104,7 +115,16 @@ def raise_issue(title: str, body: str, time: str, id: str, severity: str, delayT
             "id": id,
         }
     )
-    issuesToFile({"title": title, "body": body, "severity": severity, 'id': id, 'delayTillNextInSeconds': delayTillNextInSeconds, 'TriggeredNotification': triggeredNotification})
+    issuesToFile(
+        {
+            "title": title,
+            "body": body,
+            "severity": severity,
+            "id": id,
+            "delayTillNextInSeconds": delayTillNextInSeconds,
+            "TriggeredNotification": triggeredNotification,
+        }
+    )
     # for subscription in subscriptions:
     #     for i in range(20):
     #         print("raising")
@@ -136,7 +156,7 @@ def create_app():
     def arm_building(ev):
         """Arm all sensors in the specified building."""
         global base_obj
-        print(f'arming {ev}')
+        print(f"arming {ev}")
         building = ev
         for door in base_obj[building].keys():
             base_obj[building][door]["armed"] = True
@@ -154,7 +174,7 @@ def create_app():
         else:
             for door in base_obj[building].keys():
                 base_obj[building][door]["armed"] = False
-        turnOffAlarms()
+        turnOffAlarmsUseCase()
         alarm = False
         logger.info("Turned off alarms")
         return {"success": True}
@@ -164,10 +184,10 @@ def create_app():
         """Test the alarm by turning it on and off after a short delay."""
         global alarm
         logger.info("Testing alarm")
-        turnOnAlarms()
+        turnOnAlarmsUseCase()
         alarm = True
         time.sleep(1)
-        turnOffAlarms()
+        turnOffAlarmsUseCase()
         alarm = False
         return {"success": True}
 
@@ -234,8 +254,8 @@ def sensor_work(args):
             name = sensor_dict["name"].split("] ")[1]
             loc = sensor_dict["location"]
             handle_exception(e, sensor_dict)
-            base_obj[loc][name]["status"] = 'unknown'
-            print(f'{timeOfIssue}: issue for {name} at {loc}: {e}')
+            base_obj[loc][name]["status"] = "unknown"
+            print(f"{timeOfIssue}: issue for {name} at {loc}: {e}")
 
 
 def handle_issues(res_json, name, loc):
@@ -251,7 +271,7 @@ def handle_issues(res_json, name, loc):
             pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
             f"!response_{name}_{loc}",
             severity="debug",
-            delayTillNextInSeconds=0
+            delayTillNextInSeconds=0,
         )
     if res_json["temperature"] > 75:
         raise_issue(
@@ -260,8 +280,8 @@ def handle_issues(res_json, name, loc):
             pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
             f"75_{name}_{loc}",
             severity="critical",
-            delayTillNextInSeconds=(60 * 10)
-        ) 
+            delayTillNextInSeconds=(60 * 10),
+        )
     elif res_json["temperature"] > 60:
         raise_issue(
             "Sensor running hot",
@@ -269,14 +289,13 @@ def handle_issues(res_json, name, loc):
             pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
             f"65_{name}_{loc}",
             severity="warning",
-            delayTillNextInSeconds=(60 * 60)
+            delayTillNextInSeconds=(60 * 60),
         )
-    
 
     alarm_id_exists = any(d["id"] == f"alarm_{name}_{loc}" for d in issues)
     if res_json["door_state"] == "open" and base_obj[loc][name]["armed"] and not alarm:
         logger.info(f"{name} at {loc} is open, alarm triggered!")
-        turnOnAlarms()
+        turnOnAlarmsUseCase()
         alarm = True
         raise_issue(
             "Alarm triggered!",
@@ -284,7 +303,7 @@ def handle_issues(res_json, name, loc):
             pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
             f"alarm_{name}_{loc}",
             severity="critical",
-            delayTillNextInSeconds=0
+            delayTillNextInSeconds=0,
         )
     elif alarm_id_exists:
         alarm_obj = next(filter(lambda x: x["id"] == f"alarm_{name}_{loc}", issues))
@@ -294,7 +313,7 @@ def handle_issues(res_json, name, loc):
             and alarm
             and res_json["door_state"] != "open"
         ):
-            turnOffAlarms()
+            turnOffAlarmsUseCase()
             alarm = False
             raise_issue(
                 "Alarm turned off automatically",
@@ -302,7 +321,7 @@ def handle_issues(res_json, name, loc):
                 pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
                 f"cleared_{name}_{loc}",
                 severity="info",
-                delayTillNextInSeconds=0
+                delayTillNextInSeconds=0,
             )
 
 
@@ -326,7 +345,7 @@ def handle_exception(e, sensor_dict):
                 pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
                 f"response_{name}_{loc}",
                 severity="debug",
-                delayTillNextInSeconds=0
+                delayTillNextInSeconds=0,
             )
     # logger.error(f"Got the following for {name} at {loc}: {e}")
 
@@ -355,6 +374,7 @@ def check_for_new_logs():
 
 
 if __name__ == "__main__":
+    email_queue.queue.clear()
     app, socketio = create_app()
     start_sensor_threads(socketio)
     socketio.start_background_task(target=send_email_thread)
