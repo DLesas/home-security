@@ -117,25 +117,10 @@ function checkArmedState({
 
 export default function Index() {
   const { data, isConnected } = useSocketData()
-  const { socket } = useSocket()
   const armed = checkArmedState(countDoorEntries(data))
 
   const publicVapidKey = process.env.VAPID_PUBLIC!
   // usePushNotifications(publicVapidKey)
-
-  function disarm(callback: () => void, subject: String) {
-    if (socket) {
-      console.log('disarming')
-      socket.timeout(5000).emit('disarm/building', subject, callback)
-    }
-  }
-
-  function arm(callback: () => void, subject: String) {
-    if (socket) {
-      console.log('arming')
-      socket.timeout(5000).emit('arm/building', subject, callback)
-    }
-  }
 
   return (
     <div className="mt-10 flex justify-center">
@@ -178,13 +163,7 @@ export default function Index() {
             <div className="flex flex-col gap-8">
               {data.logs &&
                 Object.keys(data.logs).map((key) => (
-                  <LogCard
-                    key={key}
-                    logKey={key}
-                    data={data}
-                    arm={arm}
-                    disarm={disarm}
-                  />
+                  <LogCard key={key} logKey={key} data={data} />
                 ))}
             </div>
           </div>
@@ -197,12 +176,11 @@ export default function Index() {
 type LogCardProps = {
   logKey: string
   data: Example
-  arm: (callback: () => void, subject: String) => void
-  disarm: (callback: () => void, subject: String) => void
 }
 
-const LogCard: React.FC<LogCardProps> = ({ logKey, data, arm, disarm }) => {
+const LogCard: React.FC<LogCardProps> = ({ logKey, data }) => {
   const buildingOpen = checkBuildingOpen(data, logKey)
+  const { socket } = useSocket()
   const [buttons, setButtons] = useState([
     { name: 'Arm', loading: false, color: 'danger', function: arm },
     { name: 'Disarm', loading: false, color: 'success', function: disarm },
@@ -217,6 +195,41 @@ const LogCard: React.FC<LogCardProps> = ({ logKey, data, arm, disarm }) => {
       : armStatus === 'Disarmed'
         ? 'shadow-green-400/60'
         : 'shadow-yellow-400/60')
+
+  function disarm(subject: String) {
+    if (socket) {
+      console.log('disarming')
+      socket
+        .timeout(5000)
+        .emit('disarm/building', subject, () =>
+          setButtons((prevButtons) =>
+            prevButtons.map((btn) =>
+              btn.name === 'Disarm' ? { ...btn, loading: false } : btn
+            )
+          )
+        )
+    }
+  }
+
+  function arm(subject: String, force?: Boolean) {
+    force = force || false
+    if ((buildingOpen === 'open' || buildingOpen === 'unknown') && !force) {
+      onOpen()
+      return
+    }
+    if (socket) {
+      console.log('arming')
+      socket
+        .timeout(5000)
+        .emit('arm/building', subject, () =>
+          setButtons((prevButtons) =>
+            prevButtons.map((btn) =>
+              btn.name === 'Arm' ? { ...btn, loading: false } : btn
+            )
+          )
+        )
+    }
+  }
 
   return (
     <Card className={cardClassName}>
@@ -264,40 +277,24 @@ const LogCard: React.FC<LogCardProps> = ({ logKey, data, arm, disarm }) => {
                   btn.name === button.name ? { ...btn, loading: true } : btn
                 )
               )
-              // @ts-ignore
-              // TODO: clear up this mess!
-              button.name === 'Arm'
-                ? buildingOpen === 'open' || buildingOpen === 'unknown'
-                  ? onOpen()
-                  : button.function(
-                      () =>
-                        setButtons((prevButtons) =>
-                          prevButtons.map((btn) =>
-                            btn.name === button.name
-                              ? { ...btn, loading: false }
-                              : btn
-                          )
-                        ),
-                      logKey
-                    )
-                : button.function(
-                    () =>
-                      setButtons((prevButtons) =>
-                        prevButtons.map((btn) =>
-                          btn.name === button.name
-                            ? { ...btn, loading: false }
-                            : btn
-                        )
-                      ),
-                    logKey
-                  )
+              button.function(logKey)
             }}
           >
             {armStatus!.slice(0, -2) === button.name ? armStatus : button.name}
           </Button>
         ))}
       </div>
-      <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal
+        isOpen={isOpen}
+        onClose={() =>
+          setButtons((prevButtons) =>
+            prevButtons.map((btn) =>
+              btn.name === 'Arm' ? { ...btn, loading: false } : btn
+            )
+          )
+        }
+        onOpenChange={onOpenChange}
+      >
         <ModalContent>
           {(onClose) => (
             <>
@@ -314,9 +311,9 @@ const LogCard: React.FC<LogCardProps> = ({ logKey, data, arm, disarm }) => {
                 ) : (
                   <p>
                     A door in the {logKey} is currently in an unknown state, if
-                    you arm this building and the door turns out to be open (once it
-                    starts responding again) it will trigger the alarm. Are
-                    you sure you wish to continue?
+                    you arm this building and the door turns out to be open
+                    (once it starts responding again) it will trigger the alarm.
+                    Are you sure you wish to continue?
                   </p>
                 )}
               </ModalBody>
@@ -325,11 +322,6 @@ const LogCard: React.FC<LogCardProps> = ({ logKey, data, arm, disarm }) => {
                   color="primary"
                   variant="light"
                   onPress={() => {
-                    setButtons((prevButtons) =>
-                      prevButtons.map((btn) =>
-                        btn.name === 'Arm' ? { ...btn, loading: false } : btn
-                      )
-                    )
                     onClose()
                   }}
                 >
@@ -338,17 +330,7 @@ const LogCard: React.FC<LogCardProps> = ({ logKey, data, arm, disarm }) => {
                 <Button
                   color="danger"
                   onPress={() => {
-                    buttons[0].function(
-                      () =>
-                        setButtons((prevButtons) =>
-                          prevButtons.map((btn) =>
-                            btn.name === buttons[0].name
-                              ? { ...btn, loading: false }
-                              : btn
-                          )
-                        ),
-                      logKey
-                    )
+                    arm(logKey, true)
                     onClose()
                   }}
                 >
