@@ -5,6 +5,8 @@ import boto3
 import time
 
 test = False
+if test:
+    print('testing mode activated')
 
 # Create an SNS client
 
@@ -53,14 +55,14 @@ def turnOnAlarmsUseCase():
     triggering = True
     print("alarm temporarily on for warning")
     turnOnAlarms()
-    initial_t_end = time.time() + 0.5
+    initial_t_end = time.time() + 1
     while time.time() < initial_t_end:
         if triggering is False:
             turnOffAlarms()
             break
     turnOffAlarms()
     print("alarm off for 5 seconds for warning")
-    seconnd_t_end = time.time() + 5
+    seconnd_t_end = time.time() + 3
     while time.time() < seconnd_t_end:
         if triggering is False:
             break
@@ -73,15 +75,15 @@ def turnOnAlarmsUseCase():
 def send_mail(body: str, subject: str):
     # Ensure the Outlook object is created in the current thread context
     outlook = win32.Dispatch("outlook.application")
-    mail = outlook.CreateItem(0)
+    newMail = outlook.CreateItem(0)
     if test:
-        mail.To = "***REMOVED_EMAIL***"
+        newMail.To = "***REMOVED_EMAIL***"
     else:
-        mail.To = "***REMOVED_EMAIL***; ***REMOVED_EMAIL***; ***REMOVED_EMAIL***; ***REMOVED_EMAIL***"
+        newMail.To = "***REMOVED_EMAIL***; ***REMOVED_EMAIL***; ***REMOVED_EMAIL***; ***REMOVED_EMAIL***"
     # mail.To = "***REMOVED_EMAIL***"
-    mail.Subject = subject
-    mail.Body = body
-    mail.Send()
+    newMail.Subject = subject
+    newMail.Body = body
+    newMail.Send()
 
 
 def send_SMS(body: str):
@@ -94,10 +96,11 @@ def send_SMS(body: str):
     ]
     testPhone = "***REMOVED***"
     if test:
-        try:
-            response = sns_client.publish(PhoneNumber=testPhone, Message=body)
-        except Exception as e:
-            print(e)
+        pass
+        # try:
+        #     response = sns_client.publish(PhoneNumber=testPhone, Message=body)
+        # except Exception as e:
+        #     print(e)
     else:
         for phone in phones:
             try:
