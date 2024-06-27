@@ -9,6 +9,7 @@ if test:
     print('testing mode activated')
 
 # Create an SNS client
+sns_client = boto3.client("sns")
 
 triggering = False  # This is a global variable that is used to determine if the alarm should be triggered. If it is true, the alarm will be triggered. If it is false, the alarm sequence will be turned off entierly.
 
@@ -55,13 +56,13 @@ def turnOnAlarmsUseCase():
     triggering = True
     print("alarm temporarily on for warning")
     turnOnAlarms()
-    initial_t_end = time.time() + 1
+    initial_t_end = time.time() + 0.3
     while time.time() < initial_t_end:
         if triggering is False:
             turnOffAlarms()
             break
     turnOffAlarms()
-    print("alarm off for 5 seconds for warning")
+    print("alarm off for 3 seconds for warning")
     seconnd_t_end = time.time() + 3
     while time.time() < seconnd_t_end:
         if triggering is False:
@@ -87,7 +88,6 @@ def send_mail(body: str, subject: str):
 
 
 def send_SMS(body: str):
-    sns_client = boto3.client("sns")
     phones = [
         "***REMOVED***",
         "***REMOVED***",

@@ -24,7 +24,7 @@ def writeToFile(data: dict,  building: str):
     df.to_csv(
         filename,
         mode="a",
-        header=(not os.path.exists(filename)),
+        header=(not os.path.exists(filename)), # this has a race condition between all threads
         index=False,
     )
 
@@ -41,7 +41,7 @@ def issuesToFile(data: dict):
     df.to_csv(
         filename,
         mode="a",
-        header=(not os.path.exists(filename)),
+        header=(not os.path.exists(filename)), # this has a race condition between all threads
         index=False,
     )
 
