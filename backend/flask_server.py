@@ -254,14 +254,14 @@ def sensor_work(args):
             loc = sensor_dict["location"]
             latest_log_timing[f"{loc}_{name}"] = pd.to_datetime("now")
             status = res_json["door_state"]
-            log = {"status": status, "temp": res_json["temperature"]}
+            log = {"status": status, "temp": res_json["temperature"], "door": name}
             if loc not in base_obj:
                 base_obj[loc] = {}
             base_obj[loc][name] = base_obj[loc].get(
                 name, {"status": status, "armed": False}
             )
             base_obj[loc][name]["status"] = status
-            writeToFile(log, name)
+            writeToFile(log, loc)
             handle_issues(res_json, name, loc)
             time.sleep(sensor_dict["delay"])
         except Exception as e:
@@ -306,7 +306,6 @@ def handle_issues(res_json, name, loc):
             severity="warning",
             delayTillNextInSeconds=(60 * 60),
         )
-
     alarm_id_exists = any(d["id"] == f"alarm_{name}_{loc}" for d in issues)
     if res_json["door_state"] == "open" and base_obj[loc][name]["armed"] and not alarm:
         logger.info(f"{name} at {loc} is open, alarm triggered!")
@@ -323,7 +322,7 @@ def handle_issues(res_json, name, loc):
     elif alarm_id_exists:
         alarm_obj = next(filter(lambda x: x["id"] == f"alarm_{name}_{loc}", issues))
         if (
-            pd.to_datetime("now") - pd.to_datetime(alarm_obj["time"])
+            pd.to_datetime("now") - pd.to_datetime(alarm_obj["time"], infer_datetime_format=True)
             > timedelta(seconds=30)
             and alarm
             and res_json["door_state"] != "open"
