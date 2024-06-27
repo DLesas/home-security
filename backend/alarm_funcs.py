@@ -91,7 +91,7 @@ def send_SMS(body: str):
         "***REMOVED***",
         "***REMOVED***",
         "***REMOVED*** ",
-    ]  # '***REMOVED_PHONE*** '
+    ]
     testPhone = "***REMOVED***"
     if test:
         try:
