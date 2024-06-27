@@ -11,14 +11,14 @@ sensorFolder = os.path.join(logFolder, "sensors")
 issuesFolder = os.path.join(logFolder, "issues")
 
 
-def writeToFile(data: dict, name: str):
+def writeToFile(data: dict,  building: str):
 
     if not os.path.exists(sensorFolder):
         os.makedirs(sensorFolder)
         print("created sensor log path")
     data["date"] = pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S")
     date = pd.to_datetime("now").strftime("%d_%m_%Y")
-    filename = os.path.join(sensorFolder, f'{date + "_" + name}.csv')
+    filename = os.path.join(sensorFolder, f'{date + " " + building}.csv')
     df = pd.DataFrame(data, index=[0])
     df.to_csv(
         filename,
@@ -56,7 +56,7 @@ def readIssueFile(date: datetime) -> pd.DataFrame | None:
 
 def readSensorFile(date: datetime, name: str) -> pd.DataFrame | None:
     date.strftime("%d_%m_%Y")
-    filename = os.path.join(sensorFolder, f'{date + "_" + name}.csv')
+    filename = os.path.join(sensorFolder, f'{date + " " + name}.csv')
     if os.path.exists(filename):
         return pd.read_csv(filename)
     else:
