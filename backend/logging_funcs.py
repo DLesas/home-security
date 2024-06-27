@@ -52,3 +52,12 @@ def readIssueFile(date: datetime) -> pd.DataFrame | None:
         return pd.read_csv(filename)
     else:
         return None
+
+
+def readSensorFile(date: datetime, name: str) -> pd.DataFrame | None:
+    date.strftime("%d_%m_%Y")
+    filename = os.path.join(sensorFolder, f'{date + "_" + name}.csv')
+    if os.path.exists(filename):
+        return pd.read_csv(filename)
+    else:
+        return None
