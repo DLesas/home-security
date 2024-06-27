@@ -14,7 +14,7 @@ from alarm_funcs import (
     send_mail,
 )
 from devices import sensors
-from logging_funcs import writeToFile, issuesToFile, readIssueFile
+from logging_funcs import writeToFile, issuesToFile, readIssueFile, readSensorFile
 from pywebpush import webpush, WebPushException
 
 import queue
@@ -151,6 +151,21 @@ def create_app():
     """Create and configure the Flask application."""
     app = Flask(__name__)
     socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+
+    @app.route("/nextjs/build")
+    def nextjs_build():
+        pass
+        #
+
+    @app.route("/logs/<name>/<date>")
+    def get_logs(name, date):
+        df = readSensorFile(name, pd.to_datetime(date, infer_datetime_format=True))
+        return df.to_json(orient="records")
+
+    @app.route("/issues/<date>")
+    def get_issues(date):
+        df = readIssueFile(pd.to_datetime(date, infer_datetime_format=True))
+        return df.to_json(orient="records")
 
     @socketio.on("arm/building")
     def arm_building(ev):
