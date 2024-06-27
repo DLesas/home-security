@@ -79,7 +79,7 @@ def hash_data(data):
 def raise_issue(
     title: str,
     body: str,
-    time: str,
+    datetime: str,
     id: str,
     severity: str,
     delayTillNextInSeconds: int,
@@ -111,7 +111,7 @@ def raise_issue(
     issues.append(
         {
             "msg": body,
-            "time": time,
+            "time": datetime,
             "id": id,
         }
     )
@@ -322,7 +322,7 @@ def handle_issues(res_json, name, loc):
     elif alarm_id_exists:
         alarm_obj = next(filter(lambda x: x["id"] == f"alarm_{name}_{loc}", issues))
         if (
-            pd.to_datetime("now") - pd.to_datetime(alarm_obj["time"], infer_datetime_format=True)
+            pd.to_datetime("now") - pd.to_datetime(alarm_obj["time"])
             > timedelta(seconds=30)
             and alarm
             and res_json["door_state"] != "open"
