@@ -1,7 +1,7 @@
 import time
 import logging
 from datetime import timedelta
-from flask import Flask, jsonify
+from flask import Flask
 from flask_socketio import SocketIO, emit
 import pandas as pd
 import requests
@@ -15,7 +15,7 @@ from alarm_funcs import (
 )
 from devices import sensors
 from logging_funcs import writeToFile, issuesToFile, readIssueFile, readSensorFile
-from pywebpush import webpush, WebPushException
+#from pywebpush import webpush, WebPushException
 
 import queue
 import pythoncom

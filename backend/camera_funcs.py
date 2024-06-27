@@ -32,7 +32,7 @@ def getImage(cap, results: List, i: int):
         ret, frame = cap.read()
         if ret is True:
             results[i] = frame
-        elif ret == False:
+        elif ret is False:
             raise Exception("no more frames")
 
 
