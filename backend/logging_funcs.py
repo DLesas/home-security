@@ -1,17 +1,63 @@
 import pandas as pd
 import os
 import datetime
+from sqlalchemy import (
+    create_engine,
+    MetaData,
+    Table,
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Boolean,
+)
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
 # import network_functions
-
-
 fileDir = os.path.dirname(os.path.realpath(__file__))
 logFolder = os.path.join(fileDir, "logs")
 sensorFolder = os.path.join(logFolder, "sensors")
 issuesFolder = os.path.join(logFolder, "issues")
+db_file = os.path.join("logs.db")
+
+# Create SQLAlchemy engine
+engine = create_engine(
+    f"sqlite:///{db_file}", echo=False
+)  # Set echo=True for debugging
+
+# Define a base class for declarative class definitions
+Base = declarative_base()
 
 
-def writeToFile(data: dict,  building: str):
+class SensorLog(Base):
+    __tablename__ = "sensor_logs"
+    id = Column(Integer, primary_key=True)
+    building = Column(String)
+    date = Column(DateTime)
+    status = Column(String)
+    temp = Column(Integer)
+    door = Column(String)
+
+
+class IssuesLog(Base):
+    __tablename__ = "general_logs"
+    id = Column(Integer, primary_key=True)
+    title = Column(String)
+    body = Column(String)
+    severity = Column(String)
+    delayTillNextInSeconds = Column(Integer)
+    TriggeredNotification = Column(Boolean)
+    date = Column(DateTime)
+
+
+def initialiseDB():
+    if not os.path.exists(db_file):
+        open(db_file, "w").close()
+        Base.metadata.create_all(engine)
+
+
+def writeToFile(data: dict, building: str):
 
     if not os.path.exists(sensorFolder):
         os.makedirs(sensorFolder)
@@ -24,7 +70,9 @@ def writeToFile(data: dict,  building: str):
     df.to_csv(
         filename,
         mode="a",
-        header=(not os.path.exists(filename)), # this has a race condition between all threads
+        header=(
+            not os.path.exists(filename)
+        ),  # this has a race condition between all threads
         index=False,
     )
 
@@ -41,7 +89,9 @@ def issuesToFile(data: dict):
     df.to_csv(
         filename,
         mode="a",
-        header=(not os.path.exists(filename)), # this has a race condition between all threads
+        header=(
+            not os.path.exists(filename)
+        ),  # this has a race condition between all threads
         index=False,
     )
 
