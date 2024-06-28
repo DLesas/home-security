@@ -14,8 +14,15 @@ from alarm_funcs import (
     send_mail,
 )
 from devices import sensors
-from logging_funcs import writeToFile, issuesToFile, readIssueFile, readSensorFile
-#from pywebpush import webpush, WebPushException
+from logging_funcs import (
+    writeToFile,
+    issuesToFile,
+    readIssueFile,
+    readSensorFile,
+    initialiseDB,
+)
+
+# from pywebpush import webpush, WebPushException
 
 import queue
 import pythoncom
@@ -388,6 +395,7 @@ def check_for_new_logs():
 
 
 if __name__ == "__main__":
+    initialiseDB()
     email_queue.queue.clear()
     app, socketio = create_app()
     start_sensor_threads(socketio)
