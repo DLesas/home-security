@@ -72,19 +72,24 @@ def writeIssueToDB(data: dict):
     df.to_sql("general_logs", con=engine, if_exists="append", index=False)
 
 
-def readIssueFile(date: datetime) -> pd.DataFrame | None:
-    date.strftime("%d_%m_%Y")
-    filename = os.path.join(issuesFolder, f"{date}.csv")
-    if os.path.exists(filename):
-        return pd.read_csv(filename)
-    else:
-        return None
+def readIssuesDB(date: datetime) -> pd.DataFrame:
+    date = date.date()
+    # Calculate the start and end timestamps for the given date
+    start_timestamp = datetime.datetime.combine(date, datetime.time.min)
+    end_timestamp = datetime.datetime.combine(date, datetime.time.max)
+    # Construct the SQL query to filter based on date range
+    query = f"SELECT * FROM general_logs WHERE date >= '{start_timestamp}' AND date <= '{end_timestamp}'"
+    # Execute the query and return the result as a DataFrame
+    return pd.read_sql(query, con=engine)
 
 
-def readSensorFile(date: datetime, name: str) -> pd.DataFrame | None:
-    date.strftime("%d_%m_%Y")
-    filename = os.path.join(sensorFolder, f'{date + " " + name}.csv')
-    if os.path.exists(filename):
-        return pd.read_csv(filename)
-    else:
-        return None
+def readSensorLogsDB(date: datetime, building: str) -> pd.DataFrame:
+    date = date.date()
+    # Calculate the start and end timestamps for the given date
+    start_timestamp = datetime.datetime.combine(date, datetime.time.min)
+    end_timestamp = datetime.datetime.combine(date, datetime.time.max)
+    # Construct the SQL query to filter based on date range
+    query = f"SELECT * FROM sensor_logs WHERE date >= '{start_timestamp}' AND date <= '{end_timestamp}' AND building = '{building}'"
+    # Execute the query and return the result as a DataFrame
+    return pd.read_sql(query, con=engine)
+
