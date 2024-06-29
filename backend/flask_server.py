@@ -7,7 +7,6 @@ import pandas as pd
 import requests
 import json
 import hashlib
-import multiprocessing
 from alarm_funcs import (
     send_SMS,
     turnOffAlarmsUseCase,
@@ -163,31 +162,30 @@ def create_app():
         pass
         #
 
-    def read_sensor_logs(date, name, queue):
-        t1 = time.time()
-        print("getting data")
-        df = readSensorLogsDB(pd.to_datetime(date), name)
-        print(f"took {time.time() - t1}")
-        queue.put(df.to_json(orient="records"))  # Put result into the queue
-
     @app.route("/logs/<name>/<date>")
     def get_logs(name, date):
-        # Using multiprocessing to launch a new process
-        queue = multiprocessing.Queue()
-        p = multiprocessing.Process(target=read_sensor_logs, args=(date, name, queue))
-        p.start()
-        p.join()  # Wait for the process to finish
-
-        # Retrieve result from the queue
-        result = queue.get()
-
-        # Return the result as JSON
-        return result
+        t1 = time.time()
+        print('gettin data')
+        t = pd.to_datetime(date)
+        print('got t')
+        df = readSensorLogsDB(t, name)
+        print(f'took {time.time() - t1}')
+        return df
+    
+    @socketio.on('logs')
+    def get_logs_sock(data):
+        name = data['name']
+        date = data['date']
+        t = pd.to_datetime(date)
+        print(f'gettin data with {data}')
+        logs = readSensorLogsDB(t, name)
+        return logs
 
     @app.route("/issues/<date>")
     def get_issues(date):
         df = readIssuesDB(pd.to_datetime(date, infer_datetime_format=True))
         return df.to_json(orient="records")
+
 
     @socketio.on("arm/building")
     def arm_building(ev):
