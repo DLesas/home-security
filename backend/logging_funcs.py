@@ -42,7 +42,8 @@ class SensorLog(Base):
 
 class IssuesLog(Base):
     __tablename__ = "general_logs"
-    id = Column(Integer, primary_key=True)
+    id = Column(String, primary_key=True)
+    name = Column(String)
     title = Column(String)
     body = Column(String)
     severity = Column(String)
@@ -57,43 +58,18 @@ def initialiseDB():
         Base.metadata.create_all(engine)
 
 
-def writeToFile(data: dict, building: str):
+def writeSensorToDB(data: dict, building: str):
 
-    if not os.path.exists(sensorFolder):
-        os.makedirs(sensorFolder)
-        print("created sensor log path")
-    data["date"] = pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S")
-    data["microseconds"] = pd.to_datetime("now").strftime("%f")
-    date = pd.to_datetime("now").strftime("%d_%m_%Y")
-    filename = os.path.join(sensorFolder, f'{date + " " + building}.csv')
+    data["date"] = pd.to_datetime("now")
+    data["building"] = building
     df = pd.DataFrame(data, index=[0])
-    df.to_csv(
-        filename,
-        mode="a",
-        header=(
-            not os.path.exists(filename)
-        ),  # this has a race condition between all threads
-        index=False,
-    )
+    df.to_sql("sensor_logs", con=engine, if_exists="append", index=False)
 
 
-def issuesToFile(data: dict):
-
-    if not os.path.exists(issuesFolder):
-        os.makedirs(issuesFolder)
-        print("created sensor log path")
-    data["date"] = pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S")
-    date = pd.to_datetime("now").strftime("%d_%m_%Y")
-    filename = os.path.join(issuesFolder, f"{date}.csv")
+def writeIssueToDB(data: dict):
+    data["date"] = pd.to_datetime("now")
     df = pd.DataFrame(data, index=[0])
-    df.to_csv(
-        filename,
-        mode="a",
-        header=(
-            not os.path.exists(filename)
-        ),  # this has a race condition between all threads
-        index=False,
-    )
+    df.to_sql("general_logs", con=engine, if_exists="append", index=False)
 
 
 def readIssueFile(date: datetime) -> pd.DataFrame | None:
