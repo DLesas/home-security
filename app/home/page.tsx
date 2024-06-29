@@ -7,6 +7,7 @@ import { FaCircle, FaRegCircle } from 'react-icons/fa6'
 // import usePushNotifications from './usePushNotifications'
 import { useSocket } from '../socketInitializer'
 import { useSocketData } from '../socketData'
+import { useRouter } from 'next/navigation'
 import {
   Modal,
   ModalContent,
@@ -116,6 +117,7 @@ function checkArmedState({
 }
 
 export default function Index() {
+  const router = useRouter()
   const { data, isConnected } = useSocketData()
   const armed = checkArmedState(countDoorEntries(data))
 
@@ -124,6 +126,7 @@ export default function Index() {
 
   return (
     <div className="mt-10 flex justify-center">
+      <Button onClick={() => {router.push('/test')}}>test</Button>
       <div className="flex w-full flex-col items-center justify-between gap-32">
         <div className="flex flex-col items-center text-lg font-semibold">
           <div>
