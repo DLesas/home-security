@@ -19,7 +19,7 @@ fileDir = os.path.dirname(os.path.realpath(__file__))
 logFolder = os.path.join(fileDir, "logs")
 sensorFolder = os.path.join(logFolder, "sensors")
 issuesFolder = os.path.join(logFolder, "issues")
-db_file = os.path.join("logs.db")
+db_file = os.path.join(logFolder, "logs.db")
 
 # Create SQLAlchemy engine
 engine = create_engine(
