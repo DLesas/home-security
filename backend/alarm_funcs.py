@@ -56,7 +56,7 @@ def turnOnAlarmsUseCase():
     triggering = True
     print("alarm temporarily on for warning")
     turnOnAlarms()
-    initial_t_end = time.time() + 0.3
+    initial_t_end = time.time() + 0.5
     while time.time() < initial_t_end:
         if triggering is False:
             turnOffAlarms()
