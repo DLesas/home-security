@@ -35,7 +35,7 @@ Base = declarative_base()
 
 issueQueue = Queue()
 sensorQueue = Queue()
-queue_flush_limit = 500
+queue_flush_limit = 100
 
 
 class SensorLog(Base):
@@ -110,29 +110,57 @@ def writeIssueToDB(data: dict):
 
 def readIssuesDB(date: datetime) -> pd.DataFrame:
     date = date.date()
+    
     # Calculate the start and end timestamps for the given date
     start_timestamp = datetime.datetime.combine(date, datetime.time.min)
     end_timestamp = datetime.datetime.combine(date, datetime.time.max)
+    
     # Construct the SQL query to filter based on date range
     query = text("SELECT * FROM general_logs WHERE date >= :start AND date <= :end")
     # Execute the query and return the result as a DataFrame
-    return pd.read_sql(query, con=engine, params={"start": start_timestamp, "end": end_timestamp})
+    
+    df = pd.read_sql(query, con=engine, params={"start": start_timestamp, "end": end_timestamp})
+    print('queried')
+    df = df.to_json(orient='records')
+    print('jsonified')
+    return df
 
 
-def readSensorLogsDB(date: datetime, building: str) -> pd.DataFrame:
+
+def readSensorLogsDB(date: datetime, building: str) -> str:
     date = date.date()
+    print('got date')
     # Calculate the start and end timestamps for the given date
     start_timestamp = datetime.datetime.combine(date, datetime.time.min)
     end_timestamp = datetime.datetime.combine(date, datetime.time.max)
+    print('got correct date')
+    
     # Construct the SQL query to filter based on date range
-    query = text("""
+    query = """
     SELECT * FROM sensor_logs 
     WHERE building = :building 
     AND date >= :start 
     AND date <= :end 
-    """)
-    # Execute the query and return the result as a DataFrame
-    return pd.read_sql(query, con=engine, params={"building": building, "start": start_timestamp, "end": end_timestamp})
+    """
+    print('querying')
+    
+    with engine.connect() as connection:
+        result = connection.execute(text(query), {"building": building, "start": start_timestamp, "end": end_timestamp})
+        rows = result.fetchall()
+    
+    print('queried')
+    
+    # Convert query result into a DataFrame
+    df = pd.DataFrame(rows, columns=result.keys())
+    
+    print('dataframe created')
+    
+    # Convert DataFrame to JSON format
+    json_data = df.to_json(orient='records')
+    
+    print('jsonified')
+    
+    return json_data
 
 
 # Function to explain query plan for debugging index usage
