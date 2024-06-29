@@ -17,8 +17,8 @@ from devices import sensors
 from logging_funcs import (
     writeSensorToDB,
     writeIssueToDB,
-    readIssueFile,
-    readSensorFile,
+    readIssuesDB,
+    readSensorLogsDB,
     initialiseDB,
 )
 
@@ -87,17 +87,17 @@ def raise_issue(
     title: str,
     body: str,
     datetime: str,
-    id: str,
+    name: str,
     severity: str,
     delayTillNextInSeconds: int,
 ):
     global subscriptions, VAPID_PRIVATE, issues
-    df = readIssueFile(pd.to_datetime("now"))
+    df = readIssuesDB(pd.to_datetime("now"))
     triggeredNotification = False
-    if df is not None:
+    if df:
         df["date"] = pd.to_datetime(df["date"])
         df["TriggeredNotification"] = df["TriggeredNotification"].astype(bool)
-        df = df.loc[(df["id"] == id) & (df["TriggeredNotification"] == True)]
+        df = df.loc[(df["name"] == name) & (df["TriggeredNotification"] == True)]
         df = df.sort_values(by="date", ascending=False)
         if df.shape[0] > 0:
             relevantIssue = df.iloc[0]
@@ -119,7 +119,7 @@ def raise_issue(
         {
             "msg": body,
             "time": datetime,
-            "id": id,
+            "id": name,
         }
     )
     writeIssueToDB(
@@ -127,7 +127,7 @@ def raise_issue(
             "title": title,
             "body": body,
             "severity": severity,
-            "name": id,
+            "name": name,
             "delayTillNextInSeconds": delayTillNextInSeconds,
             "TriggeredNotification": triggeredNotification,
         }
@@ -166,12 +166,12 @@ def create_app():
 
     @app.route("/logs/<name>/<date>")
     def get_logs(name, date):
-        df = readSensorFile(name, pd.to_datetime(date, infer_datetime_format=True))
+        df = readSensorLogsDB(pd.to_datetime(date, infer_datetime_format=True), name)
         return df.to_json(orient="records")
 
     @app.route("/issues/<date>")
     def get_issues(date):
-        df = readIssueFile(pd.to_datetime(date, infer_datetime_format=True))
+        df = readIssuesDB(pd.to_datetime(date, infer_datetime_format=True))
         return df.to_json(orient="records")
 
     @socketio.on("arm/building")
