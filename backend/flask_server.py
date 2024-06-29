@@ -15,8 +15,8 @@ from alarm_funcs import (
 )
 from devices import sensors
 from logging_funcs import (
-    writeToFile,
-    issuesToFile,
+    writeSensorToDB,
+    writeIssueToDB,
     readIssueFile,
     readSensorFile,
     initialiseDB,
@@ -122,12 +122,12 @@ def raise_issue(
             "id": id,
         }
     )
-    issuesToFile(
+    writeIssueToDB(
         {
             "title": title,
             "body": body,
             "severity": severity,
-            "id": id,
+            "name": id,
             "delayTillNextInSeconds": delayTillNextInSeconds,
             "TriggeredNotification": triggeredNotification,
         }
@@ -268,7 +268,7 @@ def sensor_work(args):
                 name, {"status": status, "armed": False}
             )
             base_obj[loc][name]["status"] = status
-            writeToFile(log, loc)
+            writeSensorToDB(log, loc)
             handle_issues(res_json, name, loc)
             time.sleep(sensor_dict["delay"])
         except Exception as e:
@@ -287,13 +287,15 @@ def handle_issues(res_json, name, loc):
     id_exists = any(d["id"] == f"response_{name}_{loc}" for d in issues)
     if id_exists:
         issues = list(filter(lambda x: x["id"] != f"response_{name}_{loc}", issues))
-        raise_issue(
-            "Connection to Sensor restored",
-            f"Connection to {name} at {loc} restored",
-            pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S"),
-            f"!response_{name}_{loc}",
-            severity="debug",
-            delayTillNextInSeconds=0,
+        writeIssueToDB(
+            {
+                "title": "Connection to Sensor restored",
+                "body": f"Connection to {name} at {loc} restored",
+                "severity": "debug",
+                "name": f"!response_{name}_{loc}",
+                "delayTillNextInSeconds": 0,
+                "TriggeredNotification": False,
+            }
         )
     if res_json["temperature"] > 75:
         raise_issue(
