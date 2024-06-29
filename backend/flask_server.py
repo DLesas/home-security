@@ -15,6 +15,7 @@ from alarm_funcs import (
 )
 from devices import sensors
 from logging_funcs import (
+    queue_monitor,
     writeSensorToDB,
     writeIssueToDB,
     readIssuesDB,
@@ -94,19 +95,16 @@ def raise_issue(
     global subscriptions, VAPID_PRIVATE, issues
     df = readIssuesDB(pd.to_datetime("now"))
     triggeredNotification = False
-    if df:
-        df["date"] = pd.to_datetime(df["date"])
-        df["TriggeredNotification"] = df["TriggeredNotification"].astype(bool)
-        df = df.loc[(df["name"] == name) & (df["TriggeredNotification"] == True)]
-        df = df.sort_values(by="date", ascending=False)
-        if df.shape[0] > 0:
-            relevantIssue = df.iloc[0]
-            nextNotif = relevantIssue["date"] + timedelta(
-                seconds=relevantIssue["delayTillNextInSeconds"]
-            )
-            allowNotif = pd.to_datetime("now") > nextNotif
-        else:
-            allowNotif = True
+    df["date"] = pd.to_datetime(df["date"])
+    df["TriggeredNotification"] = df["TriggeredNotification"].astype(bool)
+    df = df.loc[(df["name"] == name) & (df["TriggeredNotification"] == True)]
+    df = df.sort_values(by="date", ascending=False)
+    if df.shape[0] > 0:
+        relevantIssue = df.iloc[0]
+        nextNotif = relevantIssue["date"] + timedelta(
+            seconds=relevantIssue["delayTillNextInSeconds"]
+        )
+        allowNotif = pd.to_datetime("now") > nextNotif
     else:
         allowNotif = True
     if severity == "critical" and allowNotif:
@@ -166,7 +164,10 @@ def create_app():
 
     @app.route("/logs/<name>/<date>")
     def get_logs(name, date):
-        df = readSensorLogsDB(pd.to_datetime(date, infer_datetime_format=True), name)
+        t1 = time.time()
+        print('gettin data')
+        df = readSensorLogsDB(pd.to_datetime(date), name)
+        print(f'took {time.time() - t1}')
         return df.to_json(orient="records")
 
     @app.route("/issues/<date>")
@@ -401,6 +402,7 @@ if __name__ == "__main__":
     email_queue.queue.clear()
     app, socketio = create_app()
     start_sensor_threads(socketio)
+    socketio.start_background_task(target=queue_monitor)
     socketio.start_background_task(target=send_email_thread)
     socketio.start_background_task(target=check_for_new_logs)
     socketio.run(app, host="0.0.0.0", port=5000)
