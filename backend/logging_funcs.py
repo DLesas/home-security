@@ -110,24 +110,18 @@ def writeIssueToDB(data: dict):
 
 def readIssuesDB(date: datetime) -> pd.DataFrame:
     date = date.date()
-    
     # Calculate the start and end timestamps for the given date
     start_timestamp = datetime.datetime.combine(date, datetime.time.min)
     end_timestamp = datetime.datetime.combine(date, datetime.time.max)
-    
     # Construct the SQL query to filter based on date range
     query = text("SELECT * FROM general_logs WHERE date >= :start AND date <= :end")
     # Execute the query and return the result as a DataFrame
-    
     df = pd.read_sql(query, con=engine, params={"start": start_timestamp, "end": end_timestamp})
-    print('queried')
-    df = df.to_json(orient='records')
-    print('jsonified')
     return df
 
 
 
-def readSensorLogsDB(date: datetime, building: str) -> str:
+def readSensorLogsDB(date: datetime, building: str) -> pd.DataFrame:
     date = date.date()
     print('got date')
     # Calculate the start and end timestamps for the given date
@@ -156,11 +150,10 @@ def readSensorLogsDB(date: datetime, building: str) -> str:
     print('dataframe created')
     
     # Convert DataFrame to JSON format
-    json_data = df.to_json(orient='records')
     
     print('jsonified')
     
-    return json_data
+    return df
 
 
 # Function to explain query plan for debugging index usage
