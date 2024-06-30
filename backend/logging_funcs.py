@@ -40,7 +40,7 @@ queue_flush_limit = 100
 
 class SensorLog(Base):
     __tablename__ = "sensor_logs"
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     building = Column(String)
     date = Column(DateTime)
     status = Column(String)
@@ -50,7 +50,7 @@ class SensorLog(Base):
 
 class IssuesLog(Base):
     __tablename__ = "general_logs"
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, autoincrement=True)
     name = Column(String)
     title = Column(String)
     body = Column(String)
@@ -75,7 +75,6 @@ def initialiseDB():
 
 
 # Initialize batch writers
-
 def flush_queue_to_db():
     queues = {'sensor_logs': sensorQueue, 'general_logs': issueQueue}
     for table_name, queue in queues.items():
@@ -88,6 +87,7 @@ def flush_queue_to_db():
         if records:
             df = pd.DataFrame(records)
             df.to_sql(table_name, con=engine, if_exists="append", index=False)
+
 
 def queue_monitor():
     while True:
