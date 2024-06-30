@@ -169,6 +169,7 @@ def create_app():
         t = pd.to_datetime(date)
         print('got t')
         df = readSensorLogsDB(t, name)
+        df = df.to_json(orient='records')
         print(f'took {time.time() - t1}')
         return df
     
@@ -179,7 +180,7 @@ def create_app():
         t = pd.to_datetime(date)
         print(f'gettin data with {data}')
         logs = readSensorLogsDB(t, name)
-        return logs
+        return logs.to_json(orient="records")
 
     @app.route("/issues/<date>")
     def get_issues(date):
