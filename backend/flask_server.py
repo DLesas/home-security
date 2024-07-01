@@ -1,7 +1,7 @@
 import time
 import logging
 from datetime import timedelta
-from flask import Flask
+from flask import Flask, request
 from flask_socketio import SocketIO, emit
 import pandas as pd
 import requests
@@ -14,7 +14,15 @@ from alarm_funcs import (
     send_mail,
 )
 from devices import sensors
-from logging_funcs import writeToFile, issuesToFile, readIssueFile, readSensorFile
+
+from logging_funcs import (
+    queue_monitor,
+    writeSensorToDB,
+    writeIssueToDB,
+    readIssuesDB,
+    readSensorLogsDB,
+    initialiseDB,
+)
 
 # from pywebpush import webpush, WebPushException
 
@@ -81,26 +89,23 @@ def raise_issue(
     title: str,
     body: str,
     datetime: str,
-    id: str,
+    name: str,
     severity: str,
     delayTillNextInSeconds: int,
 ):
     global subscriptions, VAPID_PRIVATE, issues
-    df = readIssueFile(pd.to_datetime("now"))
+    df = readIssuesDB(pd.to_datetime("now"))
     triggeredNotification = False
-    if df is not None:
-        df["date"] = pd.to_datetime(df["date"])
-        df["TriggeredNotification"] = df["TriggeredNotification"].astype(bool)
-        df = df.loc[(df["id"] == id) & (df["TriggeredNotification"] == True)]
-        df = df.sort_values(by="date", ascending=False)
-        if df.shape[0] > 0:
-            relevantIssue = df.iloc[0]
-            nextNotif = relevantIssue["date"] + timedelta(
-                seconds=relevantIssue["delayTillNextInSeconds"]
-            )
-            allowNotif = pd.to_datetime("now") > nextNotif
-        else:
-            allowNotif = True
+    df["date"] = pd.to_datetime(df["date"])
+    df["TriggeredNotification"] = df["TriggeredNotification"].astype(bool)
+    df = df.loc[(df["name"] == name) & (df["TriggeredNotification"] == True)]
+    df = df.sort_values(by="date", ascending=False)
+    if df.shape[0] > 0:
+        relevantIssue = df.iloc[0]
+        nextNotif = relevantIssue["date"] + timedelta(
+            seconds=relevantIssue["delayTillNextInSeconds"]
+        )
+        allowNotif = pd.to_datetime("now") > nextNotif
     else:
         allowNotif = True
     if severity == "critical" and allowNotif:
@@ -113,15 +118,15 @@ def raise_issue(
         {
             "msg": body,
             "time": datetime,
-            "id": id,
+            "id": name,
         }
     )
-    issuesToFile(
+    writeIssueToDB(
         {
             "title": title,
             "body": body,
             "severity": severity,
-            "id": id,
+            "name": name,
             "delayTillNextInSeconds": delayTillNextInSeconds,
             "TriggeredNotification": triggeredNotification,
         }
@@ -160,13 +165,37 @@ def create_app():
 
     @app.route("/logs/<name>/<date>")
     def get_logs(name, date):
-        df = readSensorFile(name, pd.to_datetime(date, infer_datetime_format=True))
-        return df.to_json(orient="records")
+        t1 = time.time()
+        print('gettin data')
+        t = pd.to_datetime(date)
+        print('got t')
+        df = readSensorLogsDB(t, name)
+        df = df.to_json(orient='records')
+        print(f'took {time.time() - t1}')
+        return df
 
     @app.route("/issues/<date>")
     def get_issues(date):
-        df = readIssueFile(pd.to_datetime(date, infer_datetime_format=True))
+        df = readIssuesDB(pd.to_datetime(date, infer_datetime_format=True))
         return df.to_json(orient="records")
+    
+    @app.route("/door_sensor", methods=["POST"])
+    def door_sensor():
+        try:
+            data = request.get_json()
+            door_state = data.get("door_state")
+            temperature = data.get("temperature")
+            client_ip = request.remote_addr
+            print(client_ip)
+
+            # Process the data as needed (e.g., store in database, log it, etc.)
+            print(f"Received door state: {door_state}, temperature: {temperature}, from IP: {client_ip}")
+
+            return jsonify({"success": True, "message": "Data received"}), 200
+        except Exception as e:
+            print(f"Error processing request: {e}")
+            return jsonify({"success": False, "message": "Failed to process data"}), 400
+
 
     @socketio.on("arm/building")
     def arm_building(ev):
@@ -242,7 +271,10 @@ def create_app():
     return app, socketio
 
 
-def sensor_work(args):
+def do_sensor_work():
+    pass
+
+def fetch_sensor_data(args):
     """Monitor, action and log data from sensors."""
     global base_obj, alarm, latest_log_timing, issues
     addr, sensor_dict = args
@@ -262,7 +294,7 @@ def sensor_work(args):
                 name, {"status": status, "armed": False}
             )
             base_obj[loc][name]["status"] = status
-            writeToFile(log, loc)
+            writeSensorToDB(log, loc)
             handle_issues(res_json, name, loc)
             time.sleep(sensor_dict["delay"])
         except Exception as e:
@@ -281,12 +313,12 @@ def handle_issues(res_json, name, loc):
     id_exists = any(d["id"] == f"response_{name}_{loc}" for d in issues)
     if id_exists:
         issues = list(filter(lambda x: x["id"] != f"response_{name}_{loc}", issues))
-        issuesToFile(
+        writeIssueToDB(
             {
                 "title": "Connection to Sensor restored",
                 "body": f"Connection to {name} at {loc} restored",
                 "severity": "debug",
-                "id": f"!response_{name}_{loc}",
+                "name": f"!response_{name}_{loc}",
                 "delayTillNextInSeconds": 0,
                 "TriggeredNotification": False,
             }
@@ -372,7 +404,7 @@ def start_sensor_threads(socketio):
     for sensor in sensors:
         ip = sensor.get("potentialIP")
         addr = f"http://{ip}/"
-        socketio.start_background_task(target=sensor_work, args=(addr, sensor))
+        socketio.start_background_task(target=fetch_sensor_data, args=(addr, sensor))
 
 
 def check_for_new_logs():
@@ -391,9 +423,11 @@ def check_for_new_logs():
 
 
 if __name__ == "__main__":
+    initialiseDB()
     email_queue.queue.clear()
     app, socketio = create_app()
     start_sensor_threads(socketio)
+    socketio.start_background_task(target=queue_monitor)
     socketio.start_background_task(target=send_email_thread)
     socketio.start_background_task(target=check_for_new_logs)
     socketio.run(app, host="0.0.0.0", port=5000)
