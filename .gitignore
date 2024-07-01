@@ -44,3 +44,5 @@ swe-worker-*
 
 # python
 *.pyc*
+
+*logs.db*
