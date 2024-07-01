@@ -14,6 +14,7 @@ from alarm_funcs import (
     send_mail,
 )
 from devices import sensors
+
 from logging_funcs import (
     queue_monitor,
     writeSensorToDB,
