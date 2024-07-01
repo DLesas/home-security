@@ -1,7 +1,7 @@
 import time
 import logging
 from datetime import timedelta
-from flask import Flask
+from flask import Flask, request
 from flask_socketio import SocketIO, emit
 import pandas as pd
 import requests
@@ -172,20 +172,28 @@ def create_app():
         df = df.to_json(orient='records')
         print(f'took {time.time() - t1}')
         return df
-    
-    @socketio.on('logs')
-    def get_logs_sock(data):
-        name = data['name']
-        date = data['date']
-        t = pd.to_datetime(date)
-        print(f'gettin data with {data}')
-        logs = readSensorLogsDB(t, name)
-        return logs.to_json(orient="records")
 
     @app.route("/issues/<date>")
     def get_issues(date):
         df = readIssuesDB(pd.to_datetime(date, infer_datetime_format=True))
         return df.to_json(orient="records")
+    
+    @app.route("/door_sensor", methods=["POST"])
+    def door_sensor():
+        try:
+            data = request.get_json()
+            door_state = data.get("door_state")
+            temperature = data.get("temperature")
+            client_ip = request.remote_addr
+            print(client_ip)
+
+            # Process the data as needed (e.g., store in database, log it, etc.)
+            print(f"Received door state: {door_state}, temperature: {temperature}, from IP: {client_ip}")
+
+            return jsonify({"success": True, "message": "Data received"}), 200
+        except Exception as e:
+            print(f"Error processing request: {e}")
+            return jsonify({"success": False, "message": "Failed to process data"}), 400
 
 
     @socketio.on("arm/building")
@@ -262,7 +270,10 @@ def create_app():
     return app, socketio
 
 
-def sensor_work(args):
+def do_sensor_work():
+    pass
+
+def fetch_sensor_data(args):
     """Monitor, action and log data from sensors."""
     global base_obj, alarm, latest_log_timing, issues
     addr, sensor_dict = args
@@ -392,7 +403,7 @@ def start_sensor_threads(socketio):
     for sensor in sensors:
         ip = sensor.get("potentialIP")
         addr = f"http://{ip}/"
-        socketio.start_background_task(target=sensor_work, args=(addr, sensor))
+        socketio.start_background_task(target=fetch_sensor_data, args=(addr, sensor))
 
 
 def check_for_new_logs():
