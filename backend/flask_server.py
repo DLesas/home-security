@@ -179,25 +179,27 @@ def create_app():
         df = readIssues(pd.to_datetime(date, dayfirst=True))
         return df.to_json(orient="records")
 
-    @app.route("/door_sensor", methods=["POST"])
+    @app.route("/log", methods=["POST"])
     def door_sensor():
-        try:
-            data = request.get_json()
-            door_state = data.get("door_state")
-            temperature = data.get("temperature")
-            sensor_json = {"status": door_state, "temp": temperature}
-            client_ip = request.remote_addr
-            print(client_ip)
-            sensor_dict = list(filter(lambda x: x["potentialIP"] == client_ip, sensors))[0]
-            do_sensor_work(sensor_json, sensor_dict)
+        # try:
+        data = request.get_json()
+        print(data)
+        door_state = data.get("door_state")
+        temperature = data.get("temperature")
+        print(door_state)
+        sensor_json = {"door_state": door_state, "temperature": temperature}
+        client_ip = request.remote_addr
+        print(client_ip)
+        sensor_dict = list(filter(lambda x: x["potentialIP"] == client_ip, sensors))[0]
+        do_sensor_work(sensor_json, sensor_dict)
             # Process the data as needed (e.g., store in database, log it, etc.)
-            print(
-                f"Received door state: {door_state}, temperature: {temperature}, from IP: {client_ip}"
-            )
-            return jsonify({"success": True, "message": "Data received"}), 200
-        except Exception as e:
-            print(f"Error processing request: {e}")
-            return jsonify({"success": False, "message": "Failed to process data"}), 400
+        print(
+            f"Received door state: {door_state}, temperature: {temperature}, from IP: {client_ip}"
+        )
+        return jsonify({"success": True, "message": "Data received"}), 200
+        # except Exception as e:
+        #     print(f"Error processing request: {e}")
+        #     return jsonify({"success": False, "message": "Failed to process data"}), 400
 
     @socketio.on("arm/building")
     def arm_building(ev):
