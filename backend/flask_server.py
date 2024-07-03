@@ -1,7 +1,7 @@
 import time
 import logging
 from datetime import timedelta
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
 import pandas as pd
 import requests
@@ -13,6 +13,7 @@ from alarm_funcs import (
     turnOnAlarmsUseCase,
     send_mail,
 )
+from backend import devices
 from devices import sensors
 
 from logging_funcs import (
@@ -166,36 +167,38 @@ def create_app():
     @app.route("/logs/<name>/<date>")
     def get_logs(name, date):
         t1 = time.time()
-        print('gettin data')
+        print("gettin data")
         t = pd.to_datetime(date)
-        print('got t')
+        print("got t")
         df = readSensorLogsDB(t, name)
-        df = df.to_json(orient='records')
-        print(f'took {time.time() - t1}')
+        df = df.to_json(orient="records")
+        print(f"took {time.time() - t1}")
         return df
 
     @app.route("/issues/<date>")
     def get_issues(date):
         df = readIssuesDB(pd.to_datetime(date, infer_datetime_format=True))
         return df.to_json(orient="records")
-    
+
     @app.route("/door_sensor", methods=["POST"])
     def door_sensor():
         try:
             data = request.get_json()
             door_state = data.get("door_state")
             temperature = data.get("temperature")
+            sensor_json = {"status": door_state, "temp": temperature}
             client_ip = request.remote_addr
             print(client_ip)
-
+            sensor_dict = filter(lambda x: x["potentialIP"] == client_ip, devices)[0]
+            do_sensor_work(sensor_json, sensor_dict)
             # Process the data as needed (e.g., store in database, log it, etc.)
-            print(f"Received door state: {door_state}, temperature: {temperature}, from IP: {client_ip}")
-
+            print(
+                f"Received door state: {door_state}, temperature: {temperature}, from IP: {client_ip}"
+            )
             return jsonify({"success": True, "message": "Data received"}), 200
         except Exception as e:
             print(f"Error processing request: {e}")
             return jsonify({"success": False, "message": "Failed to process data"}), 400
-
 
     @socketio.on("arm/building")
     def arm_building(ev):
@@ -271,45 +274,48 @@ def create_app():
     return app, socketio
 
 
-def do_sensor_work():
-    pass
+def sensor_exception(sensor_dict, e):
+    timeOfIssue = pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S")
+    name = sensor_dict["name"].split("] ")[1]
+    loc = sensor_dict["location"]
+    handle_exception(e, sensor_dict)
+    base_obj[loc][name]["status"] = "unknown"
+    print(f"{timeOfIssue}: issue for {name} at {loc}: {e}")
+
+
+def do_sensor_work(sensor_json, sensor_dict):
+    global latest_log_timing, base_obj
+    name = sensor_dict["name"].split("] ")[1]
+    loc = sensor_dict["location"]
+    latest_log_timing[f"{loc}_{name}"] = pd.to_datetime("now")
+    status = sensor_json["door_state"]
+    log = {"status": status, "temp": sensor_json["temperature"], "door": name}
+    if loc not in base_obj:
+        base_obj[loc] = {}
+    base_obj[loc][name] = base_obj[loc].get(name, {"status": status, "armed": False})
+    base_obj[loc][name]["status"] = status
+    writeSensorToDB(log, loc)
+    handle_issues(sensor_json, name, loc)
+
 
 def fetch_sensor_data(args):
     """Monitor, action and log data from sensors."""
-    global base_obj, alarm, latest_log_timing, issues
-    addr, sensor_dict = args
-    logger.info(f"Started work for {addr}")
+    global base_obj, latest_log_timing
+    addr = args[0]
+    sensor_dict = filter(lambda x: x["potentialIP"] == addr, devices)[0]
     while True:
         try:
             res = requests.get(addr, timeout=1)
             res_json = res.json()
-            name = sensor_dict["name"].split("] ")[1]
-            loc = sensor_dict["location"]
-            latest_log_timing[f"{loc}_{name}"] = pd.to_datetime("now")
-            status = res_json["door_state"]
-            log = {"status": status, "temp": res_json["temperature"], "door": name}
-            if loc not in base_obj:
-                base_obj[loc] = {}
-            base_obj[loc][name] = base_obj[loc].get(
-                name, {"status": status, "armed": False}
-            )
-            base_obj[loc][name]["status"] = status
-            writeSensorToDB(log, loc)
-            handle_issues(res_json, name, loc)
+            do_sensor_work(res_json, sensor_dict)
             time.sleep(sensor_dict["delay"])
         except Exception as e:
-            timeOfIssue = pd.to_datetime("now").strftime("%d-%m-%Y %H:%M:%S")
-            name = sensor_dict["name"].split("] ")[1]
-            loc = sensor_dict["location"]
-            handle_exception(e, sensor_dict)
-            base_obj[loc][name]["status"] = "unknown"
-            print(f"{timeOfIssue}: issue for {name} at {loc}: {e}")
+            sensor_exception(sensor_dict, e)
 
 
 def handle_issues(res_json, name, loc):
     """Handle potential issues with the sensors and trigger alarm if needed."""
     global issues, alarm
-
     id_exists = any(d["id"] == f"response_{name}_{loc}" for d in issues)
     if id_exists:
         issues = list(filter(lambda x: x["id"] != f"response_{name}_{loc}", issues))
