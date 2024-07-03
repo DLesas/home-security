@@ -213,9 +213,11 @@ const LogCard: React.FC<LogCardProps> = ({ logKey, data }) => {
     }
   }
 
-  function arm(subject: String, force?: Boolean) {
+  function arm(subject: String, buildState: typeof buildingOpen, force?: Boolean) {
     force = force || false
-    if ((buildingOpen === 'open' || buildingOpen === 'unknown') && !force) {
+    console.log('force is', force)
+    console.log('building is', buildingOpen)
+    if ((buildState === 'open' || buildState === 'unknown') && !force) {
       onOpen()
       return
     }
@@ -236,7 +238,7 @@ const LogCard: React.FC<LogCardProps> = ({ logKey, data }) => {
   return (
     <Card className={cardClassName}>
       <div className="flex flex-row justify-around px-10 text-center text-lg">
-        <span>{logKey}</span>
+        <span>{logKey} ({(buildingOpen)})</span>
       </div>
       <div className="flex flex-row justify-around text-center">
         {data.logs[logKey] &&
@@ -279,7 +281,7 @@ const LogCard: React.FC<LogCardProps> = ({ logKey, data }) => {
                   btn.name === button.name ? { ...btn, loading: true } : btn
                 )
               )
-              button.function(logKey)
+              button.function(logKey, buildingOpen, false)
             }}
           >
             {armStatus!.slice(0, -2) === button.name ? armStatus : button.name}
@@ -332,7 +334,7 @@ const LogCard: React.FC<LogCardProps> = ({ logKey, data }) => {
                 <Button
                   color="danger"
                   onPress={() => {
-                    arm(logKey, true)
+                    arm(logKey, buildingOpen, true)
                     onClose()
                   }}
                 >
