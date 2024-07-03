@@ -5,22 +5,22 @@ from time import sleep
 from picozero import pico_temp_sensor, pico_led
 import machine
 import json
-import urequests  # Import the urequests module for HTTP requests
+import urequests
+import gc
 
-switch = machine.Pin(22, machine.Pin.IN, machine.Pin.PULL_UP)  # Watchdog timer set to 8 seconds
+switch = machine.Pin(22, machine.Pin.IN, machine.Pin.PULL_UP)
 
-# ssid = "***REMOVED_SSID***"
-# password = "***REMOVED_PASSWORD***"
 ssid = "***REMOVED_SSID***"
+#ssid = "***REMOVED_SSID***"
 password = '***REMOVED_PASSWORD***'
 
-server_endpoint = 'http://your-server-endpoint'  # Replace with your server endpoint
+server_endpoint = 'http://192.168.0.116:5000/log'
 
 async def connect():
     print("Connecting to network...")
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
-    wlan.config(pm=0xA11140)  # Disable power management
+    wlan.config(pm=0xA11140)
     wlan.connect(ssid, password)
     while not wlan.isconnected():
         pico_led.on()
@@ -70,7 +70,7 @@ async def serve(connection, wlan):
             print(f"Connection from {addr}")
             asyncio.create_task(handle_client(client))
         except asyncio.TimeoutError:
-            pass  # No client connected, continue loop
+            pass
         except OSError as e:
             if e.errno == 11:  # EAGAIN error
                 continue
@@ -91,7 +91,7 @@ async def accept_client(connection):
 async def handle_client(client):
     try:
         client.settimeout(3.0)
-        request = await asyncio.wait_for(read_request(client), timeout=3)
+        request = await asyncio.wait_for(read_request(client), timeout=2)
         print("Handling request")
         temperature = pico_temp_sensor.temp
         door_state = "open" if switch.value() else "closed"
@@ -109,6 +109,7 @@ async def handle_client(client):
         print(f"Error handling client: {e}")
     finally:
         client.close()
+        gc.collect()  # Force garbage collection after closing client
 
 async def read_request(client):
     while True:
@@ -135,11 +136,10 @@ async def keep_alive(wlan):
         if wlan.isconnected():
             try:
                 print('keeping alive')
-                # Perform a simple network operation like checking the interface configuration
                 wlan.ifconfig()
             except Exception as e:
                 print(f"Keep-alive operation failed: {e}")
-        await asyncio.sleep(30)  # Adjust the interval as necessary
+        await asyncio.sleep(30)
 
 async def send_door_state(door_state):
     previous_door_state = door_state
@@ -158,8 +158,9 @@ async def send_door_state(door_state):
                 print(f"Failed to send door state, status code: {response.status_code}")
         except Exception as e:
             print(f"Failed to send door state: {e}")
+            gc.collect()  # Force garbage collection on failure
         
-        await asyncio.sleep(0.1)  # Wait before retrying
+        await asyncio.sleep(0.2)  # Increased delay to reduce memory pressure
         # Check if door state has changed
         current_door_state = "open" if switch.value() else "closed"
         if current_door_state != previous_door_state:
@@ -192,3 +193,4 @@ except Exception as e:
     print(f"Error: {e}")
     wlan = network.WLAN(network.STA_IF)
     asyncio.run(restart_device(wlan))
+
