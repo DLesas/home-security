@@ -13,7 +13,6 @@ from alarm_funcs import (
     turnOnAlarmsUseCase,
     send_mail,
 )
-from backend import devices
 from devices import sensors
 
 from logging_funcs import (
@@ -103,7 +102,7 @@ def raise_issue(
     if df.shape[0] > 0:
         relevantIssue = df.iloc[0]
         nextNotif = relevantIssue["date"] + timedelta(
-            seconds=relevantIssue["delayTillNextInSeconds"]
+            seconds=int(relevantIssue["delayTillNextInSeconds"])
         )
         allowNotif = pd.to_datetime("now") > nextNotif
     else:
@@ -166,15 +165,18 @@ def create_app():
     @app.route("/logs/<name>/<date>")
     def get_logs(name, date):
         t1 = time.time()
-        t = pd.to_datetime(date)
-        df = readSensorLogs(t, name)
-        df = df.to_json(orient="records")
+        t = pd.to_datetime(date, dayfirst=True)
+        name = name.title()
+        print(name)
+        origdf = readSensorLogs(t, name)
+        df = origdf.to_json(orient="records")
         print(f"took {time.time() - t1}")
+        print(f"shape is {origdf.shape}")
         return df
 
     @app.route("/issues/<date>")
     def get_issues(date):
-        df = readIssues(pd.to_datetime(date))
+        df = readIssues(pd.to_datetime(date, dayfirst=True))
         return df.to_json(orient="records")
 
     @app.route("/door_sensor", methods=["POST"])
@@ -186,7 +188,7 @@ def create_app():
             sensor_json = {"status": door_state, "temp": temperature}
             client_ip = request.remote_addr
             print(client_ip)
-            sensor_dict = filter(lambda x: x["potentialIP"] == client_ip, devices)[0]
+            sensor_dict = list(filter(lambda x: x["potentialIP"] == client_ip, sensors))[0]
             do_sensor_work(sensor_json, sensor_dict)
             # Process the data as needed (e.g., store in database, log it, etc.)
             print(
@@ -298,8 +300,9 @@ def do_sensor_work(sensor_json, sensor_dict):
 def fetch_sensor_data(args):
     """Monitor, action and log data from sensors."""
     global base_obj, latest_log_timing
-    addr = args[0]
-    sensor_dict = filter(lambda x: x["potentialIP"] == addr, devices)[0]
+    ip = args[0]
+    addr = f"http://{ip}/"
+    sensor_dict = list(filter(lambda x: x["potentialIP"] == ip, sensors))[0]
     while True:
         try:
             res = requests.get(addr, timeout=1)
@@ -360,8 +363,7 @@ def handle_issues(res_json, name, loc):
     elif alarm_id_exists:
         alarm_obj = next(filter(lambda x: x["id"] == f"alarm_{name}_{loc}", issues))
         if (
-            pd.to_datetime("now") - pd.to_datetime(alarm_obj["time"])
-            > timedelta(seconds=30)
+            (pd.to_datetime("now") - pd.to_datetime(alarm_obj["time"])) > timedelta(seconds=30)
             and alarm
             and res_json["door_state"] != "open"
         ):
@@ -406,8 +408,7 @@ def start_sensor_threads(socketio):
     """Start background tasks for each sensor."""
     for sensor in sensors:
         ip = sensor.get("potentialIP")
-        addr = f"http://{ip}/"
-        socketio.start_background_task(target=fetch_sensor_data, args=(addr, sensor))
+        socketio.start_background_task(target=fetch_sensor_data, args=(ip, sensor))
 
 
 def check_for_new_logs():
