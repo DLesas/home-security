@@ -18,11 +18,10 @@ from devices import sensors
 
 from logging_funcs import (
     queue_monitor,
-    writeSensorToDB,
-    writeIssueToDB,
-    readIssuesDB,
-    readSensorLogsDB,
-    initialiseDB,
+    SensorDataToQueue,
+    IssueDataToQueue,
+    readIssues,
+    readSensorLogs,
 )
 
 # from pywebpush import webpush, WebPushException
@@ -95,7 +94,7 @@ def raise_issue(
     delayTillNextInSeconds: int,
 ):
     global subscriptions, VAPID_PRIVATE, issues
-    df = readIssuesDB(pd.to_datetime("now"))
+    df = readIssues(pd.to_datetime("now"))
     triggeredNotification = False
     df["date"] = pd.to_datetime(df["date"])
     df["TriggeredNotification"] = df["TriggeredNotification"].astype(bool)
@@ -122,7 +121,7 @@ def raise_issue(
             "id": name,
         }
     )
-    writeIssueToDB(
+    IssueDataToQueue(
         {
             "title": title,
             "body": body,
@@ -167,17 +166,15 @@ def create_app():
     @app.route("/logs/<name>/<date>")
     def get_logs(name, date):
         t1 = time.time()
-        print("gettin data")
         t = pd.to_datetime(date)
-        print("got t")
-        df = readSensorLogsDB(t, name)
+        df = readSensorLogs(t, name)
         df = df.to_json(orient="records")
         print(f"took {time.time() - t1}")
         return df
 
     @app.route("/issues/<date>")
     def get_issues(date):
-        df = readIssuesDB(pd.to_datetime(date, infer_datetime_format=True))
+        df = readIssues(pd.to_datetime(date))
         return df.to_json(orient="records")
 
     @app.route("/door_sensor", methods=["POST"])
@@ -294,7 +291,7 @@ def do_sensor_work(sensor_json, sensor_dict):
         base_obj[loc] = {}
     base_obj[loc][name] = base_obj[loc].get(name, {"status": status, "armed": False})
     base_obj[loc][name]["status"] = status
-    writeSensorToDB(log, loc)
+    SensorDataToQueue(log, loc)
     handle_issues(sensor_json, name, loc)
 
 
@@ -319,7 +316,7 @@ def handle_issues(res_json, name, loc):
     id_exists = any(d["id"] == f"response_{name}_{loc}" for d in issues)
     if id_exists:
         issues = list(filter(lambda x: x["id"] != f"response_{name}_{loc}", issues))
-        writeIssueToDB(
+        IssueDataToQueue(
             {
                 "title": "Connection to Sensor restored",
                 "body": f"Connection to {name} at {loc} restored",
@@ -429,7 +426,6 @@ def check_for_new_logs():
 
 
 if __name__ == "__main__":
-    initialiseDB()
     email_queue.queue.clear()
     app, socketio = create_app()
     start_sensor_threads(socketio)
