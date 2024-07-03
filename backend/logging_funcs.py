@@ -98,7 +98,8 @@ def readIssues(date: datetime) -> pd.DataFrame:
 
 
 def readSensorLogs(date: datetime, building: str) -> pd.DataFrame:
-    filename = os.path.join(issuesFolder, f"{date.strftime("%d_%m_%Y")}.csv")
+    filename = os.path.join(sensorFolder, f"{date.strftime("%d_%m_%Y")}.csv")
+    print(filename)
     if not os.path.exists(filename):
         df = pd.DataFrame(
             data=[],
