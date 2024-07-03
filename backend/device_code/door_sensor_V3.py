@@ -142,15 +142,29 @@ async def keep_alive(wlan):
         await asyncio.sleep(30)  # Adjust the interval as necessary
 
 async def send_door_state(door_state):
-    try:
-        temperature = pico_temp_sensor.temp
-        data = {"door_state": door_state, "temperature": temperature}
-        headers = {'Content-Type': 'application/json'}
-        response = urequests.post(server_endpoint, data=json.dumps(data), headers=headers)
-        response.close()
-        print(f"Sent door state: {door_state}")
-    except Exception as e:
-        print(f"Failed to send door state: {e}")
+    previous_door_state = door_state
+    while True:
+        try:
+            temperature = pico_temp_sensor.temp
+            data = {"door_state": door_state, "temperature": temperature}
+            headers = {'Content-Type': 'application/json'}
+            response = urequests.post(server_endpoint, data=json.dumps(data), headers=headers)
+            if response.status_code == 200:
+                response.close()
+                print(f"Successfully sent door state: {door_state}")
+                break  # Exit the loop if the request was successful
+            else:
+                response.close()
+                print(f"Failed to send door state, status code: {response.status_code}")
+        except Exception as e:
+            print(f"Failed to send door state: {e}")
+        
+        await asyncio.sleep(0.1)  # Wait before retrying
+        # Check if door state has changed
+        current_door_state = "open" if switch.value() else "closed"
+        if current_door_state != previous_door_state:
+            print("Door state changed during retry. Stopping retries.")
+            break
 
 def blink_light_range(ran):
     for i in range(ran):
