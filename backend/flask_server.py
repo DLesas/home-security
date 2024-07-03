@@ -183,13 +183,10 @@ def create_app():
     def door_sensor():
         # try:
         data = request.get_json()
-        print(data)
         door_state = data.get("door_state")
         temperature = data.get("temperature")
-        print(door_state)
         sensor_json = {"door_state": door_state, "temperature": temperature}
         client_ip = request.remote_addr
-        print(client_ip)
         sensor_dict = list(filter(lambda x: x["potentialIP"] == client_ip, sensors))[0]
         do_sensor_work(sensor_json, sensor_dict)
             # Process the data as needed (e.g., store in database, log it, etc.)
