@@ -11,7 +11,7 @@ import gc
 switch = machine.Pin(22, machine.Pin.IN, machine.Pin.PULL_UP)
 
 ssid = "***REMOVED_SSID***"
-#ssid = "***REMOVED_SSID***"
+# ssid = "***REMOVED_SSID***"
 password = '***REMOVED_PASSWORD***'
 
 server_endpoint = 'http://192.168.0.116:5000/log'
@@ -62,7 +62,7 @@ async def serve(connection, wlan):
         if current_door_state != previous_door_state:
             previous_door_state = current_door_state
             door_state = "open" if current_door_state else "closed"
-            await send_door_state(door_state)
+            asyncio.create_task(send_door_state(door_state))  # Use create_task to avoid blocking
 
         # Accept client connections without blocking
         try:
@@ -142,7 +142,6 @@ async def keep_alive(wlan):
         await asyncio.sleep(30)
 
 async def send_door_state(door_state):
-    previous_door_state = door_state
     while True:
         try:
             temperature = pico_temp_sensor.temp
@@ -161,11 +160,6 @@ async def send_door_state(door_state):
             gc.collect()  # Force garbage collection on failure
         
         await asyncio.sleep(0.2)  # Increased delay to reduce memory pressure
-        # Check if door state has changed
-        current_door_state = "open" if switch.value() else "closed"
-        if current_door_state != previous_door_state:
-            print("Door state changed during retry. Stopping retries.")
-            break
 
 def blink_light_range(ran):
     for i in range(ran):
@@ -193,4 +187,3 @@ except Exception as e:
     print(f"Error: {e}")
     wlan = network.WLAN(network.STA_IF)
     asyncio.run(restart_device(wlan))
-
