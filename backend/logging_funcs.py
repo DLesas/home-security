@@ -56,7 +56,6 @@ def flush_queue_to_file():
                 break
         if len(records) > 0:
             df = pd.DataFrame(records, index=[i for i in range(len(records))])
-            print('writing a dataframe of shape',df.shape)
             func(df)
 
 
