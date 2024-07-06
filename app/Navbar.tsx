@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import {
   Navbar,
   NavbarBrand,
@@ -11,13 +12,13 @@ import {
   NavbarMenuItem,
 } from '@nextui-org/navbar'
 import { Badge } from '@nextui-org/badge'
-import { Link } from '@nextui-org/link'
 import { Button } from '@nextui-org/button'
 import { AcmeLogo } from '../components/AcmeLogo'
 import { MdNotifications } from 'react-icons/md'
 import { Popover, PopoverTrigger, PopoverContent } from '@nextui-org/popover'
 import { useSocket } from './socketInitializer'
 import { useSocketData } from './socketData'
+import { Link } from '@nextui-org/link'
 
 type LogStatus = 'open' | 'closed'
 interface DoorValues {
@@ -52,7 +53,7 @@ function dismiss(socket: any, callback: () => void, subject: string) {
 }
 
 function Notifications({ data }: { data: Data }) {
-  const {socket} = useSocket()
+  const { socket } = useSocket()
 
   return (
     <Badge
@@ -101,20 +102,15 @@ function Notifications({ data }: { data: Data }) {
 }
 
 export default function App() {
+  const router = useRouter()
+  const pathname = usePathname()
   const { data, isConnected } = useSocketData()
   const [isMenuOpen, setIsMenuOpen] = React.useState(false)
 
   const menuItems = [
-    'Profile',
-    'Dashboard',
-    'Activity',
-    'Analytics',
-    'System',
-    'Deployments',
-    'My Settings',
-    'Team Settings',
-    'Help & Feedback',
-    'Log Out',
+    { name: 'Home', href: '/home' },
+    { name: 'Logs', href: '/logs' },
+    { name: 'Scheduling', href: '/scheduling' },
   ]
 
   return (
@@ -131,20 +127,14 @@ export default function App() {
       </NavbarContent>
 
       <NavbarContent className="hidden gap-4 sm:flex" justify="center">
-        <NavbarItem>
-          <Link color="foreground" href="#">
-            Features
-          </Link>
+        <NavbarItem isActive={pathname === '/home'}>
+          <Link href="/home" color={pathname === '/home' ? 'primary' : 'foreground'}>Home</Link>
         </NavbarItem>
-        <NavbarItem isActive>
-          <Link href="#" aria-current="page">
-            Customers
-          </Link>
+        <NavbarItem isActive={pathname === '/logs'}>
+          <Link href="/logs" color={pathname === '/logs' ? 'primary' : 'foreground'}>Logs</Link>
         </NavbarItem>
-        <NavbarItem>
-          <Link color="foreground" href="#">
-            Integrations
-          </Link>
+        <NavbarItem isActive={pathname === '/scheduling'}>
+          <Link href="/scheduling" color={pathname === '/scheduling' ? 'primary' : 'foreground'}>Scheduling</Link>
         </NavbarItem>
       </NavbarContent>
       <NavbarContent justify="end">
@@ -157,18 +147,11 @@ export default function App() {
         {menuItems.map((item, index) => (
           <NavbarMenuItem key={`${item}-${index}`}>
             <Link
-              color={
-                index === 2
-                  ? 'primary'
-                  : index === menuItems.length - 1
-                    ? 'danger'
-                    : 'foreground'
-              }
+              color={item.href === pathname ? 'primary' : 'foreground'}
               className="w-full"
-              href="#"
-              size="lg"
+              href={item.href}
             >
-              {item}
+              {item.name}
             </Link>
           </NavbarMenuItem>
         ))}
