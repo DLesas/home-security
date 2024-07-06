@@ -13,7 +13,7 @@ issuesFolder = os.path.join(logFolder, "issues")
 
 issueQueue = Queue()
 sensorQueue = Queue()
-queue_flush_limit = 100
+queue_flush_limit = 5
 
 
 def writeIssuesToFile(data: pd.DataFrame):
