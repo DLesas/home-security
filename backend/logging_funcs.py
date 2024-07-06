@@ -21,7 +21,7 @@ def writeIssuesToFile(data: pd.DataFrame):
         os.makedirs(issuesFolder)
         print("created sensor log path")
     date = pd.to_datetime("now").strftime("%d_%m_%Y")
-    filename = os.path.join(issuesFolder, f"{date}.csv")
+    filename = os.path.join(issuesFolder, f"{date}.fea")
     if os.path.exists(filename):
         past = pd.read_feather(filename)
         df = pd.concat([past, data], ignore_index=True)
@@ -35,7 +35,7 @@ def WriteSensorDataToFile(data: pd.DataFrame):
         os.makedirs(sensorFolder)
         print("created sensor log path")
     date = pd.to_datetime("now").strftime("%d_%m_%Y")
-    filename = os.path.join(sensorFolder, f"{date}.csv")
+    filename = os.path.join(sensorFolder, f"{date}.fea")
     if os.path.exists(filename):
         past = pd.read_feather(filename)
         df = pd.concat([past, data], ignore_index=True)
@@ -79,7 +79,7 @@ def IssueDataToQueue(data: dict):
 
 
 def readIssues(date: datetime) -> pd.DataFrame:
-    filename = os.path.join(issuesFolder, f"{date.strftime("%d_%m_%Y")}.csv")
+    filename = os.path.join(issuesFolder, f"{date.strftime("%d_%m_%Y")}.fea")
     if not os.path.exists(filename):
         df = pd.DataFrame(
             data=[],
@@ -98,8 +98,8 @@ def readIssues(date: datetime) -> pd.DataFrame:
     return df
 
 
-def readSensorLogs(date: datetime, building: str) -> pd.DataFrame:
-    filename = os.path.join(sensorFolder, f"{date.strftime("%d_%m_%Y")}.csv")
+def readSensorLogs(date: datetime) -> pd.DataFrame:
+    filename = os.path.join(sensorFolder, f"{date.strftime("%d_%m_%Y")}.fea")
     if not os.path.exists(filename):
         df = pd.DataFrame(
             data=[],
@@ -113,5 +113,12 @@ def readSensorLogs(date: datetime, building: str) -> pd.DataFrame:
         )
     else:
         df = pd.read_feather(filename)
-        df = df.loc[df["building"] == building]
     return df
+
+
+def readSensorDates() -> list:
+    dates = []
+    for filename in os.listdir(sensorFolder):
+        if filename.endswith(".fea"):
+            dates.append(filename.split(".")[0])
+    return dates
