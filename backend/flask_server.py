@@ -21,6 +21,7 @@ from logging_funcs import (
     IssueDataToQueue,
     readIssues,
     readSensorLogs,
+    readSensorDates
 )
 
 # from pywebpush import webpush, WebPushException
@@ -168,7 +169,8 @@ def create_app():
         t = pd.to_datetime(date, dayfirst=True)
         name = name.title()
         print(name)
-        origdf = readSensorLogs(t, name)
+        origdf = readSensorLogs(t)
+        origdf = origdf.loc[origdf["building"] == name]
         df = origdf.to_json(orient="records")
         print(f"took {time.time() - t1}")
         print(f"shape is {origdf.shape}")
@@ -178,6 +180,11 @@ def create_app():
     def get_issues(date):
         df = readIssues(pd.to_datetime(date, dayfirst=True))
         return df.to_json(orient="records")
+
+    @app.route("/log/dates")
+    def get_dates():
+        dates = readSensorDates()
+        return jsonify(dates)
 
     @app.route("/log", methods=["POST"])
     def door_sensor():
