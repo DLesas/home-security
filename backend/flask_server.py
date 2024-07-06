@@ -195,10 +195,12 @@ def create_app():
         sensor_json = {"door_state": door_state, "temperature": temperature}
         client_ip = request.remote_addr
         sensor_dict = list(filter(lambda x: x["potentialIP"] == client_ip, sensors))[0]
+        name = sensor_dict["name"].split("] ")[1]
+        loc = sensor_dict["location"]
         do_sensor_work(sensor_json, sensor_dict)
             # Process the data as needed (e.g., store in database, log it, etc.)
         print(
-            f"Received door state: {door_state}, temperature: {temperature}, from IP: {client_ip}"
+            f"Received door state: {door_state}, temperature: {temperature}, from: {name} at {loc}"
         )
         return jsonify({"success": True, "message": "Data received"}), 200
         # except Exception as e:
