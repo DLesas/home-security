@@ -10,7 +10,7 @@ const homeIP = '192.168.0.116'
 
 export default function SelectSocket() {
   const router = useRouter()
-  const {socket, setUrl} = useSocket();
+  const {socket, setUrl, url} = useSocket();
   return (
     <div className="flex w-full flex-col items-center gap-28">
       Which network are you connected to?
