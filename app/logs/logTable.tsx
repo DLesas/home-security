@@ -15,7 +15,9 @@ import { Select, SelectItem } from '@nextui-org/select'
 import { parseDateTime, toTime, Time } from '@internationalized/date'
 import { useState, useEffect, useMemo } from 'react'
 import { TimeValue } from 'react-aria-components'
+import { Skeleton } from '@nextui-org/skeleton'
 import { Button } from '@nextui-org/button'
+import { Spinner } from '@nextui-org/spinner'
 
 interface Log {
   status: string
@@ -110,6 +112,13 @@ export function LogTable({
   const itemsPerPage = 200
 
   useEffect(() => {
+    setDoor(null)
+    setStatus(null)
+    setMinTime(null)
+    setMaxTime(null)
+  }, [building, date])
+
+  useEffect(() => {
     if (!data) {
       setDataToShow(undefined)
       return
@@ -158,13 +167,15 @@ export function LogTable({
   const Element = (
     <>
       {isLoading ? (
-        <div>Loading...</div>
+        <div className="flex flex-row justify-center">
+          <Spinner color="primary" size="lg"></Spinner>
+        </div>
       ) : isError ? (
         <div>Error: {error.message}</div>
       ) : (
         dataToShow && (
           <div className="flex flex-col gap-4">
-            <div className="flex flex-row justify-around gap-8">
+            <div className="flex flex-row justify-around gap-6 px-3">
               <Select
                 onChange={(val) => setDoor(val.target.value)}
                 variant="bordered"
@@ -186,7 +197,7 @@ export function LogTable({
                 )}
               </Select>
             </div>
-            <div className="flex flex-row justify-around gap-8">
+            <div className="flex flex-row justify-around gap-6 px-3">
               <TimeInput
                 onChange={(val) => setMinTime(val)}
                 variant="bordered"
