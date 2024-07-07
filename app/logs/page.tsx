@@ -39,40 +39,35 @@ const LogPage: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-row justify-around">
-        <div>
-          <Select
-            className="w-full"
-            label="Building"
-            onChange={(e) => setBuilding(e.target.value)}
-            isRequired
-            variant="bordered"
-            placeholder="Select a building"
-          >
-            {socketData.logs &&
-              Object.keys(socketData.logs).map((key) => (
-                <SelectItem key={key}>{key}</SelectItem>
-              ))}
-          </Select>
-        </div>
-        <div>
-          <DatePicker
-            isRequired
-            onChange={(date) => setDate(date)}
-            isDateUnavailable={(date) => {
-              if (data) {
-                const parsedDates = data // Assuming data is an array of Date objects
-                return parsedDates.some((parsedDate) => {
-                  // Compare dates in a way that works for your use case
-                  isSameDay(parsedDate, date)
-                })
-              }
-              return true // Return true if data is not available
-            }}
-            label="Log Date"
-            variant="bordered"
-          />
-        </div>
+      <div className="flex flex-row justify-around gap-6 px-3">
+        <Select
+          label="Building"
+          onChange={(e) => setBuilding(e.target.value)}
+          isRequired
+          variant="bordered"
+          placeholder="Select a building"
+        >
+          {socketData.logs &&
+            Object.keys(socketData.logs).map((key) => (
+              <SelectItem key={key}>{key}</SelectItem>
+            ))}
+        </Select>
+        <DatePicker
+          isRequired
+          onChange={(date) => setDate(date)}
+          isDateUnavailable={(date) => {
+            if (data) {
+              const parsedDates = data // Assuming data is an array of Date objects
+              return parsedDates.some((parsedDate) => {
+                // Compare dates in a way that works for your use case
+                isSameDay(parsedDate, date)
+              })
+            }
+            return true // Return true if data is not available
+          }}
+          label="Log Date"
+          variant="bordered"
+        />
       </div>
       <div>
         {Building && date ? (
@@ -80,7 +75,10 @@ const LogPage: React.FC = () => {
             <LogTable building={Building} date={date} />
           </div>
         ) : (
-          <div> please select a building and a date</div>
+          <div className="text-center">
+            {' '}
+            please select a building and a date
+          </div>
         )}
       </div>
     </div>
