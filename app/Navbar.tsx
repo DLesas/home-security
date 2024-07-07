@@ -114,7 +114,7 @@ export default function App() {
   ]
 
   return (
-    <Navbar onMenuOpenChange={setIsMenuOpen}>
+    <Navbar isMenuOpen={isMenuOpen} onMenuOpenChange={setIsMenuOpen}>
       <NavbarContent>
         <NavbarMenuToggle
           aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
@@ -128,13 +128,28 @@ export default function App() {
 
       <NavbarContent className="hidden gap-4 sm:flex" justify="center">
         <NavbarItem isActive={pathname === '/home'}>
-          <Link href="/home" color={pathname === '/home' ? 'primary' : 'foreground'}>Home</Link>
+          <Link
+            href="/home"
+            color={pathname === '/home' ? 'primary' : 'foreground'}
+          >
+            Home
+          </Link>
         </NavbarItem>
         <NavbarItem isActive={pathname === '/logs'}>
-          <Link href="/logs" color={pathname === '/logs' ? 'primary' : 'foreground'}>Logs</Link>
+          <Link
+            href="/logs"
+            color={pathname === '/logs' ? 'primary' : 'foreground'}
+          >
+            Logs
+          </Link>
         </NavbarItem>
         <NavbarItem isActive={pathname === '/scheduling'}>
-          <Link href="/scheduling" color={pathname === '/scheduling' ? 'primary' : 'foreground'}>Scheduling</Link>
+          <Link
+            href="/scheduling"
+            color={pathname === '/scheduling' ? 'primary' : 'foreground'}
+          >
+            Scheduling
+          </Link>
         </NavbarItem>
       </NavbarContent>
       <NavbarContent justify="end">
@@ -150,6 +165,9 @@ export default function App() {
               color={item.href === pathname ? 'primary' : 'foreground'}
               className="w-full"
               href={item.href}
+              onPress={() => {
+                setIsMenuOpen(false)
+              }}
             >
               {item.name}
             </Link>
