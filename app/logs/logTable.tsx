@@ -33,6 +33,7 @@ export function LogTable({
   date: DateValue
 }) {
   const [door, setDoor] = useState<string | null>(null)
+  const [status, setStatus] = useState<string | null>(null)
   const [minTime, setMinTime] = useState<TimeValue | null>(null)
   const [maxTime, setMaxTime] = useState<TimeValue | null>(null)
   const { socket, setUrl, url } = useSocket()
@@ -80,6 +81,14 @@ export function LogTable({
     [data]
   )
 
+  const distinctStatuses = useMemo(
+    () =>
+      [...new Set(data?.map((log) => log.status))].map((status) => ({
+        label: status,
+      })),
+    [data]
+  )
+
   const minTimeAllowed = useMemo(
     () =>
       data?.reduce((min, log) => (log._fullDate < min._fullDate ? log : min))
@@ -120,9 +129,13 @@ export function LogTable({
       filteredData = filteredData.filter((log) => log.door === door)
     }
 
+    if (status) {
+      filteredData = filteredData.filter((log) => log.status === status)
+    }
+
     setDataToShow(filteredData)
     setCurrentPage(1) // Reset to the first page whenever the filter changes
-  }, [data, minTime, maxTime, door])
+  }, [data, minTime, maxTime, status, door])
 
   const paginatedData = useMemo(() => {
     if (!dataToShow) return []
@@ -151,7 +164,7 @@ export function LogTable({
       ) : (
         dataToShow && (
           <div className="flex flex-col gap-4">
-            <div className="flex flex-row justify-around gap-2">
+            <div className="flex flex-row justify-around gap-8">
               <Select
                 onChange={(val) => setDoor(val.target.value)}
                 variant="bordered"
@@ -162,6 +175,18 @@ export function LogTable({
                   <SelectItem key={door.label}>{door.label}</SelectItem>
                 )}
               </Select>
+              <Select
+                onChange={(val) => setStatus(val.target.value)}
+                variant="bordered"
+                label="Select a status"
+                items={distinctStatuses!}
+              >
+                {(status) => (
+                  <SelectItem key={status.label}>{status.label}</SelectItem>
+                )}
+              </Select>
+            </div>
+            <div className="flex flex-row justify-around gap-8">
               <TimeInput
                 onChange={(val) => setMinTime(val)}
                 variant="bordered"
@@ -178,15 +203,20 @@ export function LogTable({
               ></TimeInput>
             </div>
             <div className="flex flex-row justify-around gap-2">
-              <Button color='primary' variant={currentPage === 1? 'faded' : 'solid'} onClick={handlePreviousPage} disabled={currentPage === 1}>
+              <Button
+                color="primary"
+                variant={currentPage === 1 ? 'faded' : 'solid'}
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+              >
                 Previous
               </Button>
               <span>
                 Page {currentPage} of {totalPages}
               </span>
               <Button
-              color='primary'
-              variant='solid'
+                color="primary"
+                variant="solid"
                 onClick={handleNextPage}
                 disabled={currentPage === totalPages}
               >
@@ -214,7 +244,6 @@ export function LogTable({
                 ))}
               </TableBody>
             </Table>
-            
           </div>
         )
       )}
