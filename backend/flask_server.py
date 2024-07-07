@@ -2,6 +2,7 @@ import time
 import logging
 from datetime import timedelta
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 import pandas as pd
 import requests
@@ -156,6 +157,7 @@ def raise_issue(
 def create_app():
     """Create and configure the Flask application."""
     app = Flask(__name__)
+    CORS(app)
     socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
     @app.route("/nextjs/build")
@@ -207,6 +209,18 @@ def create_app():
         #     print(f"Error processing request: {e}")
         #     return jsonify({"success": False, "message": "Failed to process data"}), 400
 
+    @app.route("/test")
+    def test_alarm(ev):
+        """Test the alarm by turning it on and off after a short delay."""
+        global alarm
+        logger.info("Testing alarm")
+        turnOnAlarmsUseCase()
+        alarm = True
+        time.sleep(1)
+        turnOffAlarmsUseCase()
+        alarm = False
+        return {"success": True}
+
     @socketio.on("arm/building")
     def arm_building(ev):
         """Arm all sensors in the specified building."""
@@ -234,17 +248,7 @@ def create_app():
         logger.info("Turned off alarms")
         return {"success": True}
 
-    @socketio.on("test")
-    def test_alarm(ev):
-        """Test the alarm by turning it on and off after a short delay."""
-        global alarm
-        logger.info("Testing alarm")
-        turnOnAlarmsUseCase()
-        alarm = True
-        time.sleep(1)
-        turnOffAlarmsUseCase()
-        alarm = False
-        return {"success": True}
+   
 
     @socketio.on("subscribe")
     def subscribe(ev):
