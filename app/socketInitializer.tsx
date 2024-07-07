@@ -14,6 +14,7 @@ interface SocketInitializerProps {
 interface SocketContextType {
   socket: Socket<DefaultEventsMap, DefaultEventsMap> | null
   setUrl: React.Dispatch<React.SetStateAction<string | null>>
+  url: string | null
 }
 
 export const SocketContext = React.createContext<SocketContextType | undefined>(undefined)
@@ -52,7 +53,7 @@ const SocketInitializer: React.FC<SocketInitializerProps> = ({ children }) => {
 
 
   return (
-    <SocketContext.Provider value={{ socket, setUrl }}>
+    <SocketContext.Provider value={{ socket, setUrl, url }}>
       {children}
     </SocketContext.Provider>
   )
