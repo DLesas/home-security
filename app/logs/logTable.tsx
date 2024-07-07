@@ -177,6 +177,22 @@ export function LogTable({
                 label="Max Time"
               ></TimeInput>
             </div>
+            <div className="flex flex-row justify-around gap-2">
+              <Button color='primary' variant={currentPage === 1? 'faded' : 'solid'} onClick={handlePreviousPage} disabled={currentPage === 1}>
+                Previous
+              </Button>
+              <span>
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+              color='primary'
+              variant='solid'
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </Button>
+            </div>
             <Table
               removeWrapper
               aria-label="Example table with dynamic content"
@@ -198,20 +214,7 @@ export function LogTable({
                 ))}
               </TableBody>
             </Table>
-            <div className="mt-4 flex justify-between">
-              <Button onClick={handlePreviousPage} disabled={currentPage === 1}>
-                Previous
-              </Button>
-              <span>
-                Page {currentPage} of {totalPages}
-              </span>
-              <Button
-                onClick={handleNextPage}
-                disabled={currentPage === totalPages}
-              >
-                Next
-              </Button>
-            </div>
+            
           </div>
         )
       )}
