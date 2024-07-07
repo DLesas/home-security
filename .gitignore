@@ -39,8 +39,8 @@ sw.*
 workbox-*
 swe-worker-*
 
-# csv's
-*.csv*
+# log files
+*.fea*
 
 # python
 *.pyc*
