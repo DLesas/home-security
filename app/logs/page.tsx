@@ -38,8 +38,8 @@ const LogPage: React.FC = () => {
   })
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-row justify-around gap-6 px-3">
+    <div className="flex flex-col gap-6 px-3">
+      <div className="flex flex-row justify-around gap-6">
         <Select
           label="Building"
           onChange={(e) => setBuilding(e.target.value)}
