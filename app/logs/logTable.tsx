@@ -15,7 +15,6 @@ import { Select, SelectItem } from '@nextui-org/select'
 import { parseDateTime, toTime, Time } from '@internationalized/date'
 import { useState, useEffect, useMemo } from 'react'
 import { TimeValue } from 'react-aria-components'
-import { Skeleton } from '@nextui-org/skeleton'
 import { Button } from '@nextui-org/button'
 import { Spinner } from '@nextui-org/spinner'
 
@@ -57,7 +56,7 @@ export function LogTable({
         return {
           door: log.door,
           status: log.status,
-          temp: parsedTemp,
+          'temp (°C)': parsedTemp,
           time: toTime(parseDateTime(parsedDate)).toString(),
           _time: toTime(parseDateTime(parsedDate)), // Use parseDateTime to get the Time object
           _fullDate: parseDateTime(parsedDate), // Store the parsed date for comparison
@@ -175,7 +174,7 @@ export function LogTable({
       ) : (
         dataToShow && (
           <div className="flex flex-col gap-4">
-            <div className="flex flex-row justify-around gap-6 px-3">
+            <div className="flex flex-row justify-around gap-6">
               <Select
                 onChange={(val) => setDoor(val.target.value)}
                 variant="bordered"
@@ -197,7 +196,7 @@ export function LogTable({
                 )}
               </Select>
             </div>
-            <div className="flex flex-row justify-around gap-6 px-3">
+            <div className="flex flex-row justify-around gap-6">
               <TimeInput
                 onChange={(val) => setMinTime(val)}
                 variant="bordered"
@@ -246,7 +245,7 @@ export function LogTable({
               <TableBody>
                 {paginatedData.map((log, index) => (
                   <TableRow
-                    key={`${index}_${log.time}_${log.door}_${log.temp}`}
+                    key={`${index}_${log.time}_${log.door}_${log['temp (°C)']}`}
                   >
                     {(columnKey) => (
                       <TableCell>{getKeyValue(log, columnKey)}</TableCell>
