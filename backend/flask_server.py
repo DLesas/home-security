@@ -22,7 +22,7 @@ from logging_funcs import (
     IssueDataToQueue,
     readIssues,
     readSensorLogs,
-    readSensorDates
+    readSensorDates,
 )
 
 # from pywebpush import webpush, WebPushException
@@ -39,6 +39,27 @@ VAPID_PRIVATE = "WGibkvRHns3AH3qIfGHCpWOgVmFtb2jUFOlUBn5JnVc"
 VAPID_CLAIMS = {"sub": "mailto:***REMOVED_EMAIL***"}
 
 subscriptions = []
+
+schedules = [
+    {
+        "name": "Test",
+        "building": "House",
+        "action": "Arm",
+        "date": None,
+        "time": "22:00",
+        "days": ["Monday", "Wednesday", "Friday"],
+        "recurrence": "Weekly",
+    },
+    {
+        "name": "test2",
+        "building": "Shed",
+        "action": "Disarm",
+        "date": None,
+        "time": "06:00",
+        "days": ["Monday", "Wednesday", "Friday"],
+        "recurrence": "Weekly",
+    },
+]
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -200,7 +221,7 @@ def create_app():
         name = sensor_dict["name"].split("] ")[1]
         loc = sensor_dict["location"]
         do_sensor_work(sensor_json, sensor_dict)
-            # Process the data as needed (e.g., store in database, log it, etc.)
+        # Process the data as needed (e.g., store in database, log it, etc.)
         print(
             f"Received door state: {door_state}, temperature: {temperature}, from: {name} at {loc}"
         )
@@ -221,34 +242,38 @@ def create_app():
         alarm = False
         return {"success": True}
 
+    @app.route("/schedule", methods=["DELETE"])
+    def delete_schedule():
+        global schedules
+        data = request.get_json()
+        name = data["name"]
+        schedules = list(filter(lambda x: x["name"] != name, schedules))
+        socketio.emit("schedules", schedules)
+        return jsonify({"success": True, "message": "Schedule deleted"}), 200
+
+    @app.route("/schedule", methods=["POST"])
+    def add_schedule():
+        global schedules
+        data = request.get_json()
+        
+        
+        socketio.emit("schedules", schedules)
+        return jsonify({"success": True, "message": "Schedule added"}), 200
+
     @socketio.on("arm/building")
     def arm_building(ev):
         """Arm all sensors in the specified building."""
-        global base_obj
         print(f"arming {ev}")
         building = ev
-        for door in base_obj[building].keys():
-            base_obj[building][door]["armed"] = True
+        arm_building(building)
         return {"success": True}
 
     @socketio.on("disarm/building")
     def disarm_building(ev):
         """Disarm all sensors in the specified building and turn off alarms."""
-        global base_obj, alarm
         building = ev
-        if alarm:
-            for building in base_obj.keys():
-                for door in base_obj[building].keys():
-                    base_obj[building][door]["armed"] = False
-        else:
-            for door in base_obj[building].keys():
-                base_obj[building][door]["armed"] = False
-        turnOffAlarmsUseCase()
-        alarm = False
-        logger.info("Turned off alarms")
+        disarm_building(building)
         return {"success": True}
-
-   
 
     @socketio.on("subscribe")
     def subscribe(ev):
@@ -269,13 +294,14 @@ def create_app():
     @socketio.on("connect")
     def handle_connect(auth):
         """Handle client connection."""
-        global base_obj, alarm
+        global base_obj, alarm, schedules
         to_send = {
             "alarm": alarm,
             "logs": base_obj,
             "issues": issues,
         }
         emit("data", to_send)
+        emit("schedules", schedules)
 
     @socketio.on("disconnect")
     def handle_disconnect():
@@ -283,6 +309,41 @@ def create_app():
         logger.info("Client disconnected")
 
     return app, socketio
+
+
+def process_schedules():
+    while True:
+        # current_time = datetime.now().strftime("%H:%M")
+        # current_day = datetime.now().strftime("%A")
+
+        # for schedule in schedules:
+        #     if current_time == schedule["time"]:
+        #         if schedule["recurrence"] == "daily" or current_day in schedule["days"]:
+        #             if schedule["action"] == "arm":
+        #                 arm_building(schedule["building"])
+        #             elif schedule["action"] == "disarm":
+        #                 disarm_building(schedule["building"])
+        time.sleep(20)
+
+
+def arm_building(building):
+    global base_obj
+    for door in base_obj[building].keys():
+        base_obj[building][door]["armed"] = True
+
+
+def disarm_building(building):
+    global base_obj, alarm
+    if alarm:
+        for building in base_obj.keys():
+            for door in base_obj[building].keys():
+                base_obj[building][door]["armed"] = False
+    else:
+        for door in base_obj[building].keys():
+            base_obj[building][door]["armed"] = False
+    turnOffAlarmsUseCase()
+    alarm = False
+    logger.info("Turned off alarms")
 
 
 def sensor_exception(sensor_dict, e):
@@ -375,7 +436,8 @@ def handle_issues(res_json, name, loc):
     elif alarm_id_exists:
         alarm_obj = next(filter(lambda x: x["id"] == f"alarm_{name}_{loc}", issues))
         if (
-            (pd.to_datetime("now") - pd.to_datetime(alarm_obj["time"])) > timedelta(seconds=30)
+            (pd.to_datetime("now") - pd.to_datetime(alarm_obj["time"]))
+            > timedelta(seconds=30)
             and alarm
             and res_json["door_state"] != "open"
         ):
@@ -445,4 +507,5 @@ if __name__ == "__main__":
     socketio.start_background_task(target=queue_monitor)
     socketio.start_background_task(target=send_email_thread)
     socketio.start_background_task(target=check_for_new_logs)
+    socketio.start_background_task(target=process_schedules)
     socketio.run(app, host="0.0.0.0", port=5000)
