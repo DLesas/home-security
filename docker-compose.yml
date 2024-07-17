@@ -21,6 +21,12 @@ services:
     volumes:
       - ./postgres/data:/var/lib/postgresql/data
 
+  web:
+    build:
+      context: ./webapp
+    ports:
+      - "3000:3000"
+
 volumes:
   redis-data:
   postgres-data:
