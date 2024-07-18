@@ -8,6 +8,10 @@ services:
       - "6379:6379"
     volumes:
       - ./redis/data:/data
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
 
   postgres:
     build:
@@ -20,6 +24,10 @@ services:
       - "5432:5432"
     volumes:
       - ./postgres/data:/var/lib/postgresql/data
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
 
   web:
     build:
