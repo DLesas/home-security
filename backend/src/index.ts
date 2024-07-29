@@ -9,6 +9,7 @@ import { db } from "./db/db";
 import { generalLogsTable } from "./db/schema/generalLogs";
 import { Placeholder, SQL } from "drizzle-orm";
 import { configRepository } from "./redis/config";
+import { alarmRepository } from "./redis/alarms";
 
 // Create an Express application
 const app = express();
@@ -21,11 +22,7 @@ io.on("connection", (socket) => {
   console.log("a user connected");
 });
 
-io.emit("some-event", { some: "data" });
-
-// Define a route for the root path ('/')
 app.get("/", (req: Request, res: Response) => {
-  // Send a response to the client
   res.send("Hello, TypeScript + Node.js + Express!");
 });
 
@@ -44,7 +41,7 @@ app.post("/api/v1/logs", async (req, res) => {
   });
 });
 
-app.get("/songs", async (req, res) => {
+app.get("/api/v1/state", async (req, res) => {
   const snesorStates = await doorSensorStateRepository.search().returnAll();
   res.send(snesorStates);
 });
@@ -94,7 +91,8 @@ async function dealWithDoorSensorUpdate(
   ).eq(ip).returnFirst();
   const config = await configRepository.search().returnFirst();
   if (currentState && currentState.armed && state === "open") {
+    const alarms = await alarmRepository.search().returnAll();
+    
     // trigger alarm
   }
-
 }
