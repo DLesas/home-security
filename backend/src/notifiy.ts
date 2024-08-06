@@ -1,9 +1,9 @@
 // TODO: finish off notification system
 
-export function warningNotification() {
+export function raiseWarningNotification() {
   console.log("warning");
 }
 
-export function criticalNotification() {
+export function raiseCriticalNotification() {
   console.log("critical");
 }
