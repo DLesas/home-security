@@ -5,10 +5,23 @@ const doorSensorStateSchema = new Schema("doorSensorState", {
   name: { type: "string" },
   building: { type: "string" },
   armed: { type: "boolean" },
+  state: { type: "string" },
   ipAddress: { type: "string" },
   date: { type: "date" },
 });
 
-export const doorSensorStateRepository = new Repository(doorSensorStateSchema, redis);
+export interface doorSensorState {
+  name: string;
+  building: string;
+  armed: boolean;
+  state: "open" | "closed";
+  ipAddress: string;
+  date: Date;
+}
+
+export const doorSensorStateRepository = new Repository(
+  doorSensorStateSchema,
+  redis,
+);
 
 await doorSensorStateRepository.createIndex();
