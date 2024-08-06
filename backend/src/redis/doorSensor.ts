@@ -9,6 +9,14 @@ const sensorSchema = new Schema("doorSensors", {
   created: { type: "date" },
 });
 
+export interface DoorSensor {
+  name: string;
+  building: string;
+  ipAddress: string;
+  macAddress: string;
+  created: Date;
+}
+
 export const doorSensorsRepository = new Repository(sensorSchema, redis);
 
 await doorSensorsRepository.createIndex();
