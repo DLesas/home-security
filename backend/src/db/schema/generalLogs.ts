@@ -1,3 +1,4 @@
+import { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import {
   bigserial,
   pgEnum,
@@ -23,3 +24,6 @@ export const generalLogsTable = pgTable("generalLogs", {
     dateTimeIdx: index("dateTimeIdx").on(table.dateTime),
   };
 });
+
+export type selectGeneralLog = InferSelectModel<typeof generalLogsTable>;
+export type insertGeneralLog = InferInsertModel<typeof generalLogsTable>;

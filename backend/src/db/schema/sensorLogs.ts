@@ -9,6 +9,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { doorSensorsTable } from "./doorSensors";
 import { index } from "drizzle-orm/pg-core";
+import { InferInsertModel, InferSelectModel } from "drizzle-orm";
 
 export const doorSensorStateEnum = pgEnum("state", [
   "open",
@@ -30,3 +31,6 @@ export const sensorLogsTable = pgTable("sensorLogs", {
     dateTimeIdx: index("dateTimeIdx").on(table.dateTime),
   };
 });
+
+export type selectSensorLog = InferSelectModel<typeof sensorLogsTable>;
+export type insertSensorLog = InferInsertModel<typeof sensorLogsTable>;
