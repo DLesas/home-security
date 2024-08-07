@@ -15,14 +15,14 @@ const alarmSchema = new Schema("alarms", {
 export const alarmRepository = new Repository(alarmSchema, redis);
 
 export interface Alarm {
-  name: "string";
-  playing: "boolean";
-  building: "string";
-  ipAddress: "string";
-  onAddress: "string";
-  offAddress: "string";
-  macAddress: "string";
-  created: "date";
+  name: string;
+  playing: boolean;
+  building: string;
+  ipAddress: string;
+  onAddress: string;
+  offAddress: string;
+  macAddress: string;
+  created: Date;
 }
 
 await alarmRepository.createIndex();
