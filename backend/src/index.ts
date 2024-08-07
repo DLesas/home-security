@@ -1,15 +1,23 @@
 // Import the 'express' module
 import { EntityId } from "redis-om";
-import { doorSensorStateRepository } from "./redis/doorSensorState";
-import { doorSensorsRepository } from "./redis/doorSensor";
+import {
+  type doorSensorState,
+  doorSensorStateRepository,
+} from "./redis/doorSensorState";
+import { type DoorSensor, doorSensorsRepository } from "./redis/doorSensor";
 import express, { Request, Response } from "express";
 import http from "http";
 import { Server } from "socket.io";
 import { db } from "./db/db";
 import { generalLogsTable } from "./db/schema/generalLogs";
-import { Placeholder, SQL } from "drizzle-orm";
+import {
+  eventLogsTable,
+  type insertEventLog,
+  type selectEventLog,
+} from "./db/schema/eventLogs";
 import { configRepository } from "./redis/config";
-import { alarmRepository } from "./redis/alarms";
+import { type Alarm, alarmRepository } from "./redis/alarms";
+import { raiseCriticalNotification, raiseWarningNotification } from "./notifiy";
 
 // Create an Express application
 const app = express();
@@ -32,7 +40,7 @@ app.post("/api/v1/logs", async (req, res) => {
     temperature: number;
   } = req.body;
   const clientIp = req.ip!;
-  insertGeneralLog({
+  await db.insert(generalLogsTable).values({
     endpoint: "api/v1/logs",
     action: "post",
     connection: "http",
@@ -52,31 +60,7 @@ server.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
 
-async function insertGeneralLog(
-  log: {
-    connection: "http" | "socket";
-    endpoint: string;
-    action:
-      | "post"
-      | "get"
-      | "delete"
-      | "patch";
-    clientIp: string;
-    id?: number | undefined;
-    dateTime?:
-      | Date
-      | null
-      | undefined;
-    userAgent?:
-      | string
-      | null
-      | undefined;
-  },
-) {
-  await db.insert(generalLogsTable).values(log);
-}
-
-async function dealWithDoorSensorUpdate(
+async function DoorSensorUpdate(
   { state, temperature, ip }: {
     state: "open" | "closed";
     temperature: number;
@@ -85,14 +69,59 @@ async function dealWithDoorSensorUpdate(
 ) {
   const sensor = await doorSensorsRepository.search().where("ipAddress").eq(
     ip,
-  ).returnFirst();
+  ).returnFirst() as DoorSensor;
   const currentState = await doorSensorStateRepository.search().where(
     "ipAddress",
-  ).eq(ip).returnFirst();
+  ).eq(ip).returnFirst() as doorSensorState || null;
+  if (currentState === null) {
+    return {
+      type: "error",
+      message: "",
+    };
+  }
+  currentState.state = state;
   const config = await configRepository.search().returnFirst();
+  await doorSensorStateRepository.save(currentState);
   if (currentState && currentState.armed && state === "open") {
-    const alarms = await alarmRepository.search().returnAll();
-    
-    // trigger alarm
+    const alarms = await alarmRepository.search().returnAll() as Alarm[];
+    const res = await changeAlarmState(alarms, "on");
+    raiseEvent(
+      "critical",
+      `Alarm triggered by sensor ${sensor.name} at ${sensor.building} with ip address of ${sensor.ipAddress}`,
+    );
+  }
+}
+
+async function changeAlarmState(alarms: Alarm[], state: "on" | "off") {
+  const promises = [];
+  for (let index = 0; index < alarms.length; index++) {
+    const element = alarms[index];
+    element.playing = state === "on" ? true : false;
+    promises.push(alarmRepository.save(element));
+    promises.push(
+      fetch(state === "on" ? element.onAddress : element.offAddress),
+    );
+  }
+  const results = await Promise.all(promises);
+  return results;
+}
+
+async function raiseEvent(
+  type: insertEventLog["type"],
+  message: insertEventLog["message"],
+) {
+  await db.insert(eventLogsTable).values({
+    type: type,
+    message: message,
+  });
+  switch (type) {
+    case "critical":
+      raiseCriticalNotification();
+      break;
+    case "warning":
+      raiseWarningNotification();
+      break;
+    default:
+      break;
   }
 }
