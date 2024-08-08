@@ -6,6 +6,11 @@ const configSchema = new Schema("config", {
   sensorCriticalTemparature: { type: "number" },
 });
 
+export interface Config {
+  sensorWarningTemparature: number;
+  sensorCriticalTemparature: number;
+}
+
 export const configRepository = new Repository(configSchema, redis);
 
 await configRepository.createIndex();
