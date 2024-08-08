@@ -15,7 +15,7 @@ import {
   type insertEventLog,
   type selectEventLog,
 } from "./db/schema/eventLogs";
-import { configRepository } from "./redis/config";
+import { type Config, configRepository } from "./redis/config";
 import { type Alarm, alarmRepository } from "./redis/alarms";
 import { raiseCriticalNotification, raiseWarningNotification } from "./notifiy";
 
@@ -47,6 +47,7 @@ app.post("/api/v1/logs", async (req, res) => {
     clientIp,
     userAgent: req.headers["user-agent"],
   });
+  await DoorSensorUpdate({ state, temperature, ip: clientIp });
 });
 
 app.get("/api/v1/state", async (req, res) => {
@@ -69,30 +70,34 @@ async function DoorSensorUpdate(
 ) {
   const sensor = await doorSensorsRepository.search().where("ipAddress").eq(
     ip,
-  ).returnFirst() as DoorSensor;
-  const currentState = await doorSensorStateRepository.search().where(
-    "ipAddress",
-  ).eq(ip).returnFirst() as doorSensorState || null;
-  if (currentState === null) {
+  ).returnFirst() as DoorSensor | null;
+  if (sensor === null) {
+    //TODO: Raise error
     return {
       type: "error",
       message: "",
     };
   }
-  currentState.state = state;
-  const config = await configRepository.search().returnFirst();
-  await doorSensorStateRepository.save(currentState);
-  if (currentState && currentState.armed && state === "open") {
-    const alarms = await alarmRepository.search().returnAll() as Alarm[];
-    const res = await changeAlarmState(alarms, "on");
-    raiseEvent(
-      "critical",
-      `Alarm triggered by sensor ${sensor.name} at ${sensor.building} with ip address of ${sensor.ipAddress}`,
-    );
+  const currentState = await doorSensorStateRepository.search().where(
+    "ipAddress",
+  ).eq(ip).returnFirst() as doorSensorState | null;
+  if (currentState === null) {
+    //TODO: Raise error
+    return {
+      type: "error",
+      message: "",
+    };
   }
+  const previousState = { ...currentState };
+  checkSensorState(sensor, previousState, state);
+  checkSensorTemperature(temperature, sensor);
+  currentState.state = state;
+  currentState.temperature = temperature;
+  currentState.date = new Date();
+  await doorSensorStateRepository.save(currentState);
 }
 
-async function changeAlarmState(alarms: Alarm[], state: "on" | "off") {
+async function changeAlarmState(alarms: Alarm[] | [], state: "on" | "off") {
   const promises = [];
   for (let index = 0; index < alarms.length; index++) {
     const element = alarms[index];
@@ -123,5 +128,52 @@ async function raiseEvent(
       break;
     default:
       break;
+  }
+}
+
+async function checkSensorState(
+  sensor: DoorSensor,
+  previousState: doorSensorState,
+  state: "open" | "closed",
+) {
+  if (previousState.armed && state === "open") {
+    const alarms = await alarmRepository.search().returnAll() as Alarm[] | [];
+    const alarmpromises = [];
+    alarmpromises.push(changeAlarmState(alarms, "on"));
+    alarmpromises.push(raiseEvent(
+      "critical",
+      `Alarm triggered by sensor at ${sensor.name} in ${sensor.building} with ip address of ${sensor.ipAddress}`,
+    ));
+    await Promise.all(alarmpromises);
+  }
+}
+
+async function checkSensorTemperature(temperature: number, sensor: DoorSensor) {
+  const config = await configRepository.search().returnFirst() as Config | null;
+  if (config === null) {
+    // TODO: Raise error
+    return;
+  }
+  const startText =
+    `Sensor at ${sensor.name} in ${sensor.building} is above configured`;
+  const endText =
+    `, current temperature is ${temperature}°C. \n This was detected at ${
+      new Date().toString()
+    }. \n These devices are rated to work between -20C and 80C.`;
+  if (temperature > config.sensorCriticalTemparature) {
+    await raiseEvent(
+      "critical",
+      startText + `critical temperature ${config.sensorCriticalTemparature}°C` +
+        endText,
+    );
+    return;
+  }
+  if (temperature > config.sensorWarningTemparature) {
+    await raiseEvent(
+      "warning",
+      startText + `warning temperature ${config.sensorWarningTemparature}°C` +
+        endText,
+    );
+    return;
   }
 }
