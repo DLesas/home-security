@@ -9,7 +9,7 @@ import express, { Request, Response } from "express";
 import http from "http";
 import { Server } from "socket.io";
 import { db } from "./db/db";
-import { generalLogsTable } from "./db/schema/generalLogs";
+import { accessLogsTable } from "./db/schema/accessLogs";
 import {
   eventLogsTable,
   type insertEventLog,
@@ -40,7 +40,7 @@ app.post("/api/v1/logs", async (req, res) => {
     temperature: number;
   } = req.body;
   const clientIp = req.ip!;
-  await db.insert(generalLogsTable).values({
+  await db.insert(accessLogsTable).values({
     endpoint: "api/v1/logs",
     action: "post",
     connection: "http",
@@ -63,7 +63,7 @@ server.listen(port, () => {
 
 async function DoorSensorUpdate(
   { state, temperature, ip }: {
-    state: "open" | "closed";
+    state: "open" | "closed" | "unknown";
     temperature: number;
     ip: string;
   },
@@ -72,7 +72,7 @@ async function DoorSensorUpdate(
     ip,
   ).returnFirst() as DoorSensor | null;
   if (sensor === null) {
-    //TODO: Raise error
+    await raiseError();
     return {
       type: "error",
       message: "",
@@ -95,6 +95,7 @@ async function DoorSensorUpdate(
   currentState.temperature = temperature;
   currentState.date = new Date();
   await doorSensorStateRepository.save(currentState);
+  await emitNewData(previousState);
 }
 
 async function changeAlarmState(alarms: Alarm[] | [], state: "on" | "off") {
@@ -131,10 +132,14 @@ async function raiseEvent(
   }
 }
 
+async function raiseError() {
+  //TODO: Code Raise error function
+}
+
 async function checkSensorState(
   sensor: DoorSensor,
   previousState: doorSensorState,
-  state: "open" | "closed",
+  state: "open" | "closed" | "unknown",
 ) {
   if (previousState.armed && state === "open") {
     const alarms = await alarmRepository.search().returnAll() as Alarm[] | [];
@@ -176,4 +181,8 @@ async function checkSensorTemperature(temperature: number, sensor: DoorSensor) {
     );
     return;
   }
+}
+
+async function emitNewData(previousState: doorSensorState) {
+  io.emit("newDate", new Date());
 }
