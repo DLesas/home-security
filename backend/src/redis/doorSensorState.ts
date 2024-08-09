@@ -15,7 +15,7 @@ export interface doorSensorState {
   name: string;
   building: string;
   armed: boolean;
-  state: "open" | "closed";
+  state: "open" | "closed" | "unknown";
   ipAddress: string;
   temperature: number;
   date: Date;
