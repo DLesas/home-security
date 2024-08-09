@@ -15,7 +15,7 @@ export const eventLogsTable = pgTable("eventLogs", {
     "info" | "error" | "warning" | "critical"
   >().notNull(),
   message: text("message").notNull(),
-  dateTime: timestamp("dateTime").defaultNow(),
+  dateTime: timestamp("dateTime", {withTimezone: true}).defaultNow(),
 }, (table) => {
   return {
     dateTimeIdx: index("dateTimeIdx").on(table.dateTime),
