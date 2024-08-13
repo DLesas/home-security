@@ -11,15 +11,18 @@ export async function changeAlarmState(
   alarms: Alarm[] | [],
   state: "on" | "off",
 ) {
-  const promises = [];
+  const triggerPromises = [];
+  const savePromises = [];
   for (let index = 0; index < alarms.length; index++) {
     const element = alarms[index];
     element.playing = state === "on" ? true : false;
-    promises.push(alarmRepository.save(element));
-    promises.push(
+    savePromises.push(alarmRepository.save(element));
+    triggerPromises.push(
       fetch(state === "on" ? element.onAddress : element.offAddress),
     );
   }
-  const results = await Promise.all(promises);
+  const saveRes = await Promise.all(savePromises);
+  const triggerRes = await Promise.all(triggerPromises);
+  const results = saveRes.concat(triggerRes);
   return results;
 }
