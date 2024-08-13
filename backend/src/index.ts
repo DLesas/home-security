@@ -4,7 +4,6 @@ import {
   type doorSensorState,
   doorSensorStateRepository,
 } from "./redis/doorSensorState";
-import { type DoorSensor, doorSensorsRepository } from "./redis/doorSensor";
 import express, { Request, Response } from "express";
 import http from "http";
 import { Server } from "socket.io";
@@ -28,6 +27,38 @@ io.on("connection", (socket) => {
 app.get("/", (req: Request, res: Response) => {
   res.send("Hello, TypeScript + Node.js + Express!");
 });
+
+app.post("/api/v1/buildings/:building/sensors/arm", async (req, res) => {
+  const building = req.params.building;
+  // Logic to arm all sensors in the specified building
+  res.send(`All sensors in building ${building} have been armed.`);
+});
+
+// Route to disarm all sensors in a specific building
+app.post("/api/v1/buildings/:building/sensors/disarm", async (req, res) => {
+  const building = req.params.building;
+  // Logic to disarm all sensors in the specified building
+  res.send(`All sensors in building ${building} have been disarmed.`);
+});
+
+app.post(
+  "/api/v1/buildings/:building/sensors/:sensor/arm",
+  async (req, res) => {
+    const { building, sensor } = req.params;
+    // Logic to arm the specific sensor in the specified building
+    res.send(`Sensor ${sensor} in building ${building} has been armed.`);
+  },
+);
+
+// Route to disarm a specific sensor in a specific building
+app.post(
+  "/api/v1/buildings/:building/sensors/:sensor/disarm",
+  async (req, res) => {
+    const { building, sensor } = req.params;
+    // Logic to disarm the specific sensor in the specified building
+    res.send(`Sensor ${sensor} in building ${building} has been disarmed.`);
+  },
+);
 
 app.post("/api/v1/logs", async (req, res) => {
   const { state, temperature }: {
@@ -64,13 +95,6 @@ async function DoorSensorUpdate(
     ip: string;
   },
 ) {
-  const sensor = await doorSensorsRepository.search().where("ipAddress").eq(
-    ip,
-  ).returnFirst() as DoorSensor | null;
-  if (sensor === null) {
-    await raiseError();
-    return;
-  }
   const currentState = await doorSensorStateRepository.search().where(
     "ipAddress",
   ).eq(ip).returnFirst() as doorSensorState | null;
@@ -79,12 +103,15 @@ async function DoorSensorUpdate(
     return;
   }
   const previousState = { ...currentState };
-  checkSensorState(sensor, previousState, state);
-  checkSensorTemperature(temperature, sensor);
+  checkSensorState(previousState, state);
+  checkSensorTemperature(temperature, previousState);
   currentState.state = state;
   currentState.temperature = temperature;
   currentState.date = new Date();
   await doorSensorStateRepository.save(currentState);
+}
+
+async function changeSensorStatus() {
 }
 
 async function emitNewData() {
