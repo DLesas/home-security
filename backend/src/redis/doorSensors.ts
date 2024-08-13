@@ -1,8 +1,9 @@
 import { Repository, Schema } from "redis-om";
 import { redis } from ".";
 
-const doorSensorStateSchema = new Schema("doorSensorState", {
+const doorSensorSchema = new Schema("doorSensors", {
   name: { type: "string" },
+  externalID: { type: "string" },
   building: { type: "string" },
   armed: { type: "boolean" },
   state: { type: "string" },
@@ -12,8 +13,9 @@ const doorSensorStateSchema = new Schema("doorSensorState", {
   date: { type: "date" },
 });
 
-export interface doorSensorState {
+export interface doorSensor {
   name: string;
+  externalID: string;
   building: string;
   armed: boolean;
   state: "open" | "closed" | "unknown";
@@ -23,9 +25,9 @@ export interface doorSensorState {
   date: Date;
 }
 
-export const doorSensorStateRepository = new Repository(
-  doorSensorStateSchema,
+export const doorSensorRepository = new Repository(
+  doorSensorSchema,
   redis,
 );
 
-await doorSensorStateRepository.createIndex();
+await doorSensorRepository.createIndex();
