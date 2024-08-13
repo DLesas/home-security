@@ -3,16 +3,16 @@ import { changeAlarmState } from "./alarmFuncs";
 import { raiseEvent } from "./notifiy";
 import { type Alarm, alarmRepository } from "./redis/alarms";
 import { type Config, configRepository } from "./redis/config";
-import type { doorSensorState } from "./redis/doorSensorState";
+import { type doorSensor, doorSensorRepository } from "./redis/doorSensors";
 
 /**
  * Checks the state of a door sensor and triggers all alarms if the sensor is armed and the state is open.
- * @param {doorSensorState} previousState - The previous state of the door sensor.
+ * @param {doorSensor} previousState - The previous state of the door sensor.
  * @param {"open" | "closed" | "unknown"} state - The current state of the door sensor.
  * @return {Promise<void>} A promise that resolves when all alarms are triggered and the event is raised/logged.
  */
 export async function checkSensorState(
-  previousState: doorSensorState,
+  previousState: doorSensor,
   state: "open" | "closed" | "unknown",
 ) {
   if (previousState.armed && state === "open") {
@@ -38,7 +38,7 @@ export async function checkSensorState(
  */
 export async function checkSensorTemperature(
   temperature: number,
-  sensor: doorSensorState,
+  sensor: doorSensor,
 ) {
   const config = await configRepository.search().returnFirst() as Config | null;
   if (config === null) {
@@ -67,4 +67,38 @@ export async function checkSensorTemperature(
     );
     return;
   }
+}
+
+/**
+ * Changes the armed status of multiple door sensors and checks their state.
+ *
+ * @param {doorSensor[]} sensors - The array of door sensors to change the armed status of.
+ * @param {boolean} armed - The new armed status of the door sensors.
+ * @return {Promise<any[]>} A promise that resolves to an array of results from the promises of saving the door sensors to redis.
+ */
+async function changeSensorStatus(
+  sensors: doorSensor[],
+  armed: boolean,
+) {
+  const savePromises = [];
+  for (const sensor of sensors) {
+    sensor.armed = armed;
+    savePromises.push(doorSensorRepository.save(sensor));
+  }
+  const res = await Promise.all(savePromises);
+  const checkPromises = [];
+  const raisePromises = [];
+  // This is neccessary to trigger the alarms based on a change in armed status (e.g. door open and user changes status to armed)
+  for (const sensor of sensors) {
+    checkPromises.push(checkSensorState(sensor, sensor.state));
+    raisePromises.push(raiseEvent(
+      "info",
+      `Sensor at ${sensor.name} in ${sensor.building} was ${
+        sensor.armed ? "armed" : "disarmed"
+      }`,
+    ));
+  }
+  await Promise.all(checkPromises);
+
+  return res;
 }
