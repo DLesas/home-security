@@ -7,6 +7,7 @@ const doorSensorStateSchema = new Schema("doorSensorState", {
   armed: { type: "boolean" },
   state: { type: "string" },
   ipAddress: { type: "string" },
+  macAddress: { type: "string" },
   temperature: { type: "number" },
   date: { type: "date" },
 });
@@ -17,6 +18,7 @@ export interface doorSensorState {
   armed: boolean;
   state: "open" | "closed" | "unknown";
   ipAddress: string;
+  macAddress: string;
   temperature: number;
   date: Date;
 }
