@@ -9,13 +9,17 @@ import {
 } from "drizzle-orm/pg-core";
 import { index } from "drizzle-orm/pg-core";
 
+export const eventTypeEnum = pgEnum("eventType", [
+  "info",
+  "warning",
+  "critical",
+]);
+
 export const eventLogsTable = pgTable("eventLogs", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
-  type: varchar("type", { length: 32 }).notNull().$type<
-    "info" | "error" | "warning" | "critical"
-  >().notNull(),
+  type: eventTypeEnum("type").notNull(),
   message: text("message").notNull(),
-  dateTime: timestamp("dateTime", {withTimezone: true}).defaultNow(),
+  dateTime: timestamp("dat)eTime", { withTimezone: true }).defaultNow(),
 }, (table) => {
   return {
     dateTimeIdx: index("dateTimeIdx").on(table.dateTime),
