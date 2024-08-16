@@ -4,6 +4,8 @@ import { raiseEvent } from "./notifiy";
 import { type Alarm, alarmRepository } from "./redis/alarms";
 import { type Config, configRepository } from "./redis/config";
 import { type doorSensor, doorSensorRepository } from "./redis/doorSensors";
+import { db } from "./db/db";
+import { sensorLogsTable } from "./db/schema/sensorLogs";
 
 /**
  * Checks the state of a door sensor and triggers all alarms if the sensor is armed and the state is open.
@@ -104,4 +106,39 @@ export async function changeSensorStatus(
   // not neccesary to await raise events promises as they
   // can happen in background so we return to user quickly
   return res;
+} /**
+ * Updates the state and temperature of a door sensor, also checks if any alarms need to be triggered or if the temperature is too high.
+ *
+ * @param {object} params - An object containing the state, temperature, and IP address of the door sensor that triggered this endpoint.
+ * @param {("open" | "closed" | "unknown")} params.state - The new state of the door sensor.
+ * @param {number} params.temperature - The new temperature of the door sensor.
+ * @param {string} params.ip - The IP address of the door sensor that triggered this endpoint.
+ * @return {Promise<void>} A promise that resolves when the update of redis is complete.
+ */
+
+export async function DoorSensorUpdate(
+  { state, temperature, ip }: {
+    state: "open" | "closed" | "unknown";
+    temperature: number;
+    ip: string;
+  },
+) {
+  const currentState = await doorSensorRepository.search().where(
+    "ipAddress",
+  ).eq(ip).returnFirst() as doorSensor | null;
+  if (currentState === null) {
+    raiseError();
+    return;
+  }
+  checkSensorState(currentState, state);
+  checkSensorTemperature(temperature, currentState);
+  currentState.state = state;
+  currentState.temperature = temperature;
+  currentState.date = new Date();
+  db.insert(sensorLogsTable).values({
+    sensorId: parseInt(currentState.externalID),
+    state: state,
+    temperature: temperature.toString(),
+  });
+  await doorSensorRepository.save(currentState);
 }
