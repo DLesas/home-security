@@ -76,7 +76,7 @@ export async function checkSensorTemperature(
  * @param {boolean} armed - The new armed status of the door sensors.
  * @return {Promise<any[]>} A promise that resolves to an array of results from the promises of saving the door sensors to redis.
  */
-async function changeSensorStatus(
+export async function changeSensorStatus(
   sensors: doorSensor[],
   armed: boolean,
 ) {
@@ -88,9 +88,11 @@ async function changeSensorStatus(
   const res = await Promise.all(savePromises);
   const checkPromises = [];
   const raisePromises = [];
-  // This is neccessary to trigger the alarms based on a change in armed status (e.g. door open and user changes status to armed)
+  // This is neccessary to trigger the alarms based on a change
+  // in armed status(e.g.door open and user changes status to armed)
   for (const sensor of sensors) {
     checkPromises.push(checkSensorState(sensor, sensor.state));
+    // TODO: raise events in batches
     raisePromises.push(raiseEvent(
       "info",
       `Sensor at ${sensor.name} in ${sensor.building} was ${
@@ -99,6 +101,7 @@ async function changeSensorStatus(
     ));
   }
   await Promise.all(checkPromises);
-
+  // not neccesary to await raise events promises as they
+  // can happen in background so we return to user quickly
   return res;
 }
