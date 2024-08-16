@@ -53,7 +53,7 @@ app.post("/api/v1/buildings/:building/arm", async (req, res) => {
   const building = req.params.building;
   const sensors = await doorSensorRepository.search().where(
     "building",
-  ).eq(building).returnAll() as doorSensor[];
+  ).eq(building).returnAll() as doorSensor[] | [];
   await changeSensorStatus(sensors, true);
   await emitNewData();
   res.send({
@@ -67,13 +67,16 @@ app.post("/api/v1/buildings/:building/disarm", async (req, res) => {
   const building = req.params.building;
   const sensors = await doorSensorRepository.search().where(
     "building",
-  ).eq(building).returnAll() as doorSensor[];
+  ).eq(building).returnAll() as doorSensor[] | [];
   await changeSensorStatus(sensors, false);
   await emitNewData();
   res.send({
     status: "success",
     message: `All sensors in building ${building} have been disarmed.`,
   });
+});
+
+app.post("api/v1/sensors/new", async (req, res) => {
 });
 
 // Route to arm a specific sensor
@@ -83,14 +86,22 @@ app.post(
     const { sensor } = req.params;
     const sensors = [
       await doorSensorRepository.search().where("externalID").eq(sensor)
-        .returnFirst() as doorSensor,
+        .returnFirst() as doorSensor | null,
     ];
-    await changeSensorStatus(sensors, true);
+    if (sensors.includes(null)) {
+      res.status(404).send({
+        status: "error",
+        message: "Sensor not found",
+      });
+      return;
+    }
+    const validSensors = sensors as doorSensor[];
+    await changeSensorStatus(validSensors, true);
     await emitNewData();
     res.send({
       status: "success",
-      message: `${sensors[0].name} sensor in ${
-        sensors[0].building
+      message: `${validSensors[0].name} sensor in ${
+        validSensors[0].building
       } has been armed.`,
     });
   },
@@ -103,14 +114,22 @@ app.post(
     const { sensor } = req.params;
     const sensors = [
       await doorSensorRepository.search().where("externalID").eq(sensor)
-        .returnFirst() as doorSensor,
+        .returnFirst() as doorSensor | null,
     ];
-    await changeSensorStatus(sensors, false);
+    if (sensors.includes(null)) {
+      res.status(404).send({
+        status: "error",
+        message: "Sensor not found",
+      });
+      return;
+    }
+    const validSensors = sensors as doorSensor[];
+    await changeSensorStatus(validSensors, false);
     await emitNewData();
     res.send({
       status: "success",
-      message: `${sensors[0].name} sensor in ${
-        sensors[0].building
+      message: `${validSensors[0].name} sensor in ${
+        validSensors[0].building
       } has been disarmed.`,
     });
   },
@@ -138,6 +157,15 @@ server.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
 
+/**
+ * Updates the state and temperature of a door sensor, also checks if any alarms need to be triggered or if the temperature is too high.
+ *
+ * @param {object} params - An object containing the state, temperature, and IP address of the door sensor that triggered this endpoint.
+ * @param {("open" | "closed" | "unknown")} params.state - The new state of the door sensor.
+ * @param {number} params.temperature - The new temperature of the door sensor.
+ * @param {string} params.ip - The IP address of the door sensor that triggered this endpoint.
+ * @return {Promise<void>} A promise that resolves when the update of redis is complete.
+ */
 async function DoorSensorUpdate(
   { state, temperature, ip }: {
     state: "open" | "closed" | "unknown";
