@@ -1,19 +1,15 @@
-// Import the 'express' module
 import { type doorSensor, doorSensorRepository } from "./redis/doorSensors";
-import { integer } from "drizzle-orm/pg-core";
-import express, { Request, Response } from "express";
-import https from "https";
+import express from "express";
+// import https from "https";
 import http from "http";
+import { z } from "zod";
 import { Server } from "socket.io";
 import { db } from "./db/db";
 import { accessLogsTable } from "./db/schema/accessLogs";
-import {
-  changeSensorStatus,
-  checkSensorState,
-  checkSensorTemperature,
-} from "./sensorFuncs";
-import { raiseError } from "./errorHandling";
-import { sensorLogsTable } from "./db/schema/sensorLogs";
+import { changeSensorStatus, DoorSensorUpdate } from "./sensorFuncs";
+import { buildingTable } from "./db/schema/buildings";
+import { eq } from "drizzle-orm";
+import { doorSensorsTable } from "./db/schema/doorSensors";
 
 // Create an Express application
 const app = express();
@@ -76,8 +72,41 @@ app.post("/api/v1/buildings/:building/disarm", async (req, res) => {
   });
 });
 
+// route to be used by the server front end (electron)
 app.post("api/v1/sensors/new", async (req, res) => {
+  const validationSchema = z.object({
+    name: z.string(),
+    building: z.string(),
+  });
+  const validationResult = validationSchema.safeParse(req.body);
+  if (!validationResult.success) {
+    res.status(400).send({
+      status: "error",
+      message: validationResult.error,
+    });
+    return;
+  }
+  const buildingName = validationResult.data.building;
+  const sensorName = validationResult.data.name;
+  const buildingObject = await db.select().from(buildingTable).where(
+    eq(buildingTable.name, buildingName),
+  ).limit(1);
+  if (buildingObject.length === 0) {
+    res.status(404).send({
+      status: "error",
+      message: "Building not found",
+    });
+    return;
+  }
+  const externalID = Math.floor(Math.random() * 1000000);
+  const doorSensorDBObject = (await db.insert(doorSensorsTable).values({
+    name: sensorName,
+    buildingId: buildingObject[0].id,
+  }).returning())[0];
+
 });
+
+app.post("api/v1/sensors/handshake", async (req, res) => {});
 
 // Route to arm a specific sensor
 app.post(
@@ -156,42 +185,6 @@ server.listen(port, () => {
   // Log a message when the server is successfully running
   console.log(`Server is running on http://localhost:${port}`);
 });
-
-/**
- * Updates the state and temperature of a door sensor, also checks if any alarms need to be triggered or if the temperature is too high.
- *
- * @param {object} params - An object containing the state, temperature, and IP address of the door sensor that triggered this endpoint.
- * @param {("open" | "closed" | "unknown")} params.state - The new state of the door sensor.
- * @param {number} params.temperature - The new temperature of the door sensor.
- * @param {string} params.ip - The IP address of the door sensor that triggered this endpoint.
- * @return {Promise<void>} A promise that resolves when the update of redis is complete.
- */
-async function DoorSensorUpdate(
-  { state, temperature, ip }: {
-    state: "open" | "closed" | "unknown";
-    temperature: number;
-    ip: string;
-  },
-) {
-  const currentState = await doorSensorRepository.search().where(
-    "ipAddress",
-  ).eq(ip).returnFirst() as doorSensor | null;
-  if (currentState === null) {
-    raiseError();
-    return;
-  }
-  checkSensorState(currentState, state);
-  checkSensorTemperature(temperature, currentState);
-  currentState.state = state;
-  currentState.temperature = temperature;
-  currentState.date = new Date();
-  db.insert(sensorLogsTable).values({
-    sensorId: parseInt(currentState.externalID),
-    state: state,
-    temperature: temperature.toString(),
-  });
-  await doorSensorRepository.save(currentState);
-}
 
 async function emitNewData() {
   // TODO: decide on funcion to emit new data
