@@ -136,7 +136,7 @@ export async function DoorSensorUpdate(
   currentState.temperature = temperature;
   currentState.date = new Date();
   db.insert(sensorLogsTable).values({
-    sensorId: parseInt(currentState.externalID),
+    sensorId: currentState.externalID,
     state: state,
     temperature: temperature.toString(),
   });

@@ -15,12 +15,12 @@ const doorSensorSchema = new Schema("doorSensors", {
 
 export interface doorSensor {
   name: string;
-  externalID: string;
+  externalID: number;
   building: string;
   armed: boolean;
   state: "open" | "closed" | "unknown";
-  ipAddress: string;
-  macAddress: string;
+  ipAddress?: string;
+  macAddress?: string;
   temperature: number;
   date: Date;
 }
