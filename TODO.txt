@@ -1,0 +1,1 @@
+force system to static IP address 
