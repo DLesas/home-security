@@ -5,6 +5,7 @@ import { errorHandler, loggingMiddleware } from "./express/middleware";
 import sensorRoutes from "./express/routes/Sensors";
 import buildingRoutes from "./express/routes/Buildings";
 import logRoutes from "./express/routes/Logs";
+import setupSocketHandlers from "./express/socketHandler";
 
 const app = express();
 const server = http.createServer(app);
@@ -22,9 +23,7 @@ app.use("/api/v1/logs", logRoutes);
 // Error handling middleware
 app.use(errorHandler);
 
-io.on("connection", (socket) => {
-	console.log("A user connected");
-});
+setupSocketHandlers(io);
 
 server.listen(port, () => {
 	console.log(`Server is running on http://localhost:${port}`);
