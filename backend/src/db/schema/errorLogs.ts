@@ -13,10 +13,6 @@ export const errorLogsTable = pgTable("errorLogs", {
   endpoint: varchar("endpoint", { length: 256 }).notNull(),
   errorTrace: varchar("errorTrace", { length: 2048 }).notNull(),
   dateTime: timestamp("dateTime", { withTimezone: true }).defaultNow(),
-}, (table) => {
-  return {
-    dateTimeIdx: index("dateTimeIdx").on(table.dateTime),
-  };
 });
 
 export type selectGeneralLog = InferSelectModel<typeof errorLogsTable>;
