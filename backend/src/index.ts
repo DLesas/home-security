@@ -4,7 +4,7 @@ import { Server } from "socket.io";
 import { errorHandler, loggingMiddleware } from "./express/middleware";
 import sensorRoutes from "./express/routes/Sensors";
 import buildingRoutes from "./express/routes/Buildings";
-import logRoutes from "./express/routes/Logsl";
+import logRoutes from "./express/routes/Logs";
 
 const app = express();
 const server = http.createServer(app);
