@@ -20,10 +20,6 @@ export const eventLogsTable = pgTable("eventLogs", {
   type: eventTypeEnum("type").notNull(),
   message: text("message").notNull(),
   dateTime: timestamp("dat)eTime", { withTimezone: true }).defaultNow(),
-}, (table) => {
-  return {
-    dateTimeIdx: index("dateTimeIdx").on(table.dateTime),
-  };
 });
 
 export type selectEventLog = InferSelectModel<typeof eventLogsTable>;
