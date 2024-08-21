@@ -20,10 +20,6 @@ export const accessLogsTable = pgTable("accessLogs", {
   clientIp: varchar("clientIp", { length: 256 }).notNull(),
   userAgent: varchar("userAgent", { length: 512 }),
   dateTime: timestamp("dateTime", { withTimezone: true }).defaultNow(),
-}, (table) => {
-  return {
-    dateTimeIdx: index("dateTimeIdx").on(table.dateTime),
-  };
 });
 
 export type selectGeneralLog = InferSelectModel<typeof accessLogsTable>;
