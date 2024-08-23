@@ -39,6 +39,7 @@ router.post("/new", async (req, res) => {
 		building: newSensor.buildingId,
 		status: "disarmed",
 	});
+	await raiseEvent("info", `New sensor ${newSensor.name} in ${building} with id ${newSensor.id} added`);
 	res.status(201).json({ status: "success", data: newSensor });
 });
 
@@ -50,6 +51,7 @@ router.post("/handshake", async (req, res) => {
 
 	const { error, data } = validationSchema.safeParse(req.body);
 	if (error) {
+		
 		return res.status(400).json({ status: "error", message: error.errors });
 	}
 	const { sensorId, macAddress } = data;
@@ -67,6 +69,11 @@ router.post("/handshake", async (req, res) => {
 			macAddress,
 			ipAddress: req.ip,
 		});
+		await raiseEvent(
+			"info",
+			`Recieved first handshake from sensor ${sensor.name} in ${sensor.building} with ip: ${req.ip} , and mac: ${macAddress}`
+		);
+		await emitNewData();
 	}
 	res.json({ status: "success", message: "Sensor handshake successful" });
 });
@@ -82,6 +89,7 @@ router.post("/:sensor/arm", async (req, res) => {
 		return res.status(404).json({ status: "error", message: "Sensor not found" });
 	}
 	await changeSensorStatus([sensor], true);
+	await emitNewData();
 	res.json({ status: "success", message: "Sensor armed" });
 });
 
@@ -96,6 +104,7 @@ router.post("/:sensor/disarm", async (req, res) => {
 		return res.status(404).json({ status: "error", message: "Sensor not found" });
 	}
 	await changeSensorStatus([sensor], false);
+	await emitNewData();
 	res.json({ status: "success", message: "Sensor disarmed" });
 });
 
