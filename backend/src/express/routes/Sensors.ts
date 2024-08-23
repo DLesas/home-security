@@ -36,22 +36,25 @@ router.post("/new", async (req, res) => {
 		.returning();
 	await doorSensorRepository.save({
 		name: newSensor.name,
-		building: newSensor.buildingId,
-		status: "disarmed",
-	});
+		externalID: newSensor.id,
+		building: building,
+		armed: false,
+		state: "unknown",
+		temperature: 0,
+		date: new Date(),
+	} as doorSensor);
 	await raiseEvent("info", `New sensor ${newSensor.name} in ${building} with id ${newSensor.id} added`);
 	res.status(201).json({ status: "success", data: newSensor });
 });
 
 router.post("/handshake", async (req, res) => {
 	const validationSchema = z.object({
-		sensorId: z.string(),
+		sensorId: z.number(),
 		macAddress: z.string(),
 	});
 
 	const { error, data } = validationSchema.safeParse(req.body);
 	if (error) {
-		
 		return res.status(400).json({ status: "error", message: error.errors });
 	}
 	const { sensorId, macAddress } = data;
@@ -68,7 +71,7 @@ router.post("/handshake", async (req, res) => {
 			...sensor,
 			macAddress,
 			ipAddress: req.ip,
-		});
+		} as doorSensor);
 		await raiseEvent(
 			"info",
 			`Recieved first handshake from sensor ${sensor.name} in ${sensor.building} with ip: ${req.ip} , and mac: ${macAddress}`
