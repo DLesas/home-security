@@ -4,6 +4,7 @@ import { Server } from "socket.io";
 import { errorHandler, loggingMiddleware } from "./express/middleware";
 import sensorRoutes from "./express/routes/Sensors";
 import buildingRoutes from "./express/routes/Buildings";
+import alarmRoutes from "./express/routes/Alarns";
 import logRoutes from "./express/routes/Logs";
 import setupSocketHandlers from "./express/socketHandler";
 
@@ -19,6 +20,7 @@ app.use(loggingMiddleware);
 app.use("/api/v1/sensors", sensorRoutes);
 app.use("/api/v1/buildings", buildingRoutes);
 app.use("/api/v1/logs", logRoutes);
+app.use("/api/v1/alarms", alarmRoutes);
 
 // Error handling middleware
 app.use(errorHandler);
