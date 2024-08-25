@@ -10,38 +10,22 @@ import gc
 
 switch = machine.Pin(22, machine.Pin.IN, machine.Pin.PULL_UP)
 
-ssid = "***REMOVED_SSID***"
-# ssid = "***REMOVED_SSID***"
-password = '***REMOVED_PASSWORD***'
+def load_config():
+    try:
+        with open('config.json', 'r') as f:
+            return json.load(f)
+    except:
+        print("Failed to load config, using defaults")
+        
 
-server_endpoint = 'http://192.168.0.116:5000/log'
+config = load_config()
+ssid = config['ssid']
+password = config['password']
+server_endpoint = config['server_endpoint']
 
-async def connect():
-    print("Connecting to network...")
-    wlan = network.WLAN(network.STA_IF)
-    wlan.active(True)
-    wlan.config(pm=0xA11140)
-    wlan.connect(ssid, password)
-    while not wlan.isconnected():
-        pico_led.on()
-        print("Waiting for connection...")
-        await asyncio.sleep(1)
-        pico_led.off()
-    config = wlan.ifconfig()
-    ip = config[0]
-    mac = wlan.config("mac")
-    mac_address = "-".join("%02x" % b for b in mac).upper()
-    print(f"Connected to {ip} with MAC {mac_address}")
-    return ip, wlan
 
-async def open_socket(ip):
-    address = (ip, 80)
-    connection = socket.socket()
-    connection.bind(address)
-    connection.listen(5)
-    connection.setblocking(False)
-    print(f"Listening on {ip}:80")
-    return connection
+
+
 
 async def serve(connection, wlan):
     blink_light_range(20)
@@ -77,16 +61,7 @@ async def serve(connection, wlan):
             else:
                 print(f"Error in serve: {e}")
 
-async def accept_client(connection):
-    while True:
-        try:
-            client, addr = connection.accept()
-            return client, addr
-        except OSError as e:
-            if e.errno == 11:  # EAGAIN error
-                await asyncio.sleep(0.1)
-            else:
-                raise
+
 
 async def handle_client(client):
     try:
@@ -121,15 +96,7 @@ async def read_request(client):
             else:
                 raise
 
-async def reconnect(wlan):
-    wlan.disconnect()
-    while not wlan.isconnected():
-        print("Reconnecting...")
-        wlan.connect(ssid, password)
-        await asyncio.sleep(5)
-    ip = wlan.ifconfig()[0]
-    print(f"Reconnected on {ip}")
-    return ip, wlan
+
 
 async def keep_alive(wlan):
     while True:
