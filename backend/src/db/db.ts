@@ -8,3 +8,9 @@ const queryClient = postgres(
   `postgres://${process.env.POSTGRES_USER}:${process.env.POSTGRES_PASSWORD}@${process.env.POSTGRES_HOST}:${process.env.POSTGRES_PORT}/${process.env.POSTGRES_DB}`,
 );
 export const db = drizzle(queryClient, { schema: schema });
+
+export async function runMigrations() {
+	console.log("Running migrations...");
+	await migrate(db, { migrationsFolder: "./drizzle" });
+	console.log("Migrations complete.");
+}
