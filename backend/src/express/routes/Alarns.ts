@@ -11,6 +11,7 @@ import { emitNewData } from "../socketHandler";
 import { errorLogsTable } from "../../db/schema/errorLogs";
 import { alarmsTable } from "../../db/schema/alarms";
 import { type Alarm, alarmRepository } from "../../redis/alarms";
+import { EntityId } from "redis-om";
 
 const router = express.Router();
 
@@ -45,6 +46,17 @@ router.post("/new", async (req, res) => {
 	} as Alarm);
 	await raiseEvent("info", `New alarm ${newAlarm.name} in ${building} with id ${newAlarm.id} added`);
 	res.status(201).json({ status: "success", data: newAlarm });
+});
+
+router.delete("/:id", async (req, res) => {
+	const { id } = req.params;
+	const alarm = await alarmRepository.search().where("externalID").eq(id).returnFirst();
+	if (!alarm) {
+		return res.status(404).json({ status: "error", message: "Alarm not found" });
+	}
+	const entityId = (alarm as any)[EntityId] as string;
+	await alarmRepository.remove(entityId);
+	res.json({ status: "success", message: "Alarm deleted" });
 });
 
 router.post("/handshake", async (req, res) => {
