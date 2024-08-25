@@ -16,6 +16,8 @@
 .next
 */out/
 
+# drizzle
+backend/src/db/drizzle
 
 # production
 */build

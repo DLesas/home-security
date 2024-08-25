@@ -7,14 +7,22 @@ import buildingRoutes from "./express/routes/Buildings";
 import alarmRoutes from "./express/routes/Alarns";
 import logRoutes from "./express/routes/Logs";
 import setupSocketHandlers from "./express/socketHandler";
+import { runMigrations } from "./db/db";
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 const port = process.env.PORT || 8080;
 
+await runMigrations();
+
 app.use(express.json());
 app.use(loggingMiddleware);
+
+// on startup might want to consider setting all sensors
+// to unknown as to not trigger false alarms
+// as previous state of sensors will stay in redis
+// if power outages happen
 
 // Routes
 app.use("/api/v1/sensors", sensorRoutes);
@@ -32,3 +40,4 @@ server.listen(port, () => {
 });
 
 export { io };
+
