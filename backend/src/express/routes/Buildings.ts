@@ -7,8 +7,33 @@ import { eq } from "drizzle-orm";
 import { buildingTable } from "../../db/schema/buildings";
 import { raiseError } from "../../errorHandling";
 import { raiseEvent } from "../../notifiy";
+import { z } from "zod";
 
 const router = express.Router();
+
+router.post("/new", async (req, res) => {
+	const validationSchema = z.object({
+		name: z.string(),
+	});
+
+	const { error, data } = validationSchema.safeParse(req.body);
+	if (error) {
+		return res.status(400).json({ status: "error", message: error.errors });
+	}
+	const { name } = data;
+	const buildingExists = await db.select().from(buildingTable).where(eq(buildingTable.name, name));
+	if (buildingExists.length > 0) {
+		return res.status(400).json({ status: "error", message: "Building already exists" });
+	}
+	const [newBuilding] = await db
+		.insert(buildingTable)
+		.values({
+			name,
+		})
+		.returning();
+	await raiseEvent("info", `New building ${newBuilding.name} added with id ${newBuilding.id}`);
+	res.status(201).json({ status: "success", data: newBuilding });
+});
 
 router.post("/:building/arm", async (req, res) => {
 	const { building } = req.params;
