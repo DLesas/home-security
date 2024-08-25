@@ -5,11 +5,11 @@ export default defineConfig({
   out: "./src/db/drizzle",
   dialect: "postgresql",
   dbCredentials: {
-    host: process.env.POSTGRES_HOST!,
+    host: process.env.POSTGRES_HOST,
     user: process.env.POSTGRES_USER,
     port: Number(process.env.POSTGRES_PORT),
     password: process.env.POSTGRES_PASSWORD,
-    database: process.env.POSTGRES_DB!,
+    database: process.env.POSTGRES_DB,
   },
   verbose: true,
 });
