@@ -9,6 +9,7 @@ import { eq } from "drizzle-orm";
 import { raiseEvent } from "../../notifiy";
 import { emitNewData } from "../socketHandler";
 import { errorLogsTable } from "../../db/schema/errorLogs";
+import { EntityId } from "redis-om";
 
 const router = express.Router();
 
@@ -44,7 +45,21 @@ router.post("/new", async (req, res) => {
 		date: new Date(),
 	} as doorSensor);
 	await raiseEvent("info", `New sensor ${newSensor.name} in ${building} with id ${newSensor.id} added`);
+	await emitNewData();
 	res.status(201).json({ status: "success", data: newSensor });
+});
+
+router.delete("/:id", async (req, res) => {
+	const { id } = req.params;
+	const sensor = await doorSensorRepository.search().where("externalID").eq(id).returnFirst();
+	if (!sensor) {
+		return res.status(404).json({ status: "error", message: "Sensor not found" });
+	}
+	const entityId = (sensor as any)[EntityId] as string;
+	await doorSensorRepository.remove(entityId);
+	await raiseEvent("info", `Sensor ${sensor.name} in ${sensor.building} deleted`);
+	await emitNewData();
+	res.json({ status: "success", message: `Sensor ${sensor.name} in ${sensor.building} deleted` });
 });
 
 router.post("/handshake", async (req, res) => {
