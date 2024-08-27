@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { db } from "../db/db";
 import { accessLogsTable } from "../db/schema/accessLogs";
 import { errorLogsTable } from "../db/schema/errorLogs";
+import { CustomError, raiseError } from "../errorHandling";
 
 export const loggingMiddleware = async (req: Request, res: Response, next: NextFunction) => {
 	const clientIp = req.ip!;
@@ -23,9 +24,18 @@ export const loggingMiddleware = async (req: Request, res: Response, next: NextF
 
 export const errorHandler = async (err: Error, req: Request, res: Response, next: NextFunction) => {
 	console.error(err.stack);
+
+	let statusCode = 500;
+	let message = "Internal server error";
+
+	if (err instanceof CustomError) {
+		statusCode = err.statusCode;
+		message = err.message;
+	}
+
 	await db.insert(errorLogsTable).values({
 		endpoint: req.baseUrl + req.path,
 		errorTrace: err.stack || err.message || String(err),
 	});
-	res.status(500).send({ status: "error", message: "Internal server error" });
+	res.status(statusCode).send({ status: "error", message });
 };

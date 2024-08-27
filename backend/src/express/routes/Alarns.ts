@@ -12,6 +12,7 @@ import { errorLogsTable } from "../../db/schema/errorLogs";
 import { alarmsTable } from "../../db/schema/alarms";
 import { type Alarm, alarmRepository } from "../../redis/alarms";
 import { EntityId } from "redis-om";
+import { raiseError } from "../../errorHandling";
 
 const router = express.Router();
 
@@ -20,15 +21,15 @@ router.post("/new", async (req, res) => {
 		name: z.string(),
 		building: z.string(),
 	});
-
-	const { error, data } = validationSchema.safeParse(req.body);
-	if (error) {
-		return res.status(400).json({ status: "error", message: error.errors });
+	const result = validationSchema.safeParse(req.body);
+	if (!result.success) {
+		raiseError(400, JSON.stringify(result.error.errors));
+		return;
 	}
-	const { name, building } = data;
-	const buildingExists = await db.select().from(buildingTable).where(eq(buildingTable.name, building));
+	const { name, building } = result.data;
+	const buildingExists = await db.select().from(buildingTable).where(eq(buildingTable.name, building)).limit(1);
 	if (buildingExists.length === 0) {
-		return res.status(400).json({ status: "error", message: "Building not found" });
+		raiseError(404, "Building not found");
 	}
 	const [newAlarm] = await db
 		.insert(alarmsTable)
@@ -52,7 +53,8 @@ router.delete("/:id", async (req, res) => {
 	const { id } = req.params;
 	const alarm = await alarmRepository.search().where("externalID").eq(id).returnFirst();
 	if (!alarm) {
-		return res.status(404).json({ status: "error", message: "Alarm not found" });
+		raiseError(404, "Alarm not found");
+		return;
 	}
 	const entityId = (alarm as any)[EntityId] as string;
 	await alarmRepository.remove(entityId);
@@ -65,16 +67,18 @@ router.post("/handshake", async (req, res) => {
 		macAddress: z.string(),
 	});
 
-	const { error, data } = validationSchema.safeParse(req.body);
-	if (error) {
-		return res.status(400).json({ status: "error", message: error.errors });
+	const result = validationSchema.safeParse(req.body);
+	if (!result.success) {
+		raiseError(400, JSON.stringify(result.error.errors));
+		return;
 	}
-	const { alarmId, macAddress } = data;
+	const { alarmId, macAddress } = result.data;
 	const alarm = (await alarmRepository.search().where("externalID").eq(alarmId).returnFirst()) as Alarm | null;
 	if (!alarm) {
-		return res.status(404).json({ status: "error", message: "Alarm not found" });
+		raiseError(404, "Alarm not found");
+		return;
 	}
-	if (alarm.ipAddress === undefined) {
+	if (!alarm.ipAddress) {
 		await alarmRepository.save({
 			...alarm,
 			macAddress,
