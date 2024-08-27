@@ -18,8 +18,20 @@ const router = express.Router();
 
 router.post("/new", async (req, res) => {
 	const validationSchema = z.object({
-		name: z.string(),
-		building: z.string(),
+		name: z
+			.string({
+				required_error: "name is required",
+				invalid_type_error: "name must be a string",
+			})
+			.min(1, "name must be at least 1 character")
+			.max(255, "name must be less than 255 characters"),
+		building: z
+			.string({
+				required_error: "building is required",
+				invalid_type_error: "building must be a string",
+			})
+			.min(1, "building must be at least 1 character")
+			.max(255, "building must be less than 255 characters"),
 	});
 	const result = validationSchema.safeParse(req.body);
 	if (!result.success) {
@@ -63,8 +75,20 @@ router.delete("/:id", async (req, res) => {
 
 router.post("/handshake", async (req, res) => {
 	const validationSchema = z.object({
-		alarmId: z.number(),
-		macAddress: z.string(),
+		alarmId: z
+			.string({
+				required_error: "alarmId is required",
+				invalid_type_error: "alarmId must be a string",
+			})
+			.min(1, "alarmId must be at least 1 character")
+			.max(255, "alarmId must be less than 255 characters"),
+		macAddress: z
+			.string({
+				required_error: "macAddress is required",
+				invalid_type_error: "macAddress must be a string",
+			})
+			.min(1, "macAddress must be at least 1 character")
+			.max(255, "macAddress must be less than 255 characters"),
 	});
 
 	const result = validationSchema.safeParse(req.body);

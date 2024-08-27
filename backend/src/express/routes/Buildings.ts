@@ -13,7 +13,13 @@ const router = express.Router();
 
 router.post("/new", async (req, res) => {
 	const validationSchema = z.object({
-		name: z.string(),
+		name: z
+			.string({
+				required_error: "name is required",
+				invalid_type_error: "name must be a string",
+			})
+			.min(1, "name must be at least 1 character")
+			.max(255, "name must be less than 255 characters"),
 	});
 
 	const result = validationSchema.safeParse(req.body);
