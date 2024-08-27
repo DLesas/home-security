@@ -10,6 +10,7 @@ import { raiseEvent } from "../../notifiy";
 import { emitNewData } from "../socketHandler";
 import { errorLogsTable } from "../../db/schema/errorLogs";
 import { EntityId } from "redis-om";
+import { raiseError } from "../../errorHandling";
 
 const router = express.Router();
 
@@ -19,14 +20,16 @@ router.post("/new", async (req, res) => {
 		building: z.string(),
 	});
 
-	const { error, data } = validationSchema.safeParse(req.body);
-	if (error) {
-		return res.status(400).json({ status: "error", message: error.errors });
+	const result = validationSchema.safeParse(req.body);
+	if (!result.success) {
+		raiseError(400, JSON.stringify(result.error.errors));
+		return;
 	}
-	const { name, building } = data;
-	const buildingExists = await db.select().from(buildingTable).where(eq(buildingTable.name, building));
+	const { name, building } = result.data;
+	const buildingExists = await db.select().from(buildingTable).where(eq(buildingTable.name, building)).limit(1);
 	if (buildingExists.length === 0) {
-		return res.status(400).json({ status: "error", message: "Building not found" });
+		raiseError(404, "Building not found");
+		return;
 	}
 	const [newSensor] = await db
 		.insert(doorSensorsTable)
@@ -51,9 +54,10 @@ router.post("/new", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
 	const { id } = req.params;
-	const sensor = await doorSensorRepository.search().where("externalID").eq(id).returnFirst();
+	const sensor = (await doorSensorRepository.search().where("externalID").eq(id).returnFirst()) as doorSensor | null;
 	if (!sensor) {
-		return res.status(404).json({ status: "error", message: "Sensor not found" });
+		raiseError(404, "Sensor not found");
+		return;
 	}
 	const entityId = (sensor as any)[EntityId] as string;
 	await doorSensorRepository.remove(entityId);
@@ -70,7 +74,8 @@ router.post("/handshake", async (req, res) => {
 
 	const { error, data } = validationSchema.safeParse(req.body);
 	if (error) {
-		return res.status(400).json({ status: "error", message: error.errors });
+		raiseError(400, JSON.stringify(error.errors));
+		return;
 	}
 	const { sensorId, macAddress } = data;
 	const sensor = (await doorSensorRepository
@@ -79,9 +84,10 @@ router.post("/handshake", async (req, res) => {
 		.eq(sensorId)
 		.returnFirst()) as doorSensor | null;
 	if (!sensor) {
-		return res.status(404).json({ status: "error", message: "Sensor not found" });
+		raiseError(404, "Sensor not found");
+		return;
 	}
-	if (sensor.ipAddress === undefined) {
+	if (!sensor.ipAddress) {
 		await doorSensorRepository.save({
 			...sensor,
 			macAddress,
@@ -89,7 +95,9 @@ router.post("/handshake", async (req, res) => {
 		} as doorSensor);
 		await raiseEvent(
 			"info",
-			`Recieved first handshake from sensor ${sensor.name} in ${sensor.building} with ip: ${req.ip} , and mac: ${macAddress}`
+			`Recieved first handshake from sensor ${sensor!.name} in ${sensor!.building} with ip: ${
+				req.ip
+			} , and mac: ${macAddress}`
 		);
 		await emitNewData();
 	}
@@ -104,7 +112,8 @@ router.post("/:sensor/arm", async (req, res) => {
 		.eq(sensorId)
 		.returnFirst()) as doorSensor | null;
 	if (!sensor) {
-		return res.status(404).json({ status: "error", message: "Sensor not found" });
+		raiseError(404, "Sensor not found");
+		return;
 	}
 	await changeSensorStatus([sensor], true);
 	await emitNewData();
@@ -119,7 +128,8 @@ router.post("/:sensor/disarm", async (req, res) => {
 		.eq(sensorId)
 		.returnFirst()) as doorSensor | null;
 	if (!sensor) {
-		return res.status(404).json({ status: "error", message: "Sensor not found" });
+		raiseError(404, "Sensor not found");
+		return;
 	}
 	await changeSensorStatus([sensor], false);
 	await emitNewData();
