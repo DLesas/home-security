@@ -3,6 +3,7 @@ import { z } from "zod";
 import { DoorSensorUpdate } from "../../sensorFuncs";
 import { doorSensorRepository } from "../../redis/doorSensors";
 import { emitNewData } from "../socketHandler";
+import { raiseError } from "../../errorHandling";
 
 const router = express.Router();
 
@@ -12,11 +13,12 @@ router.post("/", async (req, res) => {
 		status: z.enum(["open", "closed"]),
 		temperature: z.number(),
 	});
-	const { error, data } = validationSchema.safeParse(req.body);
-	if (error) {
-		return res.status(400).json({ status: "error", message: error.errors });
+	const result = validationSchema.safeParse(req.body);
+	if (!result.success) {
+		raiseError(400, JSON.stringify(result.error.errors));
+		return;
 	}
-	const { sensorId, status, temperature } = data;
+	const { sensorId, status, temperature } = result.data;
 	await DoorSensorUpdate({ sensorId, state: status, temperature });
 	await emitNewData();
 	res.json({ status: "success", message: "Log updated" });

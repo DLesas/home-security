@@ -39,8 +39,8 @@ export async function checkSensorState(previousState: doorSensor, state: "open" 
  */
 export async function checkSensorTemperature(temperature: number, sensor: doorSensor) {
 	const config = (await configRepository.search().returnFirst()) as Config | null;
-	if (config === null) {
-		raiseError();
+	if (!config) {
+		raiseError(500, "No config found");
 		return;
 	}
 	const startText = `Sensor at ${sensor.name} in ${sensor.building} is above configured`;
@@ -59,7 +59,7 @@ export async function checkSensorTemperature(temperature: number, sensor: doorSe
 }
 
 /**
- * Changes the armed status of multiple door sensors and checks their state.
+ * Changes the armed status of multiple door sensors and then checks if alarms need to be triggered.
  *
  * @param {doorSensor[]} sensors - The array of door sensors to change the armed status of.
  * @param {boolean} armed - The new armed status of the door sensors.
@@ -100,7 +100,6 @@ export async function changeSensorStatus(sensors: doorSensor[], armed: boolean) 
  * @param {string} params.ip - The IP address of the door sensor that triggered this endpoint.
  * @return {Promise<void>} A promise that resolves when the update of redis is complete.
  */
-
 export async function DoorSensorUpdate({
 	state,
 	temperature,
@@ -115,8 +114,8 @@ export async function DoorSensorUpdate({
 		.where("externalID")
 		.eq(sensorId)
 		.returnFirst()) as doorSensor | null;
-	if (currentState === null) {
-		raiseError();
+	if (!currentState) {
+		raiseError(404, "Sensor not found");
 		return;
 	}
 	checkSensorState(currentState, state);
