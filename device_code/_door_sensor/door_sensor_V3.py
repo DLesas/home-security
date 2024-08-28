@@ -98,15 +98,7 @@ async def read_request(client):
 
 
 
-async def keep_alive(wlan):
-    while True:
-        if wlan.isconnected():
-            try:
-                print('keeping alive')
-                wlan.ifconfig()
-            except Exception as e:
-                print(f"Keep-alive operation failed: {e}")
-        await asyncio.sleep(30)
+
 
 async def send_door_state(door_state):
     while True:
