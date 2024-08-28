@@ -3,6 +3,7 @@ import socket
 import time
 from picozero import pico_led
 import uasyncio as asyncio
+import machine
 
 async def connect(ssid: str, password: str) -> tuple[str, str, network.WLAN]:
     """
@@ -51,7 +52,8 @@ async def reconnect(wlan: network.WLAN, ssid: str, password: str) -> tuple[str, 
     Asynchronously reconnects to a Wi-Fi network.
 
     This function attempts to reconnect to a specified Wi-Fi network using the provided WLAN object, SSID, and password.
-    It will continuously attempt to reconnect until successful, blinking the Pico's LED during the process.
+    It performs cleanup before attempting to reconnect and will continuously attempt to reconnect until successful,
+    blinking the Pico's LED during the process.
 
     Args:
         wlan (network.WLAN): The WLAN object representing the network interface.
@@ -70,13 +72,34 @@ async def reconnect(wlan: network.WLAN, ssid: str, password: str) -> tuple[str, 
         This function requires the 'network', 'uasyncio', and 'picozero' modules to be imported.
         It also assumes that 'pico_led' is available from the 'picozero' module.
     """
+    print("Disconnecting from current network...")
     wlan.disconnect()
-    while not wlan.isconnected():
+    await asyncio.sleep(1)  # Wait for disconnection to complete
+
+    print("Performing network cleanup...")
+    wlan.active(False)
+    await asyncio.sleep(1)  # Allow time for the interface to fully deactivate
+    wlan.active(True)
+    await asyncio.sleep(1)  # Allow time for the interface to fully activate
+    wlan.config(pm=0xA11140)
+
+    print("Attempting to reconnect...")
+    wlan.connect(ssid, password)
+    
+    retry_count = 0
+    max_retries = 10
+    while not wlan.isconnected() and retry_count < max_retries:
         pico_led.on()
-        print("Reconnecting...")
-        wlan.connect(ssid, password)
+        print(f"Reconnecting... Attempt {retry_count + 1}/{max_retries}")
         await asyncio.sleep(1)
         pico_led.off()
+        await asyncio.sleep(1)
+        retry_count += 1
+
+    if not wlan.isconnected():
+        print("Failed to reconnect after multiple attempts. Restarting the device...")
+        machine.reset()
+
     ip = wlan.ifconfig()[0]
     print(f"Reconnected on {ip}")
     return ip, wlan
@@ -143,10 +166,44 @@ def accept_client(connection: socket.socket) -> tuple[socket.socket, tuple]:
             client, addr = connection.accept()
             return client, addr
         except OSError as e:
-            if e.errno == 11:  # EAGAIN error (Resource temporarily unavailable)
+            if e.errno == 11: 
+                # EAGAIN error (Resource temporarily unavailable)
                 # EAGAIN (Error Again) occurs when a non-blocking operation
                 # cannot be completed immediately. In this case, it means
                 # no client is ready to be accepted at the moment.
-                time.sleep(0.1)
+                time.sleep(0.3)
             else:
                 raise
+
+
+async def keep_alive(wlan: network.WLAN):
+    """
+    Asynchronous function to maintain the network connection.
+
+    This function runs indefinitely, periodically checking and refreshing
+    the network connection to prevent timeouts.
+
+    Args:
+        wlan (network.WLAN): The WLAN object representing the network interface.
+
+    The function performs the following actions in a loop:
+    1. Checks if the WLAN is connected.
+    2. If connected, it attempts to refresh the connection by calling wlan.ifconfig().
+    3. If an exception occurs during the refresh, it prints an error message.
+    4. Waits for 30 seconds before the next iteration.
+
+    Note:
+        This function is designed to be run as a background task using asyncio.
+
+    Example:
+        wlan = network.WLAN(network.STA_IF)
+        asyncio.create_task(keep_alive(wlan))
+    """
+    while True: 
+        if wlan.isconnected():
+            try:
+                print('keeping alive')
+                wlan.ifconfig()
+            except Exception as e:
+                print(f"Keep-alive operation failed: {e}")
+        await asyncio.sleep(30)
