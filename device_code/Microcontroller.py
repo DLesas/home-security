@@ -3,23 +3,78 @@ import gc # type: ignore
 import utime # type: ignore
 import os
 import uhashlib # type: ignore
+import ujson # type: ignore
+import urequests # type: ignore
+import sys # type: ignore
+import functools
+
+def inject_function_name(func):
+    """
+    Decorator to inject the function name into the function's keyword arguments.
+
+    Args:
+        func (function): The function to be decorated.
+
+    Returns:
+        function: The wrapped function with the function name injected.
+    """
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        return func(self, *args, **kwargs, func_name=func.__name__)
+    return wrapper
+
+def log_errors(func=None, *, logger=None):
+    """
+    Decorator to log errors that occur in the decorated function.
+
+    Args:
+        func (function, optional): The function to be decorated. Defaults to None.
+        logger (object, optional): The logger object to use for logging errors. Defaults to None.
+
+    Returns:
+        function: The wrapped function with error logging.
+    """
+    def decorator(f):
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            try:
+                return f(*args, **kwargs)
+            except Exception as e:
+                class_name = args[0].__class__.__name__ if args else ''
+                function_name = f.__name__
+                log_method = logger or (args[0].logger.log_issue if hasattr(args[0], 'logger') else None)
+                if log_method:
+                    log_method("Error", class_name, function_name, str(e))
+                else:
+                    print(f"Error in {class_name}.{function_name}: {str(e)}")
+                raise
+        return wrapper
+    return decorator if func is None else decorator(func)
 
 class MicroController:
     """
     A class to manage the MicroController's operations including LED control, logging, and file management.
     """
 
-    def __init__(self, led: Pin = Pin(25, Pin.OUT)):
+    def __init__(self, log_endpoint: str, led: Pin = Pin(25, Pin.OUT), max_log_file_size: int = 512 * 1024, config_file: str = None):
         """
         Initialize the MicroController object.
 
         Args:
+            log_endpoint (str): The endpoint to send logs to.
             led (Pin): The LED pin object. Defaults to the onboard LED (Pin 25).
+            max_log_file_size (int): The maximum size of log files in bytes. Defaults to 512KB.
+            config_file (str): Path to a configuration file. Defaults to None.
         """
         self.log_dir = 'logs'
         self.issue_file = 'issue_logs.csv'
         self.led = led
+        self.max_log_file_size = max_log_file_size
+        self.log_endpoint = log_endpoint
         self.fatal_error = False
+        self.file_check_timer = None
+        self.name = None
+        self.ID = None
 
     @staticmethod
     def collect_garbage():
@@ -28,8 +83,7 @@ class MicroController:
         """
         gc.collect()
         print(f"Free memory: {gc.mem_free()} bytes")
-    
-    # the optinal total_blinks argument has a code smell but I'm unsure how to correct it for micropython
+
     def blink(self, times_per_second: int, indefinite: bool = False, total_blinks: 'int | None' = None):
         """
         Blink the LED at a specified rate.
@@ -44,17 +98,17 @@ class MicroController:
         """
         timer = Timer()
         count = 0
-        
+
         def blink_led(blink_timer):
             nonlocal count
             self.led.toggle()
             count += 1
             if not indefinite and count >= total_blinks:
                 self.stop_blinking(blink_timer)
-        
+
         blink_timer = timer.init(freq=times_per_second, mode=Timer.PERIODIC, callback=blink_led)
         return blink_timer
-    
+
     def stop_blinking(self, blink_timer: Timer):
         """
         Stop the LED from blinking.
@@ -66,37 +120,34 @@ class MicroController:
         self.led.off()
         if self.fatal_error:
             self.led.on()
-    
-    def log_issue(self, type: str, className: str, functionName: str, error_message: str):
+
+    def log_issue(self, type: str, class_name: str, function_name: str, error_message: str, level: str = 'ERROR'):
         """
         Log an issue to a CSV file.
 
         Args:
             type (str): The type of issue.
-            className (str): The name of the class where the issue occurred.
-            functionName (str): The name of the function where the issue occurred.
+            class_name (str): The name of the class where the issue occurred.
+            function_name (str): The name of the function where the issue occurred.
             error_message (str): The error message to log.
+            level (str): The logging level. Defaults to 'ERROR'.
         """
         file_path = f'{self.log_dir}/{self.issue_file}'
-        # Create hash of classname + functionname + error_message
-        hash_input = f"{className}{functionName}{error_message}"
+        hash_input = f"{class_name}{function_name}{error_message}"
         hash_obj = uhashlib.md5(hash_input.encode())
         hashTxt = ''.join(['{:02x}'.format(b) for b in hash_obj.digest()])
-        # Create logs directory if it doesn't exist
         try:
             os.mkdir(self.log_dir)
         except OSError:
-            # Directory already exists or creation failed
             pass
         try:
             last_line = ''
             file_exists = file_path in os.listdir(self.log_dir)
-            
             if file_exists:
                 with open(file_path, 'r+b') as f:
-                    f.seek(-2, 2)  # Jump to the second last byte
-                    while f.read(1) != b'\n':  # Until EOL is found...
-                        f.seek(-2, 1)  # ...jump back the read byte plus one more
+                    f.seek(-2, 2)
+                    while f.read(1) != b'\n':
+                        f.seek(-2, 1)
                     last_line = f.readline().decode().strip()
 
                 timestamp = utime.localtime()
@@ -106,35 +157,90 @@ class MicroController:
                 )
 
                 if last_line:
-                    last_hash = last_line.split(',')[-2]  # Get the hash from the last line
+                    last_hash = last_line.split(',')[-2]
                     if last_hash == hashTxt:
-                        # If hash matches, increment the count and overwrite the last line
                         count = int(last_line.split(',')[-1]) + 1
-                        new_line = f"{date_time},{className},{functionName},{error_message},{hashTxt},{count}\n"
-                        f.seek(-len(last_line)-1, 2)  # Move cursor to the start of the last line
-                        f.write(new_line.encode())  # Overwrite the last line
+                        new_line = f"{date_time},{class_name},{function_name},{error_message},{hashTxt},{count}\n"
+                        f.seek(-len(last_line)-1, 2)
+                        f.write(new_line.encode())
                     else:
-                        # If hash doesn't match, append a new entry with count 1
-                        new_line = f"{date_time},{className},{functionName},{error_message},{hashTxt},1\n"
+                        new_line = f"{date_time},{class_name},{function_name},{error_message},{hashTxt},1\n"
                         f.write(new_line.encode())
                 else:
-                    # If it's the first entry, start with count 1
-                    new_line = f"{date_time},{className},{functionName},{error_message},{hashTxt},1\n"
+                    new_line = f"{date_time},{class_name},{function_name},{error_message},{hashTxt},1\n"
                     f.write(new_line.encode())
             else:
-                # If file doesn't exist, create it and write the header and first entry
                 with open(file_path, 'w') as f:
                     f.write("Timestamp,Class,Function,Error_Message,Hash,Count\n")
-                    new_line = f"{date_time},{className},{functionName},{error_message},{hashTxt},1\n"
+                    new_line = f"{date_time},{class_name},{function_name},{error_message},{hashTxt},1\n"
                     f.write(new_line)
-            print(f"Error logged: {type} - {error_message}")
+            print(f"{level}: {type} - {error_message}")
             if last_line:
                 print(f"Previous log entry: {last_line}")
             print(f"New log entry: {new_line.strip()}")
         except Exception as e:
             print(f"Failed to log error: {e}")
-    
-    @staticmethod        
+        self.collect_garbage()
+
+    def start_file_check_timer(self, interval_in_milliseconds: int = 1800000):
+        """
+        Start a timer to check the size of a file at a specified interval.
+
+        Args:
+            interval_in_milliseconds (int): The interval in milliseconds at which to check the file size. Defaults to 30 minutes.
+        """
+        self.file_check_timer = Timer()
+        self.file_check_timer.init(period=interval_in_milliseconds, mode=Timer.PERIODIC, callback=self.check_all_files)
+
+    @inject_function_name
+    def check_all_files(self, func_name: str):
+        """
+        Check the size of all files in the log directory and delete rows if they exceed the maximum size.
+
+        Args:
+            func_name (str): The name of the function (injected by the decorator).
+        """
+        for file in os.listdir(self.log_dir):
+            file_dir = f'{self.log_dir}/{file}'
+            size = self.get_file_size(file_dir)
+            if size > self.max_log_file_size or size == -1:
+                try:
+                    self.send_log(file_dir)
+                except Exception as e:
+                    self.log_issue('error', self.__class__.__name__, func_name, f'received error: {e} whilst trying to send logs, falling back to checking file size and potentially truncating csv file {file_dir}')
+                    if self.get_file_size(file_dir) > self.max_log_file_size:
+                        self.truncate_csv(file_dir)
+
+    def send_log(self, file_path: str):
+        """
+        Parse a CSV log file, convert it to JSON, and send it to the specified endpoint.
+
+        Args:
+            file_path (str): The path to the log file.
+        """
+        try:
+            with open(file_path, 'r') as f:
+                header = f.readline().strip().split(',')
+                data = {column: [] for column in header}
+                for line in f:
+                    values = line.strip().split(',')
+                    for column, value in zip(header, values):
+                        data[column].append(value)
+
+            json_data = ujson.dumps(data)
+            response = urequests.post(self.log_endpoint, headers={'Content-Type': 'application/json'}, data=json_data)
+            if response.status_code == 200:
+                print(f"Log data sent successfully to {self.log_endpoint}")
+                self.truncate_csv(file_path, 50)
+            else:
+                raise Exception(f"Failed to send log data. Status code: {response.status_code}")
+        except Exception as e:
+            self.log_issue('error', self.__class__.__name__, 'send_log', str(e))
+        finally:
+            response.close()
+            self.collect_garbage()
+
+    @staticmethod
     def get_file_size(path_to_file: str) -> int:
         """
         Get the size of a file.
@@ -143,42 +249,32 @@ class MicroController:
             path_to_file (str): The path to the file.
 
         Returns:
-            int: The size of the file in bytes.
-
-        Raises:
-            OSError: If there's an error accessing the file.
+            int: The size of the file in bytes. Returns -1 if there's an error accessing the file.
         """
         try:
             return os.stat(path_to_file)[6]
         except OSError as e:
             print(f"Error getting file size: {e}")
             return -1
-         
-    def check_delete_rows_csv(self, path: str, max_size: int = 1024 * 1024, rows_to_keep: int = 1000):
+
+    def truncate_csv(self, path: str, rows_to_keep: int = 1000):
         """
         Check the size of a CSV file and delete rows if it exceeds the maximum size.
 
         Args:
             path (str): The path to the CSV file.
-            max_size (int): The maximum allowed file size in bytes. Defaults to 1MB.
             rows_to_keep (int): The number of rows to keep if trimming is needed. Defaults to 1000.
-
-        Returns:
-            bool: True if the file was trimmed, False otherwise.
         """
         try:
-            if os.stat(path)[6] > max_size:  # Check file size efficiently
-                with open(path, 'r+') as f:
-                    header = f.readline()  # Preserve original header
-                    lines = f.readlines()
-                    if len(lines) > rows_to_keep:
-                        f.seek(0)
-                        f.write(header)
-                        f.writelines(lines[-rows_to_keep:])
-                        f.truncate()
-                return True  # File was trimmed
-            return False  # No action needed
+            with open(path, 'r+') as f:
+                header = f.readline()
+                lines = f.readlines()
+                if len(lines) > rows_to_keep:
+                    f.seek(0)
+                    f.write(header)
+                    f.writelines(lines[-rows_to_keep:])
+                    f.truncate()
         except OSError as e:
             self.fatal_error = True
             print(f"Error: {e}")
-            return False
+        self.collect_garbage()
