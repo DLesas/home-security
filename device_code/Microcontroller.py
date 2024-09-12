@@ -1,4 +1,4 @@
-from machine import Pin, Timer # type: ignore
+from machine import Pin, Timer# type: ignore
 import gc # type: ignore
 import utime # type: ignore
 import os
@@ -6,6 +6,7 @@ import uhashlib # type: ignore
 import ujson # type: ignore
 import urequests # type: ignore
 import sys # type: ignore
+import network # type: ignore
 import functools
 
 def inject_function_name(func):
@@ -56,7 +57,7 @@ class MicroController:
     A class to manage the MicroController's operations including LED control, logging, and file management.
     """
 
-    def __init__(self, log_endpoint: str, led: Pin = Pin(25, Pin.OUT), max_log_file_size: int = 512 * 1024, config_file: str = None):
+    def __init__(self, log_endpoint: str, led: Pin = Pin(25, Pin.OUT), max_log_file_size: int = 512 * 1024):
         """
         Initialize the MicroController object.
 
@@ -72,7 +73,6 @@ class MicroController:
         self.max_log_file_size = max_log_file_size
         self.log_endpoint = log_endpoint
         self.fatal_error = False
-        self.file_check_timer = None
         self.name = None
         self.ID = None
 
@@ -182,15 +182,6 @@ class MicroController:
             print(f"Failed to log error: {e}")
         self.collect_garbage()
 
-    def start_file_check_timer(self, interval_in_milliseconds: int = 1800000):
-        """
-        Start a timer to check the size of a file at a specified interval.
-
-        Args:
-            interval_in_milliseconds (int): The interval in milliseconds at which to check the file size. Defaults to 30 minutes.
-        """
-        self.file_check_timer = Timer()
-        self.file_check_timer.init(period=interval_in_milliseconds, mode=Timer.PERIODIC, callback=self.check_all_files)
 
     @inject_function_name
     def check_all_files(self, func_name: str):
@@ -211,13 +202,18 @@ class MicroController:
                     if self.get_file_size(file_dir) > self.max_log_file_size:
                         self.truncate_csv(file_dir)
 
-    def send_log(self, file_path: str):
+    @inject_function_name
+    def send_log(self, file_path: str, func_name: str):
         """
         Parse a CSV log file, convert it to JSON, and send it to the specified endpoint.
 
         Args:
             file_path (str): The path to the log file.
         """
+        if not network.WLAN(network.STA_IF).isconnected():
+            self.log_issue('error', self.__class__.__name__, func_name, 'Wi-Fi not connected')
+            raise Exception('Wi-Fi not connected')
+
         try:
             with open(file_path, 'r') as f:
                 header = f.readline().strip().split(',')
@@ -235,9 +231,11 @@ class MicroController:
             else:
                 raise Exception(f"Failed to send log data. Status code: {response.status_code}")
         except Exception as e:
-            self.log_issue('error', self.__class__.__name__, 'send_log', str(e))
+            self.log_issue('error', self.__class__.__name__, func_name, str(e))
+            raise(e)
         finally:
-            response.close()
+            if 'response' in locals():
+                response.close()
             self.collect_garbage()
 
     @staticmethod
