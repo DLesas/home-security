@@ -2,12 +2,14 @@ import network # type: ignore
 import uasyncio as asyncio # type: ignore
 from picozero import pico_temp_sensor, pico_led # type: ignore
 import machine # type: ignore
+import ujson # type: ignore
+import urequests # type: ignore
 import time
 import socket
-from Microcontroller import MicroController
+from Microcontroller import MicroController, inject_function_name
 
 class Networking:
-    def __init__(self, pico: MicroController, ssid: str, password: str, server_address: str, max_attempts: int = 50, blink_frequency: int = 5):
+    def __init__(self, pico: MicroController, ssid: str, password: str, server_address: str, ID: int, max_attempts: int = 50, blink_frequency: int = 2):
         """
         Initializes the Networking class with the given parameters.
 
@@ -29,6 +31,7 @@ class Networking:
         self.wlan = network.WLAN(network.STA_IF)
         self.blink_frequency = blink_frequency
         self.server_address = server_address
+        self.ID = ID
         self.connection = None
         self.ip = None
         self.mac = None
@@ -54,8 +57,10 @@ class Networking:
         rawMac = self.wlan.config("mac")
         self.mac = "-".join("%02x" % b for b in rawMac).upper()
         print(f'Connected. IP: {self.ip}, MAC: {self.mac}')
+        self.handshake_with_server()
 
-    def reconnect(self):
+    @inject_function_name
+    def reconnect(self, func_name: str = "reconnect"):
         """
         Reconnects to the WiFi network.
 
@@ -83,16 +88,17 @@ class Networking:
             retry_count += 1
         self.pico.stop_blinking(timer)
         if not self.wlan.isconnected():
-            self.pico.log_issue("Error", f"Failed to reconnect after {self.max_attempts} attempts")
+            self.pico.log_issue("Error", self.__class__.__name__, func_name, f"Failed to reconnect after {self.max_attempts} attempts")
             print(f"Failed to reconnect after {self.max_attempts} attempts. Restarting the device...")
             machine.reset()
         ip = self.wlan.ifconfig()[0]
         print(f"Reconnected on {ip}")
         self.ip = ip
         print(f'Reconnected. New IP: {self.ip}')
-        self.check_connection()
+        self.handshake_with_server()
 
-    def check_connection(self):
+    @inject_function_name
+    def check_connection(self, func_name: str = "check_connection"):
         """
         Checks the current WiFi connection status.
 
@@ -106,14 +112,55 @@ class Networking:
                 print('Keep-alive check successful')
             except Exception as e:
                 error_message = f"Keep-alive operation failed: {e}"
-                self.pico.log_issue("Error", error_message)
+                self.pico.log_issue("Error", self.__class__.__name__, func_name, error_message)
                 print(error_message)
                 self.reconnect()
         else:
-            self.pico.log_issue("Warning", "WLAN is not connected")
+            self.pico.log_issue("Warning", self.__class__.__name__, func_name, "WLAN is not connected")
             print("WLAN is not connected")
             self.reconnect()
             
+    @inject_function_name
+    def handshake_with_server(self, func_name: str = "handshake_with_server"):
+        """
+        Attempts to complete a handshake with the server.
+
+        This method attempts to establish a connection with the server by sending a handshake request.
+        It retries the handshake up to a maximum number of attempts. If the handshake fails after
+        the maximum attempts, the device is set to a fatal error state.
+        """
+        print("Handshaking with server...")
+        attempt = 0
+        success = False
+        timer = self.pico.blink(10, True)
+        while attempt < self.max_attempts:
+            try:
+                url = f"{self.server_address}/handshake"
+                data = {
+                    "alarmId": str(self.ID),
+                    "macAddress": self.mac
+                }
+                json_data = ujson.dumps(data)
+                response = urequests.post(url, headers={'Content-Type': 'application/json'}, data=json_data)
+                if response.status_code == 200:
+                    print("Handshake complete")
+                    self.pico.log_issue("Info", self.__class__.__name__, func_name, f"successfully completed handshake with server {self.server_address}")
+                    success = True
+                    break
+                else:
+                    self.pico.log_issue("Error", self.__class__.__name__, func_name, f"Handshake failed, got the following status code: {response.status_code}")
+                    print(f"Handshake failed, got the following status code: {response.status_code}")
+            except Exception as e:
+                print(f"Handshake error: {e}")
+                self.pico.log_issue("Error", self.__class__.__name__, func_name, f"Handshake error: {e}, retrying...")
+            attempt += 1
+            print(f"Retrying handshake... Attempt {attempt}/{self.max_attempts}")
+            time.sleep(1)  # Optional: Add a delay between retries
+        if not success:
+            self.pico.log_issue("Error", self.__class__.__name__, func_name, f"Failed to complete handshake after {self.max_attempts} attempts")
+            self.pico.set_fatal_error()
+        self.pico.stop_blinking(timer)
+        
     def open_socket(self, server_ip: str, port: int = 80):
         """
         Opens a non-blocking socket and binds it to the specified IP address.
@@ -133,7 +180,8 @@ class Networking:
         print(f"Listening on {server_ip}:{port}")
         self.connection = connection
 
-    def accept_client(self) -> tuple[socket.socket, tuple]:
+    @inject_function_name
+    def accept_client(self, func_name: str = "accept_client") -> tuple[socket.socket, tuple]:
         """
         Accepts a client connection from a non-blocking socket.
 
@@ -159,5 +207,5 @@ class Networking:
                 # cannot be completed immediately. In this case, it means
                 # no client is ready to be accepted at the moment.
             else:
-                self.pico.log_issue("Error", f"Error accepting client: {e}")
+                self.pico.log_issue("Error", self.__class__.__name__, func_name, f"Error accepting client: {e}")
                 print(f"Error accepting client: {e}")
