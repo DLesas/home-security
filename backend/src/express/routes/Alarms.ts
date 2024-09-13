@@ -114,7 +114,7 @@ router.post("/handshake", async (req, res) => {
 		);
 		await emitNewData();
 	}
-	res.json({ status: "success", message: "Alarm handshake successful" });
+	res.status(200).json({ status: "success", message: "Alarm handshake successful" });
 });
 
 export default router;
