@@ -120,6 +120,13 @@ class MicroController:
         self.led.off()
         if self.fatal_error:
             self.led.on()
+            
+    def set_fatal_error(self):
+        """
+        Set the fatal error flag and turn on the LED.
+        """
+        self.fatal_error = True
+        self.led.on()
 
     def log_issue(self, type: str, class_name: str, function_name: str, error_message: str, level: str = 'ERROR'):
         """
@@ -273,6 +280,6 @@ class MicroController:
                     f.writelines(lines[-rows_to_keep:])
                     f.truncate()
         except OSError as e:
-            self.fatal_error = True
+            self.set_fatal_error()
             print(f"Error: {e}")
         self.collect_garbage()
