@@ -4,7 +4,7 @@ import { Server } from "socket.io";
 import { errorHandler, loggingMiddleware } from "./express/middleware";
 import sensorRoutes from "./express/routes/Sensors";
 import buildingRoutes from "./express/routes/Buildings";
-import alarmRoutes from "./express/routes/Alarns";
+import alarmRoutes from "./express/routes/Alarms";
 import logRoutes from "./express/routes/Logs";
 import setupSocketHandlers from "./express/socketHandler";
 import { runMigrations } from "./db/db";
