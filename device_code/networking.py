@@ -17,7 +17,8 @@ class Networking:
             pico (MicroController): The microcontroller instance. This instance must implement the following methods:
                 - blink(frequency: int, continuous: bool) -> Any: Starts blinking an LED at the given frequency.
                 - stop_blinking(timer: Any) -> None: Stops the blinking LED.
-                - log_issue(level: str, message: str) -> None: Logs an issue with a given level and message.
+                - log_issue(level: str, class_name: str, function_name: str, message: str) -> None: Logs an issue with a given level, class name, function name, and message.
+                - set_fatal_error() -> None: Sets the device to a fatal error state.
             ssid (str): The SSID of the WiFi network.
             password (str): The password of the WiFi network.
             server_address (str): The server address to connect to.
