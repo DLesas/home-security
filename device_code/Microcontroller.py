@@ -5,7 +5,6 @@ import os
 import uhashlib # type: ignore
 import ujson # type: ignore
 import urequests # type: ignore
-import sys # type: ignore
 import network # type: ignore
 import functools
 
@@ -65,7 +64,6 @@ class MicroController:
             log_endpoint (str): The endpoint to send logs to.
             led (Pin): The LED pin object. Defaults to the onboard LED (Pin 25).
             max_log_file_size (int): The maximum size of log files in bytes. Defaults to 512KB.
-            config_file (str): Path to a configuration file. Defaults to None.
         """
         self.log_dir = 'logs'
         self.issue_file = 'issue_logs.csv'
@@ -74,7 +72,6 @@ class MicroController:
         self.log_endpoint = log_endpoint
         self.fatal_error = False
         self.name = None
-        self.ID = None
 
     @staticmethod
     def collect_garbage():
@@ -190,6 +187,8 @@ class MicroController:
         self.collect_garbage()
 
 
+
+    # might wantto consider changing this so it works with the camera and its recordings, i.e. check size of the entire dir first then send/truncate after instead of checking each file
     @inject_function_name
     def check_all_files(self, func_name: str):
         """
@@ -209,6 +208,7 @@ class MicroController:
                     if self.get_file_size(file_dir) > self.max_log_file_size:
                         self.truncate_csv(file_dir)
 
+    # might want to consider changing this so it works with the camera and its recordings, i.e. check the file format first and then send to different endpoint depending on the file type
     @inject_function_name
     def send_log(self, file_path: str, func_name: str):
         """

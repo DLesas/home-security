@@ -21,9 +21,10 @@ class Networking:
                 - set_fatal_error() -> None: Sets the device to a fatal error state.
             ssid (str): The SSID of the WiFi network.
             password (str): The password of the WiFi network.
-            server_address (str): The server address to connect to.
+            server_address (str): The server address to interact with.
+            ID (int): The unique identifier for the device.
             max_attempts (int, optional): Maximum number of connection attempts. Defaults to 50.
-            blink_frequency (int, optional): Frequency of the LED blink during connection attempts. Defaults to 5.
+            blink_frequency (int, optional): Frequency of the LED blink during connection attempts. Defaults to 2.
         """
         self.pico = pico
         self.ssid = ssid
@@ -43,6 +44,7 @@ class Networking:
 
         This method attempts to connect to the WiFi network and blinks an LED during the process.
         If the connection is successful, it retrieves and prints the IP and MAC address.
+        After a successful connection, it automatically performs a handshake with the server.
         """
         print("Connecting to network...")
         self.wlan.active(True)
@@ -66,7 +68,8 @@ class Networking:
         Reconnects to the WiFi network.
 
         This method disconnects from the current network, performs a network cleanup, and attempts to reconnect.
-        If the reconnection fails after the maximum number of attempts, the device is restarted.
+        If the reconnection fails after the maximum number of attempts, the device is set to a fatal error state.
+        After a successful reconnection, it automatically performs a handshake with the server.
         """
         print('Reconnecting to WiFi...')
         print("Disconnecting from current network...")
@@ -90,8 +93,9 @@ class Networking:
         self.pico.stop_blinking(timer)
         if not self.wlan.isconnected():
             self.pico.log_issue("Error", self.__class__.__name__, func_name, f"Failed to reconnect after {self.max_attempts} attempts")
-            print(f"Failed to reconnect after {self.max_attempts} attempts. Restarting the device...")
-            machine.reset()
+            print(f"Failed to reconnect after {self.max_attempts} attempts")
+            self.pico.set_fatal_error()
+            #machine.reset()
         ip = self.wlan.ifconfig()[0]
         print(f"Reconnected on {ip}")
         self.ip = ip
@@ -105,6 +109,7 @@ class Networking:
 
         This method performs a keep-alive check by retrieving the network configuration.
         If the check fails or the WLAN is not connected, it attempts to reconnect.
+        After a successful reconnection, it automatically performs a handshake with the server.
         """
         if self.wlan.isconnected():
             try:
@@ -127,7 +132,7 @@ class Networking:
         Attempts to complete a handshake with the server.
 
         This method attempts to establish a connection with the server by sending a handshake request.
-        It retries the handshake up to a maximum number of attempts. If the handshake fails after
+        It retries the handshake up to the class's maximum number of attempts. If the handshake fails after
         the maximum attempts, the device is set to a fatal error state.
         """
         print("Handshaking with server...")
