@@ -1,7 +1,7 @@
 import express from "express";
 import { z } from "zod";
 import { doorSensorRepository, type doorSensor } from "../../redis/doorSensors";
-import { changeSensorStatus } from "../../sensorFuncs";
+import { changeSensorStatus, DoorSensorUpdate } from "../../sensorFuncs";
 import { db } from "../../db/db";
 import { doorSensorsTable } from "../../db/schema/doorSensors";
 import { buildingTable } from "../../db/schema/buildings";
@@ -116,6 +116,32 @@ router.post("/handshake", async (req, res) => {
 		await emitNewData();
 	}
 	res.json({ status: "success", message: "Sensor handshake successful" });
+});
+
+router.post("/:sensor/update", async (req, res) => {
+	const { sensor: sensorId } = req.params;
+	const validationSchema = z.object({
+		status: z.enum(["open", "closed"], {
+			required_error: "status is required",
+			invalid_type_error: "status must be one of: open, closed",
+		}),
+		temperature: z
+			.number({
+				required_error: "temperature is required",
+				invalid_type_error: "temperature must be a number",
+			})
+			.min(-100, "implausible temperature")
+			.max(120, "implausible temperature"),
+	});
+	const result = validationSchema.safeParse(req.body);
+	if (!result.success) {
+		raiseError(400, JSON.stringify(result.error.errors));
+		return;
+	}
+	const { status, temperature } = result.data;
+	await DoorSensorUpdate({ sensorId, state: status, temperature });
+	await emitNewData();
+	res.json({ status: "success", message: "Log updated" });
 });
 
 router.post("/:sensor/arm", async (req, res) => {
