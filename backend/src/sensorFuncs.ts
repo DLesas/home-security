@@ -116,7 +116,7 @@ export async function DoorSensorUpdate({
         .eq(sensorId)
         .returnFirst()) as doorSensor | null;
     if (!currentState) {
-        raiseError(404, "Sensor not found");
+        raiseError(404, `Sensor with Id ${sensorId} not found`);
         return;
     }
     checkSensorState(currentState, state);
