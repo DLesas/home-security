@@ -6,7 +6,6 @@ import {
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
-import { index } from "drizzle-orm/pg-core";
 
 export const errorLogsTable = pgTable("errorLogs", {
   id: bigserial("id", { mode: "number" }).primaryKey(),

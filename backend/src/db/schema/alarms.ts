@@ -1,4 +1,4 @@
-import { integer } from "drizzle-orm/pg-core";
+import { integer, timestamp } from "drizzle-orm/pg-core";
 import { pgTable, serial, varchar } from "drizzle-orm/pg-core";
 import { buildingTable } from "./buildings";
 import { InferInsertModel, InferSelectModel } from "drizzle-orm";
@@ -9,6 +9,7 @@ export const alarmsTable = pgTable("alarms", {
 	buildingId: integer("buildingId")
 		.notNull()
 		.references(() => buildingTable.id, { onDelete: "cascade" }),
+	createdAt: timestamp("createdAt").defaultNow(),
 });
 
 export type selectDoorSensor = InferSelectModel<typeof alarmsTable>;
