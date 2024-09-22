@@ -5,7 +5,7 @@ import { type Alarm, alarmRepository } from "./redis/alarms";
 import { type Config, configRepository } from "./redis/config";
 import { type doorSensor, doorSensorRepository } from "./redis/doorSensors";
 import { db } from "./db/db";
-import { sensorLogsTable } from "./db/schema/sensorLogs";
+import { sensorUpdatesTable } from "./db/schema/sensorUpdates";
 
 /**
  * Checks the state of a door sensor and triggers all alarms if the sensor is armed and the state is open.
@@ -124,7 +124,7 @@ export async function DoorSensorUpdate({
     currentState.state = state;
     currentState.temperature = temperature;
     currentState.date = new Date();
-    db.insert(sensorLogsTable).values({
+    db.insert(sensorUpdatesTable).values({
         sensorId: currentState.externalID,
         state: state,
         temperature: temperature.toString(),
