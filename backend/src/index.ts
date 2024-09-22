@@ -7,14 +7,16 @@ import buildingRoutes from "./express/routes/Buildings";
 import alarmRoutes from "./express/routes/Alarms";
 import logRoutes from "./express/routes/Logs";
 import setupSocketHandlers from "./express/socketHandler";
-import { runMigrations } from "./db/db";
+import { runMigrations, runCustomSQL } from "./db/db";
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 const port = process.env.PORT || 8080;
 
-await runMigrations();
+await runMigrations(); // run migrations to make tables
+await runCustomSQL(); // run custom sql to make hypertables and indexes
+
 
 app.use(express.json());
 app.use(loggingMiddleware);
