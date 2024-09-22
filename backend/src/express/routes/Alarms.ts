@@ -50,6 +50,7 @@ router.post("/new", async (req, res) => {
 			buildingId: buildingExists[0].id,
 		})
 		.returning();
+	const { buildingId, ...newAlarmData } = newAlarm;
 	await alarmRepository.save({
 		name: name,
 		externalID: newAlarm.id,
@@ -58,7 +59,7 @@ router.post("/new", async (req, res) => {
 		created: new Date(),
 	} as Alarm);
 	await raiseEvent("info", `New alarm ${newAlarm.name} in ${building} with id ${newAlarm.id} added`);
-	res.status(201).json({ status: "success", data: newAlarm });
+	res.status(201).json({ status: "success", data: newAlarmData });
 });
 
 router.delete("/:id", async (req, res) => {
@@ -73,15 +74,9 @@ router.delete("/:id", async (req, res) => {
 	res.json({ status: "success", message: "Alarm deleted" });
 });
 
-router.post("/handshake", async (req, res) => {
+router.post("/:alarmId/handshake", async (req, res) => {
+	const { alarmId } = req.params;
 	const validationSchema = z.object({
-		alarmId: z
-			.string({
-				required_error: "alarmId is required",
-				invalid_type_error: "alarmId must be a string",
-			})
-			.min(1, "alarmId must be at least 1 character")
-			.max(255, "alarmId must be less than 255 characters"),
 		macAddress: z
 			.string({
 				required_error: "macAddress is required",
@@ -96,7 +91,7 @@ router.post("/handshake", async (req, res) => {
 		raiseError(400, JSON.stringify(result.error.errors));
 		return;
 	}
-	const { alarmId, macAddress } = result.data;
+	const { macAddress } = result.data;
 	const alarm = (await alarmRepository.search().where("externalID").eq(alarmId).returnFirst()) as Alarm | null;
 	if (!alarm) {
 		raiseError(404, "Alarm not found");
