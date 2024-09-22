@@ -6,7 +6,7 @@ export const doorSensorStateEnum = pgEnum("state", ["open", "closed", "unknown"]
 
 export const sensorLogsTable = pgTable("sensorLogs", {
 	id: bigserial("id", { mode: "number" }).primaryKey(),
-	sensorId: integer("sensorId")
+	sensorId: text("sensorId")
 		.notNull()
 		.references(() => doorSensorsTable.id, { onDelete: "cascade" }),
 	dateTime: timestamp("dateTime", { withTimezone: true }).notNull(),

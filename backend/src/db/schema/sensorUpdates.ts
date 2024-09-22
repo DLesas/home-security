@@ -1,4 +1,4 @@
-import { bigserial, integer, numeric, pgEnum, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import { bigserial, integer, numeric, pgEnum, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { doorSensorsTable } from "./doorSensors";
 import { InferInsertModel, InferSelectModel } from "drizzle-orm";
 
@@ -6,7 +6,7 @@ export const doorSensorStateEnum = pgEnum("state", ["open", "closed", "unknown"]
 
 export const sensorUpdatesTable = pgTable("sensorUpdates", {
 	id: bigserial("id", { mode: "number" }).primaryKey(),
-	sensorId: integer("sensorId")
+	sensorId: text("sensorId")
 		.notNull()
 		.references(() => doorSensorsTable.id, { onDelete: "cascade" }),
 	state: doorSensorStateEnum("state").notNull(),
