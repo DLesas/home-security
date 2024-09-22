@@ -1,6 +1,5 @@
-import { bigserial, integer, numeric, pgEnum, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import { bigserial, integer, numeric, pgEnum, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { doorSensorsTable } from "./doorSensors";
-import { index } from "drizzle-orm/pg-core";
 import { InferInsertModel, InferSelectModel } from "drizzle-orm";
 
 export const doorSensorStateEnum = pgEnum("state", ["open", "closed", "unknown"]);
@@ -10,9 +9,12 @@ export const sensorLogsTable = pgTable("sensorLogs", {
 	sensorId: integer("sensorId")
 		.notNull()
 		.references(() => doorSensorsTable.id, { onDelete: "cascade" }),
-	state: doorSensorStateEnum("state").notNull(),
-	temperature: numeric("temperature", { precision: 5, scale: 2 }).notNull(),
-	dateTime: timestamp("dateTime").defaultNow(),
+	dateTime: timestamp("dateTime", { withTimezone: true }).notNull(),
+    class: varchar("class", { length: 255 }).notNull(),
+    function: varchar("function", { length: 255 }).notNull(),
+    errorMessage: text("errorMessage").notNull(),
+    hash: varchar("hash", { length: 255 }).notNull(),
+    count: integer("count").default(0),
 });
 
 export type selectSensorLog = InferSelectModel<typeof sensorLogsTable>;
