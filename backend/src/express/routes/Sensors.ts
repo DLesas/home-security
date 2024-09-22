@@ -50,6 +50,7 @@ router.post("/new", async (req, res) => {
 			buildingId: buildingExists[0].id,
 		})
 		.returning();
+	const { buildingId, ...newSensorData } = newSensor;
 	await doorSensorRepository.save({
 		name: newSensor.name,
 		externalID: newSensor.id,
@@ -61,7 +62,7 @@ router.post("/new", async (req, res) => {
 	} as doorSensor);
 	await raiseEvent("info", `New sensor ${newSensor.name} in ${building} with id ${newSensor.id} added`);
 	await emitNewData();
-	res.status(201).json({ status: "success", data: newSensor });
+	res.status(201).json({ status: "success", data: newSensorData });
 });
 
 router.delete("/:id", async (req, res) => {
@@ -78,9 +79,9 @@ router.delete("/:id", async (req, res) => {
 	res.json({ status: "success", message: `Sensor ${sensor.name} in ${sensor.building} deleted` });
 });
 
-router.post("/handshake", async (req, res) => {
+router.post("/:sensor/handshake", async (req, res) => {
+	const { sensor: sensorId } = req.params;
 	const validationSchema = z.object({
-		sensorId: z.number(),
 		macAddress: z
 			.string()
 			.min(1, "macAddress must be at least 1 character")
@@ -91,7 +92,7 @@ router.post("/handshake", async (req, res) => {
 		raiseError(400, JSON.stringify(error.errors));
 		return;
 	}
-	const { sensorId, macAddress } = data;
+	const { macAddress } = data;
 	const sensor = (await doorSensorRepository
 		.search()
 		.where("externalID")
