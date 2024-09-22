@@ -8,6 +8,7 @@ import { buildingTable } from "../../db/schema/buildings";
 import { raiseError } from "../../errorHandling";
 import { raiseEvent } from "../../notifiy";
 import { z } from "zod";
+import { makeID } from "../../utils";
 
 const router = express.Router();
 
@@ -36,6 +37,7 @@ router.post("/new", async (req, res) => {
 	const [newBuilding] = await db
 		.insert(buildingTable)
 		.values({
+			id: makeID(),
 			name,
 		})
 		.returning();
@@ -43,9 +45,9 @@ router.post("/new", async (req, res) => {
 	res.status(201).json({ status: "success", data: newBuilding });
 });
 
-router.post("/:building/arm", async (req, res) => {
-	const { building } = req.params;
-	const buildingId = await db.select().from(buildingTable).where(eq(buildingTable.name, building)).limit(1);
+router.post("/:buildingName/arm", async (req, res) => {
+	const { buildingName } = req.params;
+	const buildingId = await db.select().from(buildingTable).where(eq(buildingTable.name, buildingName)).limit(1);
 	if (buildingId.length === 0) {
 		raiseError(404, "Building not found");
 		return;
@@ -60,12 +62,12 @@ router.post("/:building/arm", async (req, res) => {
 		return;
 	}
 	await changeSensorStatus(sensors, true);
-	res.json({ status: "success", message: `All sensors in building ${building} armed` });
+	res.json({ status: "success", message: `All sensors in building ${buildingName} armed` });
 });
 
-router.post("/:building/disarm", async (req, res) => {
-	const { building } = req.params;
-	const buildingId = await db.select().from(buildingTable).where(eq(buildingTable.name, building)).limit(1);
+router.post("/:buildingName/disarm", async (req, res) => {
+	const { buildingName } = req.params;
+	const buildingId = await db.select().from(buildingTable).where(eq(buildingTable.name, buildingName)).limit(1);
 	if (buildingId.length === 0) {
 		raiseError(404, "Building not found");
 		return;
@@ -80,7 +82,7 @@ router.post("/:building/disarm", async (req, res) => {
 		return;
 	}
 	await changeSensorStatus(sensors, false);
-	res.json({ status: "success", message: `All sensors in building ${building} disarmed` });
+	res.json({ status: "success", message: `All sensors in building ${buildingName} disarmed` });
 });
 
 export default router;

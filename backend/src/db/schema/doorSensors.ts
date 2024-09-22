@@ -1,12 +1,12 @@
-import { integer, timestamp } from "drizzle-orm/pg-core";
+import { integer, text, timestamp } from "drizzle-orm/pg-core";
 import { pgTable, serial, varchar } from "drizzle-orm/pg-core";
 import { buildingTable } from "./buildings";
 import { InferInsertModel, InferSelectModel } from "drizzle-orm";
 
 export const doorSensorsTable = pgTable("doorSensors", {
-  id: serial("id").primaryKey(),
+  id: text("id").primaryKey(),
   name: varchar("name", { length: 256 }).notNull(),
-  buildingId: integer("buildingId").notNull().references(
+  buildingId: text("buildingId").notNull().references(
     () => buildingTable.id,
     { onDelete: "cascade" },
   ),
