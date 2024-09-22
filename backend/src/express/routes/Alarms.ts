@@ -13,6 +13,7 @@ import { alarmsTable } from "../../db/schema/alarms";
 import { type Alarm, alarmRepository } from "../../redis/alarms";
 import { EntityId } from "redis-om";
 import { raiseError } from "../../errorHandling";
+import { makeID } from "../../utils";
 
 const router = express.Router();
 
@@ -46,6 +47,7 @@ router.post("/new", async (req, res) => {
 	const [newAlarm] = await db
 		.insert(alarmsTable)
 		.values({
+			id: makeID(),
 			name,
 			buildingId: buildingExists[0].id,
 		})

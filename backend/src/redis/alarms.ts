@@ -15,7 +15,7 @@ export const alarmRepository = new Repository(alarmSchema, redis);
 
 export interface Alarm {
 	name: string;
-	externalID: number;
+	externalID: string;
 	playing: boolean;
 	building: string;
 	ipAddress?: string;

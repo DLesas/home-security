@@ -15,7 +15,7 @@ const doorSensorSchema = new Schema("doorSensors", {
 
 export interface doorSensor {
   name: string;
-  externalID: number;
+  externalID: string;
   building: string;
   armed: boolean;
   state: "open" | "closed" | "unknown";

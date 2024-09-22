@@ -11,6 +11,7 @@ import { emitNewData } from "../socketHandler";
 import { errorLogsTable } from "../../db/schema/errorLogs";
 import { EntityId } from "redis-om";
 import { raiseError } from "../../errorHandling";
+import { makeID } from "../../utils";
 
 const router = express.Router();
 
@@ -46,6 +47,7 @@ router.post("/new", async (req, res) => {
 	const [newSensor] = await db
 		.insert(doorSensorsTable)
 		.values({
+			id: makeID(),
 			name,
 			buildingId: buildingExists[0].id,
 		})
@@ -65,9 +67,9 @@ router.post("/new", async (req, res) => {
 	res.status(201).json({ status: "success", data: newSensorData });
 });
 
-router.delete("/:id", async (req, res) => {
-	const { id } = req.params;
-	const sensor = (await doorSensorRepository.search().where("externalID").eq(id).returnFirst()) as doorSensor | null;
+router.delete("/:sensorId", async (req, res) => {
+	const { sensorId } = req.params;
+	const sensor = (await doorSensorRepository.search().where("externalID").eq(sensorId).returnFirst()) as doorSensor | null;
 	if (!sensor) {
 		raiseError(404, "Sensor not found");
 		return;
@@ -79,8 +81,8 @@ router.delete("/:id", async (req, res) => {
 	res.json({ status: "success", message: `Sensor ${sensor.name} in ${sensor.building} deleted` });
 });
 
-router.post("/:sensor/handshake", async (req, res) => {
-	const { sensor: sensorId } = req.params;
+router.post("/:sensorId/handshake", async (req, res) => {
+	const { sensorId } = req.params;
 	const validationSchema = z.object({
 		macAddress: z
 			.string()
@@ -119,8 +121,7 @@ router.post("/:sensor/handshake", async (req, res) => {
 	res.json({ status: "success", message: "Sensor handshake successful" });
 });
 
-router.post("/:sensor/update", async (req, res) => {
-	const { sensor: sensorId } = req.params;
+router.post("/update", async (req, res) => {
 	const validationSchema = z.object({
 		status: z.enum(["open", "closed"], {
 			required_error: "status is required",
@@ -140,13 +141,23 @@ router.post("/:sensor/update", async (req, res) => {
 		return;
 	}
 	const { status, temperature } = result.data;
-	await DoorSensorUpdate({ sensorId, state: status, temperature });
+	const ipAddress = req.ip;
+	if (!ipAddress) {
+		raiseError(400, "ip Address is required");
+		return;
+	}
+	const sensor = await doorSensorRepository.search().where("ipAddress").eq(ipAddress).returnFirst() as doorSensor | null;
+	if (!sensor) {
+		raiseError(404, "Sensor not found");
+		return;
+	}
+	await DoorSensorUpdate({ sensorId: sensor.externalID, state: status, temperature });
 	await emitNewData();
 	res.json({ status: "success", message: "Log updated" });
 });
 
-router.post("/:sensor/arm", async (req, res) => {
-	const { sensor: sensorId } = req.params;
+router.post("/:sensorId/arm", async (req, res) => {
+	const { sensorId } = req.params;
 	const sensor = (await doorSensorRepository
 		.search()
 		.where("externalID")
@@ -161,8 +172,8 @@ router.post("/:sensor/arm", async (req, res) => {
 	res.json({ status: "success", message: "Sensor armed" });
 });
 
-router.post("/:sensor/disarm", async (req, res) => {
-	const { sensor: sensorId } = req.params;
+router.post("/:sensorId/disarm", async (req, res) => {
+	const { sensorId } = req.params;
 	const sensor = (await doorSensorRepository
 		.search()
 		.where("externalID")
