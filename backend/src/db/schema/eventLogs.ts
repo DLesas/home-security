@@ -7,7 +7,6 @@ import {
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
-import { index } from "drizzle-orm/pg-core";
 
 export const eventTypeEnum = pgEnum("eventType", [
   "info",
@@ -19,7 +18,7 @@ export const eventLogsTable = pgTable("eventLogs", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   type: eventTypeEnum("type").notNull(),
   message: text("message").notNull(),
-  dateTime: timestamp("dat)eTime", { withTimezone: true }).defaultNow(),
+  dateTime: timestamp("dateTime", { withTimezone: true }).defaultNow(),
 });
 
 export type selectEventLog = InferSelectModel<typeof eventLogsTable>;
