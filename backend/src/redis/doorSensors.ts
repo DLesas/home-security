@@ -10,7 +10,7 @@ const doorSensorSchema = new Schema("doorSensors", {
   ipAddress: { type: "string" },
   macAddress: { type: "string" },
   temperature: { type: "number" },
-  date: { type: "date" },
+  lastUpdated: { type: "date" },
 });
 
 export interface doorSensor {
@@ -22,7 +22,7 @@ export interface doorSensor {
   ipAddress?: string;
   macAddress?: string;
   temperature: number;
-  date: Date;
+  lastUpdated: Date;
 }
 
 export const doorSensorRepository = new Repository(

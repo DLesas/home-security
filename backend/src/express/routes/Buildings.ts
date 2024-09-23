@@ -9,6 +9,7 @@ import { raiseError } from "../../errorHandling";
 import { raiseEvent } from "../../notifiy";
 import { z } from "zod";
 import { makeID } from "../../utils";
+import { emitNewData } from "../socketHandler";
 
 const router = express.Router();
 
@@ -42,6 +43,7 @@ router.post("/new", async (req, res) => {
 		})
 		.returning();
 	await raiseEvent("info", `New building ${newBuilding.name} added with id ${newBuilding.id}`);
+	await emitNewData();
 	res.status(201).json({ status: "success", data: newBuilding });
 });
 
@@ -62,6 +64,7 @@ router.post("/:buildingName/arm", async (req, res) => {
 		return;
 	}
 	await changeSensorStatus(sensors, true);
+	await emitNewData();
 	res.json({ status: "success", message: `All sensors in building ${buildingName} armed` });
 });
 
@@ -82,6 +85,7 @@ router.post("/:buildingName/disarm", async (req, res) => {
 		return;
 	}
 	await changeSensorStatus(sensors, false);
+	await emitNewData();
 	res.json({ status: "success", message: `All sensors in building ${buildingName} disarmed` });
 });
 
