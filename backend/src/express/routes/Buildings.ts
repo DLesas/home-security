@@ -13,6 +13,14 @@ import { emitNewData } from "../socketHandler";
 
 const router = express.Router();
 
+/**
+ * @route POST /new
+ * @description Creates a new building
+ * @param {express.Request} req - The request object
+ * @param {express.Response} res - The response object
+ * @returns {void}
+ * @body {string} name - The name of the building (1-255 characters)
+ */
 router.post("/new", async (req, res) => {
 	const validationSchema = z.object({
 		name: z
@@ -47,6 +55,14 @@ router.post("/new", async (req, res) => {
 	res.status(201).json({ status: "success", data: newBuilding });
 });
 
+/**
+ * @route POST /:buildingName/arm
+ * @description Arms all sensors in a building
+ * @param {express.Request} req - The request object
+ * @param {express.Response} res - The response object
+ * @returns {void}
+ * @urlparam {string} buildingName - The name of the building
+ */
 router.post("/:buildingName/arm", async (req, res) => {
 	const { buildingName } = req.params;
 	const buildingId = await db.select().from(buildingTable).where(eq(buildingTable.name, buildingName)).limit(1);
@@ -68,6 +84,14 @@ router.post("/:buildingName/arm", async (req, res) => {
 	res.json({ status: "success", message: `All sensors in building ${buildingName} armed` });
 });
 
+/**
+ * @route POST /:buildingName/disarm
+ * @description Disarms all sensors in a building
+ * @param {express.Request} req - The request object
+ * @param {express.Response} res - The response object
+ * @returns {void}
+ * @urlparam {string} buildingName - The name of the building
+ */
 router.post("/:buildingName/disarm", async (req, res) => {
 	const { buildingName } = req.params;
 	const buildingId = await db.select().from(buildingTable).where(eq(buildingTable.name, buildingName)).limit(1);
