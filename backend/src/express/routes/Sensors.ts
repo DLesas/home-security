@@ -12,8 +12,134 @@ import { errorLogsTable } from "../../db/schema/errorLogs";
 import { EntityId } from "redis-om";
 import { raiseError } from "../../errorHandling";
 import { makeID } from "../../utils";
+import { sensorLogsTable } from "../../db/schema/sensorLogs";
 
 const router = express.Router();
+
+
+// Routes below are used by the sensors themselves
+
+
+router.post("/:sensorId/handshake", async (req, res) => {
+	const { sensorId } = req.params;
+	const validationSchema = z.object({
+		macAddress: z
+			.string()
+			.min(1, "macAddress must be at least 1 character")
+			.max(255, "macAddress must be less than 255 characters"),
+	});
+	const { error, data } = validationSchema.safeParse(req.body);
+	if (error) {
+		raiseError(400, JSON.stringify(error.errors));
+		return;
+	}
+	const { macAddress } = data;
+	const sensor = (await doorSensorRepository
+		.search()
+		.where("externalID")
+		.eq(sensorId)
+		.returnFirst()) as doorSensor | null;
+	if (!sensor) {
+		raiseError(404, "Sensor not recognized");
+		return;
+	}
+	if (!sensor.ipAddress) {
+		await doorSensorRepository.save({
+			...sensor,
+			macAddress,
+			ipAddress: req.ip,
+		} as doorSensor);
+		await raiseEvent(
+			"info",
+			`Recieved first handshake from sensor ${sensor!.name} in ${sensor!.building} with ip: ${
+				req.ip
+			} , and mac: ${macAddress}`
+		);
+		await emitNewData();
+	}
+	res.json({ status: "success", message: "Sensor handshake successful" });
+});
+
+router.post("/update", async (req, res) => {
+	const validationSchema = z.object({
+		status: z.enum(["open", "closed"], {
+			required_error: "status is required",
+			invalid_type_error: "status must be one of: open, closed",
+		}),
+		temperature: z
+			.number({
+				required_error: "temperature is required",
+				invalid_type_error: "temperature must be a number",
+			})
+			.min(-100, "implausible temperature")
+			.max(120, "implausible temperature"),
+	});
+	const result = validationSchema.safeParse(req.body);
+	if (!result.success) {
+		raiseError(400, JSON.stringify(result.error.errors));
+		return;
+	}
+	const ipAddress = req.ip;
+	if (!ipAddress) {
+		raiseError(400, "ip Address is required");
+		return;
+	}
+	const sensor = await doorSensorRepository.search().where("ipAddress").eq(ipAddress).returnFirst() as doorSensor | null;
+	if (!sensor) {
+		raiseError(404, "Sensor not recognized");
+		return;
+	}
+	const { status, temperature } = result.data;
+	await DoorSensorUpdate({ sensorId: sensor.externalID, state: status, temperature });
+	await emitNewData();
+	res.json({ status: "success", message: "Log updated" });
+});
+
+router.post("/logs", async (req, res) => {
+	const logSchema = z.object({
+		Timestamp: z.string().refine((val) => !isNaN(Date.parse(val)), {
+			message: "Timestamp must be a valid date string",
+		}),
+		Type: z.string().min(1, "Type is required"),
+		Class: z.string().min(1, "Class is required"),
+		Function: z.string().min(1, "Function is required"),
+		Error_Message: z.string().min(1, "Error_Message is required"),
+		Hash: z.string().regex(/^[a-f0-9]{32}$/, "Hash must be a valid MD5 hash"),
+		Count: z.number().int().min(1, "Count must be a positive integer"),
+	});
+	const validationSchema = z.array(logSchema);
+
+	const result = validationSchema.safeParse(req.body);
+	if (!result.success) {
+		raiseError(400, JSON.stringify(result.error.errors));
+		return;
+	}
+	const ipAddress = req.ip;
+	if (!ipAddress) {
+		raiseError(400, "ip Address is required");
+		return;
+	}
+	const sensor = await doorSensorRepository.search().where("ipAddress").eq(ipAddress).returnFirst() as doorSensor | null;
+	if (!sensor) {
+		raiseError(404, "Sensor not recognized");
+		return;
+	}
+	await db.insert(sensorLogsTable).values(result.data.map(item => ({
+		sensorId: sensor.externalID,
+		function: item.Function,
+		dateTime: new Date(item.Timestamp),
+		hash: item.Hash,
+		class: item.Class,
+		type: item.Type,
+		errorMessage: item.Error_Message,
+		count: item.Count
+	})));
+	await raiseEvent("info", `Logs received from sensor ${sensor.name} in ${sensor.building}`);
+	res.json({ status: "success", message: "Logs received" });
+});
+
+// Routes below are used by the admin interface
+
 
 router.post("/new", async (req, res) => {
 	const validationSchema = z.object({
@@ -71,7 +197,7 @@ router.delete("/:sensorId", async (req, res) => {
 	const { sensorId } = req.params;
 	const sensor = (await doorSensorRepository.search().where("externalID").eq(sensorId).returnFirst()) as doorSensor | null;
 	if (!sensor) {
-		raiseError(404, "Sensor not found");
+		raiseError(404, "Sensor not recognized");
 		return;
 	}
 	const entityId = (sensor as any)[EntityId] as string;
@@ -81,80 +207,9 @@ router.delete("/:sensorId", async (req, res) => {
 	res.json({ status: "success", message: `Sensor ${sensor.name} in ${sensor.building} deleted` });
 });
 
-router.post("/:sensorId/handshake", async (req, res) => {
-	const { sensorId } = req.params;
-	const validationSchema = z.object({
-		macAddress: z
-			.string()
-			.min(1, "macAddress must be at least 1 character")
-			.max(255, "macAddress must be less than 255 characters"),
-	});
-	const { error, data } = validationSchema.safeParse(req.body);
-	if (error) {
-		raiseError(400, JSON.stringify(error.errors));
-		return;
-	}
-	const { macAddress } = data;
-	const sensor = (await doorSensorRepository
-		.search()
-		.where("externalID")
-		.eq(sensorId)
-		.returnFirst()) as doorSensor | null;
-	if (!sensor) {
-		raiseError(404, "Sensor not found");
-		return;
-	}
-	if (!sensor.ipAddress) {
-		await doorSensorRepository.save({
-			...sensor,
-			macAddress,
-			ipAddress: req.ip,
-		} as doorSensor);
-		await raiseEvent(
-			"info",
-			`Recieved first handshake from sensor ${sensor!.name} in ${sensor!.building} with ip: ${
-				req.ip
-			} , and mac: ${macAddress}`
-		);
-		await emitNewData();
-	}
-	res.json({ status: "success", message: "Sensor handshake successful" });
-});
 
-router.post("/update", async (req, res) => {
-	const validationSchema = z.object({
-		status: z.enum(["open", "closed"], {
-			required_error: "status is required",
-			invalid_type_error: "status must be one of: open, closed",
-		}),
-		temperature: z
-			.number({
-				required_error: "temperature is required",
-				invalid_type_error: "temperature must be a number",
-			})
-			.min(-100, "implausible temperature")
-			.max(120, "implausible temperature"),
-	});
-	const result = validationSchema.safeParse(req.body);
-	if (!result.success) {
-		raiseError(400, JSON.stringify(result.error.errors));
-		return;
-	}
-	const { status, temperature } = result.data;
-	const ipAddress = req.ip;
-	if (!ipAddress) {
-		raiseError(400, "ip Address is required");
-		return;
-	}
-	const sensor = await doorSensorRepository.search().where("ipAddress").eq(ipAddress).returnFirst() as doorSensor | null;
-	if (!sensor) {
-		raiseError(404, "Sensor not found");
-		return;
-	}
-	await DoorSensorUpdate({ sensorId: sensor.externalID, state: status, temperature });
-	await emitNewData();
-	res.json({ status: "success", message: "Log updated" });
-});
+// Routes below are used by the phone app and the web app
+
 
 router.post("/:sensorId/arm", async (req, res) => {
 	const { sensorId } = req.params;
@@ -164,7 +219,7 @@ router.post("/:sensorId/arm", async (req, res) => {
 		.eq(sensorId)
 		.returnFirst()) as doorSensor | null;
 	if (!sensor) {
-		raiseError(404, "Sensor not found");
+		raiseError(404, "Sensor not recognized");
 		return;
 	}
 	await changeSensorStatus([sensor], true);
@@ -180,7 +235,7 @@ router.post("/:sensorId/disarm", async (req, res) => {
 		.eq(sensorId)
 		.returnFirst()) as doorSensor | null;
 	if (!sensor) {
-		raiseError(404, "Sensor not found");
+		raiseError(404, "Sensor not recognized");
 		return;
 	}
 	await changeSensorStatus([sensor], false);
