@@ -48,6 +48,7 @@ router.post("/:sensorId/handshake", async (req, res) => {
 			...sensor,
 			macAddress,
 			ipAddress: req.ip,
+			lastUpdated: new Date(),
 		} as doorSensor);
 		await raiseEvent(
 			"info",
@@ -186,7 +187,7 @@ router.post("/new", async (req, res) => {
 		armed: false,
 		state: "unknown",
 		temperature: 0,
-		date: new Date(),
+		lastUpdated: new Date(),
 	} as doorSensor);
 	await raiseEvent("info", `New sensor ${newSensor.name} in ${building} with id ${newSensor.id} added`);
 	await emitNewData();
