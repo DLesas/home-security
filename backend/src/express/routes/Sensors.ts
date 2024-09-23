@@ -20,6 +20,15 @@ const router = express.Router();
 // Routes below are used by the sensors themselves
 
 
+/**
+ * @route POST /:sensorId/handshake
+ * @description Handles the handshake for a sensor
+ * @param {express.Request} req - The request object
+ * @param {express.Response} res - The response object
+ * @returns {void}
+ * @urlparam {string} sensorId - The ID of the sensor
+ * @body {string} macAddress - The MAC address of the sensor (1-255 characters)
+ */
 router.post("/:sensorId/handshake", async (req, res) => {
 	const { sensorId } = req.params;
 	const validationSchema = z.object({
@@ -61,6 +70,15 @@ router.post("/:sensorId/handshake", async (req, res) => {
 	res.json({ status: "success", message: "Sensor handshake successful" });
 });
 
+/**
+ * @route POST /update
+ * @description Updates the status and temperature of a sensor
+ * @param {express.Request} req - The request object
+ * @param {express.Response} res - The response object
+ * @returns {void}
+ * @body {string} status - The status of the sensor (open, closed)
+ * @body {number} temperature - The temperature reading of the sensor (-100 to 120)
+ */
 router.post("/update", async (req, res) => {
 	const validationSchema = z.object({
 		status: z.enum(["open", "closed"], {
@@ -96,6 +114,21 @@ router.post("/update", async (req, res) => {
 	res.json({ status: "success", message: "Log updated" });
 });
 
+/**
+ * @route POST /logs
+ * @description Logs error messages from a sensor
+ * @param {express.Request} req - The request object
+ * @param {express.Response} res - The response object
+ * @returns {void}
+ * @body {Array} logs - An array of log objects
+ * @body {string} logs[].Timestamp - The timestamp of the log (valid date string)
+ * @body {string} logs[].Type - The type of the log
+ * @body {string} logs[].Class - The class of the log
+ * @body {string} logs[].Function - The function where the log occurred
+ * @body {string} logs[].Error_Message - The error message
+ * @body {string} logs[].Hash - The MD5 hash of the log
+ * @body {number} logs[].Count - The count of occurrences
+ */
 router.post("/logs", async (req, res) => {
 	const logSchema = z.object({
 		Timestamp: z.string().refine((val) => !isNaN(Date.parse(val)), {
@@ -139,9 +172,19 @@ router.post("/logs", async (req, res) => {
 	res.json({ status: "success", message: "Logs received" });
 });
 
+
 // Routes below are used by the admin interface
 
 
+/**
+ * @route POST /new
+ * @description Creates a new sensor
+ * @param {express.Request} req - The request object
+ * @param {express.Response} res - The response object
+ * @returns {void}
+ * @body {string} name - The name of the sensor (1-255 characters)
+ * @body {string} building - The name of the building (1-255 characters)
+ */
 router.post("/new", async (req, res) => {
 	const validationSchema = z.object({
 		name: z
@@ -194,6 +237,14 @@ router.post("/new", async (req, res) => {
 	res.status(201).json({ status: "success", data: newSensorData });
 });
 
+/**
+ * @route DELETE /:sensorId
+ * @description Deletes a sensor by ID
+ * @param {express.Request} req - The request object
+ * @param {express.Response} res - The response object
+ * @returns {void}
+ * @urlparam {string} sensorId - The ID of the sensor to delete
+ */
 router.delete("/:sensorId", async (req, res) => {
 	const { sensorId } = req.params;
 	const sensor = (await doorSensorRepository.search().where("externalID").eq(sensorId).returnFirst()) as doorSensor | null;
@@ -212,6 +263,14 @@ router.delete("/:sensorId", async (req, res) => {
 // Routes below are used by the phone app and the web app
 
 
+/**
+ * @route POST /:sensorId/arm
+ * @description Arms a sensor by ID
+ * @param {express.Request} req - The request object
+ * @param {express.Response} res - The response object
+ * @returns {void}
+ * @urlparam {string} sensorId - The ID of the sensor to arm
+ */
 router.post("/:sensorId/arm", async (req, res) => {
 	const { sensorId } = req.params;
 	const sensor = (await doorSensorRepository
@@ -228,6 +287,14 @@ router.post("/:sensorId/arm", async (req, res) => {
 	res.json({ status: "success", message: "Sensor armed" });
 });
 
+/**
+ * @route POST /:sensorId/disarm
+ * @description Disarms a sensor by ID
+ * @param {express.Request} req - The request object
+ * @param {express.Response} res - The response object
+ * @returns {void}
+ * @urlparam {string} sensorId - The ID of the sensor to disarm
+ */
 router.post("/:sensorId/disarm", async (req, res) => {
 	const { sensorId } = req.params;
 	const sensor = (await doorSensorRepository
