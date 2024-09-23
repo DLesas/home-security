@@ -8,7 +8,7 @@ const alarmSchema = new Schema("alarms", {
 	building: { type: "string" },
 	ipAddress: { type: "string" },
 	macAddress: { type: "string" },
-	created: { type: "date" },
+	lastUpdated: { type: "date" },
 });
 
 export const alarmRepository = new Repository(alarmSchema, redis);
@@ -20,7 +20,7 @@ export interface Alarm {
 	building: string;
 	ipAddress?: string;
 	macAddress?: string;
-	created: Date;
+	lastUpdated: Date;
 }
 
 await alarmRepository.createIndex();
