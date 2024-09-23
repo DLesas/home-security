@@ -67,7 +67,7 @@ router.post("/new", async (req, res) => {
         externalID: newAlarm.id,
         building: building,
         playing: false,
-        created: new Date(),
+        lastUpdated: new Date(),
     } as Alarm);
     await raiseEvent("info", `New alarm ${newAlarm.name} in ${building} with id ${newAlarm.id} added`);
     res.status(201).json({ status: "success", data: newAlarmData });
@@ -129,6 +129,7 @@ router.post("/:alarmId/handshake", async (req, res) => {
             ...alarm,
             macAddress,
             ipAddress: req.ip,
+            lastUpdated: new Date(),
         } as Alarm);
         await raiseEvent(
             "info",
