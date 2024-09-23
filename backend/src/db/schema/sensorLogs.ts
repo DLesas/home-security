@@ -14,6 +14,7 @@ export const sensorLogsTable = pgTable("sensorLogs", {
     function: varchar("function", { length: 255 }).notNull(),
     errorMessage: text("errorMessage").notNull(),
     hash: varchar("hash", { length: 255 }).notNull(),
+    type: varchar("type", { length: 255 }).notNull(),
     count: integer("count").default(0),
 });
 
