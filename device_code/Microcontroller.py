@@ -125,7 +125,7 @@ class MicroController:
         self.fatal_error = True
         self.led.on()
 
-    def log_issue(self, type: str, class_name: str, function_name: str, error_message: str, level: str = 'ERROR'):
+    def log_issue(self, type: str, class_name: str, function_name: str, error_message: str):
         """
         Log an issue to a CSV file.
 
@@ -134,10 +134,9 @@ class MicroController:
             class_name (str): The name of the class where the issue occurred.
             function_name (str): The name of the function where the issue occurred.
             error_message (str): The error message to log.
-            level (str): The logging level. Defaults to 'ERROR'.
         """
         file_path = f'{self.log_dir}/{self.issue_file}'
-        hash_input = f"{class_name}{function_name}{error_message}"
+        hash_input = f"{type}{class_name}{function_name}{error_message}"
         hash_obj = uhashlib.md5(hash_input.encode())
         hashTxt = ''.join(['{:02x}'.format(b) for b in hash_obj.digest()])
         try:
@@ -147,6 +146,11 @@ class MicroController:
         try:
             last_line = ''
             file_exists = file_path in os.listdir(self.log_dir)
+            timestamp = utime.localtime()
+            date_time = "{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}".format(
+                timestamp[0], timestamp[1], timestamp[2],
+                timestamp[3], timestamp[4], timestamp[5]
+            )
             if file_exists:
                 with open(file_path, 'r+b') as f:
                     f.seek(-2, 2)
@@ -154,31 +158,25 @@ class MicroController:
                         f.seek(-2, 1)
                     last_line = f.readline().decode().strip()
 
-                timestamp = utime.localtime()
-                date_time = "{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}".format(
-                    timestamp[0], timestamp[1], timestamp[2],
-                    timestamp[3], timestamp[4], timestamp[5]
-                )
-
                 if last_line:
                     last_hash = last_line.split(',')[-2]
                     if last_hash == hashTxt:
                         count = int(last_line.split(',')[-1]) + 1
-                        new_line = f"{date_time},{class_name},{function_name},{error_message},{hashTxt},{count}\n"
+                        new_line = f"{date_time},{type},{class_name},{function_name},{error_message},{hashTxt},{count}\n"
                         f.seek(-len(last_line)-1, 2)
                         f.write(new_line.encode())
                     else:
-                        new_line = f"{date_time},{class_name},{function_name},{error_message},{hashTxt},1\n"
+                        new_line = f"{date_time},{type},{class_name},{function_name},{error_message},{hashTxt},1\n"
                         f.write(new_line.encode())
                 else:
-                    new_line = f"{date_time},{class_name},{function_name},{error_message},{hashTxt},1\n"
+                    new_line = f"{date_time},{type},{class_name},{function_name},{error_message},{hashTxt},1\n"
                     f.write(new_line.encode())
             else:
                 with open(file_path, 'w') as f:
-                    f.write("Timestamp,Class,Function,Error_Message,Hash,Count\n")
-                    new_line = f"{date_time},{class_name},{function_name},{error_message},{hashTxt},1\n"
+                    f.write("Timestamp,Type,Class,Function,Error_Message,Hash,Count\n")
+                    new_line = f"{date_time},{type},{class_name},{function_name},{error_message},{hashTxt},1\n"
                     f.write(new_line)
-            print(f"{level}: {type} - {error_message}")
+            print(f"{type} - {error_message}")
             if last_line:
                 print(f"Previous log entry: {last_line}")
             print(f"New log entry: {new_line.strip()}")
@@ -212,7 +210,7 @@ class MicroController:
     @inject_function_name
     def send_log(self, file_path: str, func_name: str):
         """
-        Parse a CSV log file, convert it to JSON, and send it to the specified endpoint.
+        Parse a CSV log file, convert it to JSON in record format, and send it to the specified endpoint.
 
         Args:
             file_path (str): The path to the log file.
@@ -224,17 +222,18 @@ class MicroController:
         try:
             with open(file_path, 'r') as f:
                 header = f.readline().strip().split(',')
-                data = {column: [] for column in header}
+                records = []
                 for line in f:
                     values = line.strip().split(',')
-                    for column, value in zip(header, values):
-                        data[column].append(value)
+                    record = {column: value for column, value in zip(header, values)}
+                    records.append(record)
 
-            json_data = ujson.dumps(data)
+            json_data = ujson.dumps(records)
+            #TODO: move this into a wifi class, as this should not be tied to a specific transmission protocol (e.g. HTTP, nrf24, etc.)
             response = urequests.post(self.log_endpoint, headers={'Content-Type': 'application/json'}, data=json_data)
             if response.status_code == 200:
                 print(f"Log data sent successfully to {self.log_endpoint}")
-                self.truncate_csv(file_path, 50)
+                self.truncate_csv(file_path, 0)
             else:
                 raise Exception(f"Failed to send log data. Status code: {response.status_code}")
         except Exception as e:
@@ -265,6 +264,7 @@ class MicroController:
     def truncate_csv(self, path: str, rows_to_keep: int = 1000):
         """
         Check the size of a CSV file and delete rows if it exceeds the maximum size.
+        This does not include/delete the header row.
 
         Args:
             path (str): The path to the CSV file.
