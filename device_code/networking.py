@@ -1,15 +1,14 @@
 import network # type: ignore
 import uasyncio as asyncio # type: ignore
-from picozero import pico_temp_sensor, pico_led # type: ignore
 import machine # type: ignore
 import ujson # type: ignore
 import urequests # type: ignore
 import time
 import socket
-from Microcontroller import MicroController, inject_function_name
+from microController import MicroController, inject_function_name
 
 class Networking:
-    def __init__(self, pico: MicroController, ssid: str, password: str, server_address: str, ID: int, max_attempts: int = 50, blink_frequency: int = 2):
+    def __init__(self, pico: MicroController, ssid: str, password: str, server_address: str, ID: int, handshake_endpoint: str, max_attempts: int = 50, blink_frequency: int = 2):
         """
         Initializes the Networking class with the given parameters.
 
@@ -33,6 +32,7 @@ class Networking:
         self.wlan = network.WLAN(network.STA_IF)
         self.blink_frequency = blink_frequency
         self.server_address = server_address
+        self.handshake_endpoint = handshake_endpoint
         self.ID = ID
         self.connection = None
         self.ip = None
@@ -141,13 +141,12 @@ class Networking:
         timer = self.pico.blink(10, True)
         while attempt < self.max_attempts:
             try:
-                url = f"{self.server_address}/handshake"
                 data = {
-                    "alarmId": str(self.ID),
                     "macAddress": self.mac
                 }
                 json_data = ujson.dumps(data)
-                response = urequests.post(url, headers={'Content-Type': 'application/json'}, data=json_data)
+                #TODO: move this into a wifi class, as this should not be tied to a specific transmission protocol (e.g. HTTP, nrf24, etc.)
+                response = urequests.post(self.handshake_endpoint, headers={'Content-Type': 'application/json'}, data=json_data)
                 if response.status_code == 200:
                     print("Handshake complete")
                     self.pico.log_issue("Info", self.__class__.__name__, func_name, f"successfully completed handshake with server {self.server_address}")
