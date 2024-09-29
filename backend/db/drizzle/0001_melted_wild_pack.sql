@@ -1,0 +1,1 @@
+ALTER TABLE "accessLogs" ADD COLUMN "body" jsonb;
