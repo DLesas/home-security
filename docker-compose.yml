@@ -6,16 +6,13 @@ services:
       context: ./redis
     ports:
       - "6379:6379"
+      - "8001:8001"
     volumes:
       - ./redis/data:/data
-      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf 
-    command: redis-server /usr/local/etc/redis/redis.conf
     deploy:
       replicas: 1
       restart_policy:
         condition: on-failure
-    environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD} 
 
   postgres:
     build:
@@ -48,28 +45,28 @@ services:
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - SENSOR_WARNING_TEMPERATURE=${SENSOR_WARNING_TEMPERATURE}
+      - SENSOR_CRITICAL_TEMPERATURE=${SENSOR_CRITICAL_TEMPERATURE}
     depends_on:
       - redis
       - postgres
     ports:
       - "8080:8080"
 
-  caddy:
-    image: caddy:builder-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:caddy/data
-      - caddy_config:caddy/config
-        
+  # caddy:
+  #   image: caddy:builder-alpine
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #     - "443:443/udp"
+  #   volumes:
+  #     - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+  #     - caddy_data:caddy/data
+  #     - caddy_config:caddy/config
 
 volumes:
   redis-data:
   postgres-data:
-  caddy_data:
-  caddy_config:
+  # caddy_data:
+  # caddy_config:

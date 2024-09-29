@@ -1,5 +1,5 @@
 import { Repository, Schema } from "redis-om";
-import { redis } from ".";
+import { redis } from "./index.js";
 
 const doorSensorSchema = new Schema("doorSensors", {
   name: { type: "string" },
@@ -30,4 +30,10 @@ export const doorSensorRepository = new Repository(
   redis,
 );
 
-await doorSensorRepository.createIndex();
+export const createDoorSensorIndex = async () => {
+  try {
+    await doorSensorRepository.createIndex();
+  } catch (error) {
+    console.error('Error creating door sensor index:', error);
+  }
+};
