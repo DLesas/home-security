@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1727372965717,
+      "tag": "0000_certain_doctor_spectrum",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1727438990976,
+      "tag": "0001_melted_wild_pack",
+      "breakpoints": true
+    }
+  ]
+}

@@ -2,15 +2,22 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
-import { db as schema } from "./schema/index";
+import { db as schema } from "./schema/index.js";
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-// for migrations
-// for query purposes
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+console.log(path.resolve(__dirname, '../../../db/drizzle')); // '/home/node/db/drizzle'
+console.log(path.join(__dirname, '../../../db/seed.sql')) // '/home/node/db/seed.sql'
+
+
 const queryClient = postgres(
   `postgres://${process.env.POSTGRES_USER}:${process.env.POSTGRES_PASSWORD}@${process.env.POSTGRES_HOST}:${process.env.POSTGRES_PORT}/${process.env.POSTGRES_DB}`,
 );
+
 export const db = drizzle(queryClient, { schema: schema });
 
 /**
@@ -24,7 +31,7 @@ export const db = drizzle(queryClient, { schema: schema });
  */
 export async function runMigrations() {
 	console.log("Running migrations...");
-	await migrate(db, { migrationsFolder: "./drizzle" });
+	await migrate(db, { migrationsFolder: path.resolve(__dirname, '../../../db/drizzle') });
 	console.log("Migrations complete.");
 }
 
@@ -39,7 +46,7 @@ export async function runMigrations() {
  */
 export async function runCustomSQL() {
 	console.log("Running custom Startup SQL...");
-	const seedFilePath = path.join(__dirname, 'seed.sql');
+	const seedFilePath = path.join(__dirname, '../../../db/seed.sql');
 	const seedSQL = fs.readFileSync(seedFilePath, 'utf8');
 	await db.execute(sql.raw(seedSQL));
 	console.log("Custom SQL execution complete.");
