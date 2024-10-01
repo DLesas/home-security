@@ -1,19 +1,19 @@
 import express from "express";
 import { z } from "zod";
-import { doorSensorRepository, type doorSensor } from "../../redis/doorSensors";
-import { changeSensorStatus } from "../../sensorFuncs";
-import { db } from "../../db/db";
-import { doorSensorsTable } from "../../db/schema/doorSensors";
-import { buildingTable } from "../../db/schema/buildings";
+import { doorSensorRepository, type doorSensor } from "../../redis/doorSensors.js";
+import { changeSensorStatus } from "../../sensorFuncs.js";
+import { db } from "../../db/db.js";
+import { doorSensorsTable } from "../../db/schema/doorSensors.js";
+import { buildingTable } from "../../db/schema/buildings.js";
 import { eq } from "drizzle-orm";
-import { raiseEvent } from "../../notifiy";
-import { emitNewData } from "../socketHandler";
-import { errorLogsTable } from "../../db/schema/errorLogs";
-import { alarmsTable } from "../../db/schema/alarms";
-import { type Alarm, alarmRepository } from "../../redis/alarms";
+import { raiseEvent } from "../../notifiy.js";
+import { emitNewData } from "../socketHandler.js";
+import { errorLogsTable } from "../../db/schema/errorLogs.js";
+import { alarmsTable } from "../../db/schema/alarms.js";
+import { type Alarm, alarmRepository } from "../../redis/alarms.js";
 import { EntityId } from "redis-om";
-import { raiseError } from "../../errorHandling";
-import { makeID } from "../../utils";
+import { raiseError } from "../../errorHandling.js";
+import { makeID } from "../../utils.js";
 
 const router = express.Router();
 

@@ -1,18 +1,18 @@
 import express from "express";
 import { z } from "zod";
-import { doorSensorRepository, type doorSensor } from "../../redis/doorSensors";
-import { changeSensorStatus, DoorSensorUpdate } from "../../sensorFuncs";
-import { db } from "../../db/db";
-import { doorSensorsTable } from "../../db/schema/doorSensors";
-import { buildingTable } from "../../db/schema/buildings";
+import { doorSensorRepository, type doorSensor } from "../../redis/doorSensors.js";
+import { changeSensorStatus, DoorSensorUpdate } from "../../sensorFuncs.js";
+import { db } from "../../db/db.js";
+import { doorSensorsTable } from "../../db/schema/doorSensors.js";
+import { buildingTable } from "../../db/schema/buildings.js";
 import { eq } from "drizzle-orm";
-import { raiseEvent } from "../../notifiy";
-import { emitNewData } from "../socketHandler";
-import { errorLogsTable } from "../../db/schema/errorLogs";
+import { raiseEvent } from "../../notifiy.js";
+import { emitNewData } from "../socketHandler.js";
+import { errorLogsTable } from "../../db/schema/errorLogs.js";
 import { EntityId } from "redis-om";
-import { raiseError } from "../../errorHandling";
-import { makeID } from "../../utils";
-import { sensorLogsTable } from "../../db/schema/sensorLogs";
+import { raiseError } from "../../errorHandling.js";
+import { makeID } from "../../utils.js";
+import { sensorLogsTable } from "../../db/schema/sensorLogs.js";
 
 const router = express.Router();
 
@@ -138,7 +138,7 @@ router.post("/logs", async (req, res) => {
 		Class: z.string().min(1, "Class is required"),
 		Function: z.string().min(1, "Function is required"),
 		Error_Message: z.string().min(1, "Error_Message is required"),
-		Hash: z.string().regex(/^[a-f0-9]{32}$/, "Hash must be a valid MD5 hash"),
+		Hash: z.string().regex(/^[a-f0-9]{64}$/, "Hash must be a valid SHA-256 hash"),
 		Count: z.number().int().min(1, "Count must be a positive integer"),
 	});
 	const validationSchema = z.array(logSchema);

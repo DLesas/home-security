@@ -1,9 +1,9 @@
 // TODO: finish off notification system
 import { Expo } from "expo-server-sdk";
-import { db } from "./db/db";
-import { eventLogsTable, type insertEventLog } from "./db/schema/eventLogs";
-import { type Config, configRepository } from "./redis/config";
-import { raiseError } from "./errorHandling";
+import { db } from "./db/db.js";
+import { eventLogsTable, type insertEventLog } from "./db/schema/eventLogs.js";
+import { type Config, configRepository } from "./redis/config.js";
+import { raiseError } from "./errorHandling.js";
 
 let expo = new Expo({
 	accessToken: process.env.EXPO_ACCESS_TOKEN,

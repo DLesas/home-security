@@ -1,11 +1,11 @@
-import { raiseError } from "./errorHandling";
-import { changeAlarmState } from "./alarmFuncs";
-import { raiseEvent } from "./notifiy";
-import { type Alarm, alarmRepository } from "./redis/alarms";
-import { type Config, configRepository } from "./redis/config";
-import { type doorSensor, doorSensorRepository } from "./redis/doorSensors";
-import { db } from "./db/db";
-import { sensorUpdatesTable } from "./db/schema/sensorUpdates";
+import { raiseError } from "./errorHandling.js";
+import { changeAlarmState } from "./alarmFuncs.js";
+import { raiseEvent } from "./notifiy.js";
+import { type Alarm, alarmRepository } from "./redis/alarms.js";
+import { type Config, configRepository } from "./redis/config.js";
+import { type doorSensor, doorSensorRepository } from "./redis/doorSensors.js";
+import { db } from "./db/db.js";
+import { sensorUpdatesTable } from "./db/schema/sensorUpdates.js";
 
 /**
  * Checks the state of a door sensor and triggers all alarms if the sensor is armed and the state is open.
