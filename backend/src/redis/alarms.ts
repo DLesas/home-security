@@ -1,5 +1,5 @@
 import { Repository, Schema } from "redis-om";
-import { redis } from ".";
+import { redis } from "./index.js";
 
 const alarmSchema = new Schema("alarms", {
 	name: { type: "string" },
@@ -23,4 +23,10 @@ export interface Alarm {
 	lastUpdated: Date;
 }
 
-await alarmRepository.createIndex();
+export const createAlarmIndex = async () => {
+	try {
+		await alarmRepository.createIndex();
+	} catch (error) {
+		console.error('Error creating alarm index:', error);
+	}
+};

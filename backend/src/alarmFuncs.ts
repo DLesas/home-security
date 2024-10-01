@@ -1,4 +1,4 @@
-import { type Alarm, alarmRepository } from "./redis/alarms";
+import { type Alarm, alarmRepository } from "./redis/alarms.js";
 
 /**
  * Changes the state of all alarms supplied via the params to the specified state.
