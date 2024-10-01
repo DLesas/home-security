@@ -1,5 +1,5 @@
 import { bigserial, integer, numeric, pgEnum, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
-import { doorSensorsTable } from "./doorSensors";
+import { doorSensorsTable } from "./doorSensors.js";
 import { InferInsertModel, InferSelectModel } from "drizzle-orm";
 
 export const doorSensorStateEnum = pgEnum("state", ["open", "closed", "unknown"]);

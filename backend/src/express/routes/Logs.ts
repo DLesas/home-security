@@ -1,9 +1,9 @@
 import express from "express";
 import { z } from "zod";
-import { DoorSensorUpdate } from "../../sensorFuncs";
-import { doorSensorRepository } from "../../redis/doorSensors";
-import { emitNewData } from "../socketHandler";
-import { raiseError } from "../../errorHandling";
+import { DoorSensorUpdate } from "../../sensorFuncs.js";
+import { doorSensorRepository } from "../../redis/doorSensors.js";
+import { emitNewData } from "../socketHandler.js";
+import { raiseError } from "../../errorHandling.js";
 
 const router = express.Router();
 

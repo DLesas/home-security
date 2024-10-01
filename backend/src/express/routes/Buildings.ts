@@ -1,15 +1,15 @@
 import express from "express";
-import { doorSensor, doorSensorRepository } from "../../redis/doorSensors";
-import { changeSensorStatus } from "../../sensorFuncs";
-import { db } from "../../db/db";
-import { doorSensorsTable } from "../../db/schema/doorSensors";
+import { doorSensor, doorSensorRepository } from "../../redis/doorSensors.js";
+import { changeSensorStatus } from "../../sensorFuncs.js";
+import { db } from "../../db/db.js";
+import { doorSensorsTable } from "../../db/schema/doorSensors.js";
 import { eq } from "drizzle-orm";
-import { buildingTable } from "../../db/schema/buildings";
-import { raiseError } from "../../errorHandling";
-import { raiseEvent } from "../../notifiy";
+import { buildingTable } from "../../db/schema/buildings.js";
+import { raiseError } from "../../errorHandling.js";
+import { raiseEvent } from "../../notifiy.js";
 import { z } from "zod";
-import { makeID } from "../../utils";
-import { emitNewData } from "../socketHandler";
+import { makeID } from "../../utils.js";
+import { emitNewData } from "../socketHandler.js";
 
 const router = express.Router();
 

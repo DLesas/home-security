@@ -1,6 +1,6 @@
-import { io } from "../index";
+import { io } from "../index.js";
 import { Server } from "socket.io";
-import { type doorSensor, doorSensorRepository } from "../redis/doorSensors";
+import { type doorSensor, doorSensorRepository } from "../redis/doorSensors.js";
 
 export async function emitNewData() {
 	const sensors = (await doorSensorRepository.search().returnAll()) as doorSensor[];
