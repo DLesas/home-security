@@ -5,6 +5,7 @@ import {
   pgTable,
   timestamp,
   varchar,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { index } from "drizzle-orm/pg-core";
 
@@ -15,6 +16,7 @@ export const accessLogsTable = pgTable("accessLogs", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   endpoint: varchar("endpoint", { length: 256 }).notNull(),
   queryString: varchar("queryString", { length: 2048 }),
+  body: jsonb("body"),
   action: actionEnum("action").notNull(),
   connection: connectionEnum("connection").notNull(),
   clientIp: varchar("clientIp", { length: 256 }).notNull(),
