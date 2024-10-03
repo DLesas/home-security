@@ -1,0 +1,51 @@
+from doorSensor import DoorSensor
+from microController import MicroController
+from networking import Networking
+from utils import read_env_file
+import time
+
+# from lowPower import dormant_until_pin_or_timeout
+
+
+
+
+def main_light_sleep():
+    env = read_env_file()
+    pico = MicroController(env["log_endpoint"], env["user_agent"], env["server_ip"], env["server_port"], env["id"], env["type"], env["api_version"])
+    network = Networking(
+        pico, env["ssid"], env["password"], env["server_ip"], env["server_port"]
+    )
+    network.connect()
+    door_sensor = DoorSensor(
+        pico, network, env["door_switch_pin"], env["time_to_sleep_s"]
+    )
+    while True:
+        door_sensor.read_switch()
+        door_sensor.read_temperature()
+        door_sensor.send_data()
+        door_sensor.pico.check_all_files()
+        door_sensor.light_sleep()
+
+
+def main_deep_sleep():
+    start = time.time()
+    env = read_env_file()
+    pico = MicroController(env["log_endpoint"], env["user_agent"], env["server_ip"], env["server_port"], env["id"], env["type"], env["api_version"])
+    network = Networking(
+        pico, env["ssid"], env["password"], env["server_ip"], env["server_port"]
+    )
+    network.connect()
+    door_sensor = DoorSensor(
+        pico, network, env["door_switch_pin"], env["time_to_sleep_s"]
+    )
+    door_sensor.read_switch()
+    door_sensor.read_temperature()
+    door_sensor.send_data()
+    door_sensor.pico.check_all_files()
+    network.disconnect()
+    door_sensor.deep_sleep()
+
+
+if __name__ == "__main__":
+    main_deep_sleep()
+# Write your code here :-)
