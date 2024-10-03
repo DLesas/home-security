@@ -70,7 +70,11 @@ class MicroController:
         self,
         log_endpoint: str,
         user_agent: str,
+        server_ip: str,
+        server_port: int,
         ID: str,
+        type: str,
+        api_version: int,
         max_log_file_size: int = 512 * 1024,
     ):
         """
@@ -87,11 +91,14 @@ class MicroController:
         ssl_context = adafruit_connection_manager.get_radio_ssl_context(wifi.radio)
         self.requests = adafruit_requests.Session(pool, ssl_context)
         self.user_agent = user_agent
+        self.server_ip = server_ip
+        self.server_port = server_port
+        self.type = type
         self.ID = ID
+        self.api_version = api_version
         self.led = digitalio.DigitalInOut(board.LED)
         self.led.direction = digitalio.Direction.OUTPUT
         self.max_log_file_size = max_log_file_size
-        self.log_endpoint = log_endpoint
         self.fatal_error = False
         self.name = None
         self.read_only = bool(microcontroller.nvm[0])
@@ -274,9 +281,16 @@ Hash: {hashTxt}
                 "User-Agent": self.user_agent,
                 "Content-Type": "application/json",
             }
-            response = self.requests.post(self.log_endpoint, headers=headers, data=data)
+            endpoint = (
+            "http://"
+            + f"{self.server_ip}:{str(self.server_port)}/"
+            + "api/"
+            + f"v{str(self.api_version)}/"
+            + f"{self.type}s/"
+            + f"logs")
+            response = self.requests.post(endpoint, headers=headers, data=data)
             if response.status_code == 200:
-                print(f"Log data sent successfully to {self.log_endpoint}")
+                print(f"Log data sent successfully to {endpoint}")
                 self.truncate_csv(file_path, 0)
             else:
                 raise Exception(

@@ -45,10 +45,10 @@ class Networking:
         self.server_port = server_port
         self.handshake_endpoint = (
             "http://"
-            + server_ip
-            + ":"
-            + str(server_port)
-            + "/api/v1/sensors/"
+            + f"{server_ip}:{str(server_port)}/"
+            + "api/"
+            + f"v{str(self.pico.api_version)}/"
+            + f"{self.pico.type}s/"
             + str(self.pico.ID)
             + "/handshake"
         )
