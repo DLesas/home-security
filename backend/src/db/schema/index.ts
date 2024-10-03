@@ -5,6 +5,7 @@ import { eventLogsTable, eventTypeEnum } from "./eventLogs.js";
 import { accessLogsTable, actionEnum, connectionEnum } from "./accessLogs.js";
 import { errorLogsTable } from "./errorLogs.js";
 import { sensorLogsTable } from "./sensorLogs.js";
+import { alarmLogsTable } from "./alarmLogs.js";
 
 export const actionEnums = actionEnum;
 export const eventTypeEnums = eventTypeEnum;
@@ -19,7 +20,7 @@ export const sensorUpdateTable = sensorUpdatesTable;
 export const sensorLogTable = sensorLogsTable;
 export const doorSensorTable = doorSensorsTable;
 export const buildingTable = buildingsTable;
-
+export const alarmLogTable = alarmLogsTable;
 export const db = {
   actionEnums,
   eventTypeEnums,
@@ -28,6 +29,7 @@ export const db = {
   generalLogTable,
   eventLogTable,
   doorSensorState,
+  alarmLogTable,
   sensorUpdateTable,
   sensorLogTable,
   doorSensorTable,
