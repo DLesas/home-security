@@ -6,5 +6,6 @@ export class CustomError extends Error {
 }
 
 export function raiseError(statusCode: number, message: string) {
-	throw new CustomError(statusCode, message);
+	const err = new CustomError(statusCode, message);
+	console.error(err);
 }
