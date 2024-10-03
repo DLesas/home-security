@@ -14,6 +14,7 @@ import { type Alarm, alarmRepository } from "../../redis/alarms.js";
 import { EntityId } from "redis-om";
 import { raiseError } from "../../errorHandling.js";
 import { makeID } from "../../utils.js";
+import { alarmLogsTable } from "../../db/schema/alarmLogs.js";
 
 const router = express.Router();
 
@@ -81,16 +82,76 @@ router.post("/new", async (req, res) => {
  * @returns {void}
  * @requires {string} id - The ID of the alarm to delete
  */
-router.delete("/:id", async (req, res) => {
-    const { id } = req.params;
-    const alarm = await alarmRepository.search().where("externalID").eq(id).returnFirst();
+router.delete("/:alarmId", async (req, res) => {
+    const { alarmId } = req.params;
+    const alarm = await alarmRepository.search().where("externalID").eq(alarmId).returnFirst();
     if (!alarm) {
         raiseError(404, "Alarm not found");
         return;
     }
     const entityId = (alarm as any)[EntityId] as string;
+    await db.update(alarmsTable).set({ deleted: true }).where(eq(alarmsTable.id, alarmId));
     await alarmRepository.remove(entityId);
     res.json({ status: "success", message: "Alarm deleted" });
+});
+
+
+/**
+ * @route POST /logs
+ * @description Logs error messages from an alarm
+ * @param {express.Request} req - The request object
+ * @param {express.Response} res - The response object
+ * @returns {void}
+ * @body {Array} logs - An array of log objects
+ * @body {string} logs[].Timestamp - The timestamp of the log (valid date string)
+ * @body {string} logs[].Type - The type of the log
+ * @body {string} logs[].Class - The class of the log
+ * @body {string} logs[].Function - The function where the log occurred
+ * @body {string} logs[].Error_Message - The error message
+ * @body {string} logs[].Hash - The MD5 hash of the log
+ * @body {number} logs[].Count - The count of occurrences
+ */
+router.post("/logs", async (req, res) => {
+	const logSchema = z.object({
+		Timestamp: z.string().refine((val) => !isNaN(Date.parse(val)), {
+			message: "Timestamp must be a valid date string",
+		}),
+		Type: z.string().min(1, "Type is required"),
+		Class: z.string().min(1, "Class is required"),
+		Function: z.string().min(1, "Function is required"),
+		Error_Message: z.string().min(1, "Error_Message is required"),
+		Hash: z.string().regex(/^[a-f0-9]{64}$/, "Hash must be a valid SHA-256 hash"),
+		Count: z.number().int().min(1, "Count must be a positive integer"),
+	});
+	const validationSchema = z.array(logSchema);
+
+	const result = validationSchema.safeParse(req.body);
+	if (!result.success) {
+		raiseError(400, JSON.stringify(result.error.errors));
+		return;
+	}
+	const ipAddress = req.ip;
+	if (!ipAddress) {
+		raiseError(400, "ip Address is required");
+		return;
+	}
+	const alarm = await alarmRepository.search().where("ipAddress").eq(ipAddress).returnFirst() as Alarm | null;
+	if (!alarm) {
+		raiseError(404, "Sensor not recognized");
+		return;
+	}
+	await db.insert(alarmLogsTable).values(result.data.map(item => ({
+		alarmId: alarm.externalID,
+		function: item.Function,
+		dateTime: new Date(item.Timestamp),
+		hash: item.Hash,
+		class: item.Class,
+		type: item.Type,
+		errorMessage: item.Error_Message,
+		count: item.Count
+	})));
+	await raiseEvent("info", `Logs received from alarm ${alarm.name} in ${alarm.building}`);
+	res.json({ status: "success", message: "Logs received" });
 });
 
 /**
