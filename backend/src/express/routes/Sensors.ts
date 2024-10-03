@@ -253,6 +253,7 @@ router.delete("/:sensorId", async (req, res) => {
 		return;
 	}
 	const entityId = (sensor as any)[EntityId] as string;
+	await db.update(doorSensorsTable).set({ deleted: true }).where(eq(doorSensorsTable.id, sensorId));
 	await doorSensorRepository.remove(entityId);
 	await raiseEvent("info", `Sensor ${sensor.name} in ${sensor.building} deleted`);
 	await emitNewData();
