@@ -2,8 +2,6 @@ import { bigserial, integer, numeric, pgEnum, pgTable, text, timestamp, varchar 
 import { doorSensorsTable } from "./doorSensors.js";
 import { InferInsertModel, InferSelectModel } from "drizzle-orm";
 
-export const doorSensorStateEnum = pgEnum("state", ["open", "closed", "unknown"]);
-
 export const sensorLogsTable = pgTable("sensorLogs", {
 	id: bigserial("id", { mode: "number" }).primaryKey(),
 	sensorId: text("sensorId")
