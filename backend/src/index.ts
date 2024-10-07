@@ -2,20 +2,26 @@ import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import { errorHandler, loggingMiddleware } from "./express/middleware.js";
+import cors from "cors";
 import sensorRoutes from "./express/routes/Sensors.js";
 import buildingRoutes from "./express/routes/Buildings.js";
 import alarmRoutes from "./express/routes/Alarms.js";
-import logRoutes from "./express/routes/Logs.js";
 import setupSocketHandlers from "./express/socketHandler.js";
 import { runMigrations, runCustomSQL } from "./db/db.js";
 import { connectRedis } from "./redis/index.js";
-import { createDoorSensorIndex } from "./redis/doorSensors.js";
+import { createDoorSensorIndex, doorSensor, doorSensorRepository} from "./redis/doorSensors.js";
 import { createConfigIndex, setDefaultConfig } from "./redis/config.js";
 import { createAlarmIndex } from "./redis/alarms.js";
+import { setSensorStatusUnknown } from "./sensorFuncs.js";
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+    cors: {
+        origin: "http://localhost:3000",
+        methods: ["GET", "POST"]
+    }
+});
 const port = process.env.PORT || 8080;
 
 await connectRedis();
@@ -25,8 +31,12 @@ await createAlarmIndex();
 await setDefaultConfig();
 await runMigrations();
 // await runCustomSQL();
+await setSensorStatusUnknown(await doorSensorRepository.search().returnAll() as doorSensor[]);
 
 app.use(express.json());
+app.use(cors({
+	origin: "http://localhost:3000"
+}))
 app.use(loggingMiddleware);
 
 // on startup might want to consider setting all sensors
@@ -37,7 +47,6 @@ app.use(loggingMiddleware);
 // Routes
 app.use("/api/v1/sensors", sensorRoutes);
 app.use("/api/v1/buildings", buildingRoutes);
-app.use("/api/v1/logs", logRoutes);
 app.use("/api/v1/alarms", alarmRoutes);
 
 // Error handling middleware
