@@ -182,7 +182,7 @@ type LogCardProps = {
 
 const LogCard: React.FC<LogCardProps> = ({ logKey, data }) => {
   const buildingOpen = checkBuildingOpen(data, logKey)
-  const { socket } = useSocket()
+  const { socket, url } = useSocket()
   const [buttons, setButtons] = useState([
     { name: 'Arm', loading: false, color: 'danger', function: arm },
     { name: 'Disarm', loading: false, color: 'success', function: disarm },
@@ -199,18 +199,13 @@ const LogCard: React.FC<LogCardProps> = ({ logKey, data }) => {
         : 'shadow-yellow-400/60')
 
   function disarm(subject: String) {
-    if (socket) {
-      console.log('disarming')
-      socket
-        .timeout(5000)
-        .emit('disarm/building', subject, () =>
-          setButtons((prevButtons) =>
-            prevButtons.map((btn) =>
-              btn.name === 'Disarm' ? { ...btn, loading: false } : btn
-            )
-          )
-        )
-    }
+    const res = fetch(`${url}/api/v1/buildings/${subject}/disarm`, {
+      method: 'POST',
+    }).then(res => setButtons((prevButtons) =>
+      prevButtons.map((btn) =>
+        btn.name === 'Disarm' ? { ...btn, loading: false } : btn
+      )
+    ))
   }
 
   function arm(
@@ -225,18 +220,13 @@ const LogCard: React.FC<LogCardProps> = ({ logKey, data }) => {
       onOpen()
       return
     }
-    if (socket) {
-      console.log('arming')
-      socket
-        .timeout(5000)
-        .emit('arm/building', subject, () =>
-          setButtons((prevButtons) =>
-            prevButtons.map((btn) =>
-              btn.name === 'Arm' ? { ...btn, loading: false } : btn
-            )
-          )
-        )
-    }
+    const res = fetch(`${url}/api/v1/buildings/${subject}/arm`, {
+      method: 'POST',
+    }).then(res => setButtons((prevButtons) =>
+      prevButtons.map((btn) =>
+        btn.name === 'Arm' ? { ...btn, loading: false } : btn
+      )
+    ))
   }
 
   return (
