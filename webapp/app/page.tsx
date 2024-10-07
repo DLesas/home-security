@@ -16,6 +16,14 @@ export default function SelectSocket() {
     <div className="flex w-full flex-col items-center gap-28">
       Which network are you connected to?
       <Button
+        onClick={(e) => {
+          setUrl(`http://192.168.96.1:8080`)
+          router.push('/home')
+        }}
+      >
+        Test
+      </Button>
+      <Button
         color={'secondary'}
         onClick={(e) => {
           setUrl(`http://${homeIP}:5000`)
