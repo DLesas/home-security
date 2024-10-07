@@ -1,12 +1,12 @@
 import { bigserial, integer, numeric, pgEnum, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
-import { doorSensorsTable } from "./doorSensors.js";
+import { sensorsTable } from "./sensors.js";
 import { InferInsertModel, InferSelectModel } from "drizzle-orm";
 
 export const sensorLogsTable = pgTable("sensorLogs", {
 	id: bigserial("id", { mode: "number" }).primaryKey(),
 	sensorId: text("sensorId")
 		.notNull()
-		.references(() => doorSensorsTable.id, { onDelete: "cascade" }),
+		.references(() => sensorsTable.id, { onDelete: "cascade" }),
 	dateTime: timestamp("dateTime", { withTimezone: true }).notNull(),
     class: varchar("class", { length: 255 }).notNull(),
     function: varchar("function", { length: 255 }).notNull(),

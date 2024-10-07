@@ -3,7 +3,7 @@ import { pgTable, serial, varchar } from "drizzle-orm/pg-core";
 import { buildingTable } from "./buildings.js";
 import { InferInsertModel, InferSelectModel } from "drizzle-orm";
 
-export const doorSensorsTable = pgTable("doorSensors", {
+export const sensorsTable = pgTable("sensors", {
   id: text("id").primaryKey(),
   name: varchar("name", { length: 256 }).notNull(),
   buildingId: text("buildingId").notNull().references(
@@ -14,5 +14,5 @@ export const doorSensorsTable = pgTable("doorSensors", {
   deleted: boolean("deleted").default(false),
 });
 
-export type selectDoorSensor = InferSelectModel<typeof doorSensorsTable>;
-export type insertDoorSensor = InferInsertModel<typeof doorSensorsTable>;
+export type selectDoorSensor = InferSelectModel<typeof sensorsTable>;
+export type insertDoorSensor = InferInsertModel<typeof sensorsTable>;
