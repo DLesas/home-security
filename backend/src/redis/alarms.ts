@@ -8,6 +8,10 @@ const alarmSchema = new Schema("alarms", {
 	building: { type: "string" },
 	ipAddress: { type: "string" },
 	macAddress: { type: "string" },
+	temperature: { type: "number" },
+	voltage: { type: "number" },
+	frequency: { type: "number" },
+	expectedSecondsUpdated: { type: "number" },
 	lastUpdated: { type: "date" },
 });
 
@@ -20,6 +24,10 @@ export interface Alarm {
 	building: string;
 	ipAddress?: string;
 	macAddress?: string;
+	temperature?: number;
+	voltage?: number;
+	frequency?: number;
+	expectedSecondsUpdated: number;
 	lastUpdated: Date;
 }
 
