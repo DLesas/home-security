@@ -14,3 +14,13 @@ export const connectRedis = async () => {
     throw error;
   }
 };
+
+export const writeRedisCheckpoint = async () => {
+  try {
+    const result = await redis.sendCommand(['BGSAVE']);
+    console.log("Redis checkpoint written successfully:", result);
+  } catch (error) {
+    console.error("Failed to write Redis checkpoint:", error);
+    throw error;
+  }
+};

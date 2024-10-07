@@ -51,3 +51,25 @@ export async function runCustomSQL() {
 	await db.execute(sql.raw(seedSQL));
 	console.log("Custom SQL execution complete.");
 }
+
+/**
+ * Forces a checkpoint in the PostgreSQL database.
+ * 
+ * This function logs the start of the checkpoint process, executes the
+ * `CHECKPOINT` SQL command using the `db.execute` method, and logs the
+ * completion of the checkpoint process.
+ * 
+ * @returns {Promise<void>} A promise that resolves when the checkpoint is complete.
+ */
+export async function writePostgresCheckpoint() {
+	try {
+		console.log("Writing PostgreSQL checkpoint...");
+		await db.execute(sql`CHECKPOINT`);
+		console.log("PostgreSQL checkpoint written successfully.");
+	} catch (error) {
+		console.error("Failed to write PostgreSQL checkpoint:", error);
+		throw error;
+	}
+}
+
+
