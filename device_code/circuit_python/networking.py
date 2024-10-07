@@ -69,7 +69,16 @@ class Networking:
         self.pico.blink(self.blinks)
         retry_count = 0
         while not wifi.radio.connected and retry_count < self.max_attempts:
-            wifi.radio.connect(self.ssid, self.password)
+            try:
+                wifi.radio.connect(self.ssid, self.password)
+            except Exception as e:
+                self.pico.log_issue(
+                    "Error",
+                    self.__class__.__name__,
+                    "connect",
+                    f"Failed to connect to WiFi: {e}",
+                )
+                time.sleep(1)
             retry_count += 1
         if not wifi.radio.connected:
             self.pico.log_issue(
