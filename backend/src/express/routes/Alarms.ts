@@ -2,8 +2,8 @@ import express from "express";
 import { z } from "zod";
 import { doorSensorRepository, type doorSensor } from "../../redis/doorSensors.js";
 import { changeSensorStatus } from "../../sensorFuncs.js";
-import { db } from "../../db/db.js";
-import { doorSensorsTable } from "../../db/schema/doorSensors.js";
+import { db, writePostgresCheckpoint } from "../../db/db.js";
+import { sensorsTable } from "../../db/schema/sensors.js";
 import { buildingTable } from "../../db/schema/buildings.js";
 import { eq } from "drizzle-orm";
 import { raiseEvent } from "../../notifiy.js";
@@ -15,6 +15,8 @@ import { EntityId } from "redis-om";
 import { raiseError } from "../../errorHandling.js";
 import { makeID } from "../../utils.js";
 import { alarmLogsTable } from "../../db/schema/alarmLogs.js";
+import { alarmUpdatesTable } from "../../db/schema/alarmUpdates.js";
+import { writeRedisCheckpoint } from "../../redis/index.js";
 
 const router = express.Router();
 
@@ -43,13 +45,20 @@ router.post("/new", async (req, res) => {
             })
             .min(1, "building must be at least 1 character")
             .max(255, "building must be less than 255 characters"),
+        expectedSecondsUpdated: z
+            .number({
+                required_error: "expectedSecondsUpdated is required",
+                invalid_type_error: "expectedSecondsUpdated must be a number",
+            })
+            .min(0, "expectedSecondsUpdated must be more than 0 seconds")
+            .max(3600 * 24, "expectedSecondsUpdated must be less than 24 hours"),
     });
     const result = validationSchema.safeParse(req.body);
     if (!result.success) {
         raiseError(400, JSON.stringify(result.error.errors));
         return;
     }
-    const { name, building } = result.data;
+    const { name, building, expectedSecondsUpdated } = result.data;
     const buildingExists = await db.select().from(buildingTable).where(eq(buildingTable.name, building)).limit(1);
     if (buildingExists.length === 0) {
         raiseError(404, "Building not found");
@@ -63,15 +72,20 @@ router.post("/new", async (req, res) => {
         })
         .returning();
     const { buildingId, ...newAlarmData } = newAlarm;
+    const data = {id: newAlarm.id, name: newAlarm.name, expectedSecondsUpdated}
     await alarmRepository.save({
         name: name,
         externalID: newAlarm.id,
         building: building,
         playing: false,
+        expectedSecondsUpdated: expectedSecondsUpdated,
         lastUpdated: new Date(),
     } as Alarm);
     await raiseEvent("info", `New alarm ${newAlarm.name} in ${building} with id ${newAlarm.id} added`);
-    res.status(201).json({ status: "success", data: newAlarmData });
+    await writePostgresCheckpoint();
+    await writeRedisCheckpoint();
+    await emitNewData();
+    res.status(201).json({ status: "success", data: data });
 });
 
 /**
@@ -92,6 +106,9 @@ router.delete("/:alarmId", async (req, res) => {
     const entityId = (alarm as any)[EntityId] as string;
     await db.update(alarmsTable).set({ deleted: true }).where(eq(alarmsTable.id, alarmId));
     await alarmRepository.remove(entityId);
+    await emitNewData();
+    await writePostgresCheckpoint();
+    await writeRedisCheckpoint();
     res.json({ status: "success", message: "Alarm deleted" });
 });
 
@@ -199,6 +216,63 @@ router.post("/:alarmId/handshake", async (req, res) => {
         await emitNewData();
     }
     res.status(200).json({ status: "success", message: "Alarm handshake successful" });
+});
+
+router.post("/update", async (req, res) => {
+	const validationSchema = z.object({
+		status: z.enum(["on", "off"], {
+			required_error: "status is required",
+			invalid_type_error: "status must be one of: on, off",
+		}),
+		temperature: z
+			.number({
+				required_error: "temperature is required",
+				invalid_type_error: "temperature must be a number",
+			})
+			.min(-100, "implausible temperature")
+			.max(120, "implausible temperature"),
+		voltage: z
+			.number({
+				invalid_type_error: "voltage must be a number",
+			}).optional().nullable(),
+		frequency: z
+			.number({
+				invalid_type_error: "frequency must be a number",
+			}).optional().nullable(),
+	});
+	const result = validationSchema.safeParse(req.body);
+	if (!result.success) {
+		raiseError(400, JSON.stringify(result.error.errors));
+		return;
+	}
+	const ipAddress = req.ip;
+	if (!ipAddress) {
+		raiseError(400, "ip Address is required");
+		return;
+	}
+	const alarm = await alarmRepository.search().where("ipAddress").eq(ipAddress).returnFirst() as Alarm | null;
+	if (!alarm) {
+		raiseError(404, "Alarm not recognized");
+		return;
+	}
+	const { status, temperature, voltage, frequency } = result.data;
+    await db.insert(alarmUpdatesTable).values({
+        alarmId: alarm.externalID,
+        state: status,
+        temperature: temperature.toString(),
+        voltage: voltage ? voltage.toString() : null,
+        frequency: frequency,
+    });
+	await alarmRepository.save({
+		...alarm,
+		status,
+		temperature,
+		voltage,
+		frequency,
+		lastUpdated: new Date(),
+	});
+	await emitNewData();
+	res.json({ status: "success", message: "update acknowledged" });
 });
 
 export default router;
