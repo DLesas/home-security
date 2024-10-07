@@ -51,5 +51,5 @@ def main_deep_sleep():
 
 
 if __name__ == "__main__":
-    main_deep_sleep()
+    main_light_sleep()
 # Write your code here :-)
