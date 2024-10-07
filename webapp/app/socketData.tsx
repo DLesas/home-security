@@ -10,6 +10,38 @@ import React, {
 import { useSocket } from './socketInitializer' // Assuming you have a custom hook to get the socket instance
 import { useRouter } from 'next/navigation'
 
+
+interface Alarm {
+	name: string;
+	externalID: string;
+	playing: boolean;
+	building: string;
+	ipAddress?: string;
+	macAddress?: string;
+	temperature?: number;
+	voltage?: number;
+	frequency?: number;
+	expectedSecondsUpdated: number;
+	lastUpdated: Date;
+}
+
+interface doorSensor {
+  name: string;
+  externalID: string;
+  building: string;
+  armed: boolean;
+  state: "open" | "closed" | "unknown";
+  ipAddress?: string;
+  macAddress?: string;
+  temperature?: number;
+  voltage?: number;
+  frequency?: number;
+  expectedSecondsUpdated: number;
+  lastUpdated: Date;
+}
+
+
+
 // {
 //   "building": "Shed",
 //   "action": "disarm",
@@ -48,9 +80,15 @@ interface DoorValues {
   armed: boolean
 }
 
-interface DoorEntries {
-  [key: string]: DoorValues
-}
+// Define the DoorEntries type with an index signature
+type DoorEntries = {
+  [sensorName: string]: {
+    status: string;
+    armed: boolean;
+  };
+};
+
+// Initialize logs with the correct type
 
 interface Example {
   alarm: boolean
@@ -67,6 +105,21 @@ interface Example {
 }
 
 type Data = Example
+
+function formatData(sensors: doorSensor[], alarms: Alarm[]): Data {
+  const logs: {
+    [building: string]: DoorEntries;
+  } = {};
+  for (const sensor of sensors) {
+    logs[sensor.building] = {}
+    logs[sensor.building][sensor.name] = {status: sensor.state, armed: sensor.armed}
+  }
+  return {
+    alarm: alarms.some(alarm => alarm.playing),
+    logs: logs,
+    issues: []
+  }
+}
 
 interface SocketDataContextProps {
   data: Data
@@ -102,9 +155,10 @@ export const SocketDataProvider: React.FC<SocketDataProps> = ({ children }) => {
       router.push('/')
     }
 
-    function onData(value: Data) {
-      setData(value)
-      console.log(value)
+    function onData(value: {sensors: doorSensor[], alarms: Alarm[]}) {
+      const formattedData = formatData(value.sensors, value.alarms)
+      setData(formattedData)
+      console.log(formattedData)
     }
 
     function onSchedules(value: any) {

@@ -151,6 +151,14 @@ export default function App() {
             Scheduling
           </Link>
         </NavbarItem>
+        <NavbarItem isActive={pathname === '/test'}>
+          <Link
+            href="/test"
+            color={pathname === '/test' ? 'primary' : 'foreground'}
+          >
+            Test
+          </Link>
+        </NavbarItem>
       </NavbarContent>
       <NavbarContent justify="end">
         <NavbarItem></NavbarItem>
