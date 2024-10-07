@@ -7,6 +7,13 @@ import { type doorSensor, doorSensorRepository } from "./redis/doorSensors.js";
 import { db } from "./db/db.js";
 import { sensorUpdatesTable } from "./db/schema/sensorUpdates.js";
 
+interface sensorResponse {
+    state: string;
+    temperature: number;
+    voltage: number;
+    frequency: number;
+}
+
 /**
  * Checks the state of a door sensor and triggers all alarms if the sensor is armed and the state is open.
  * @param {doorSensor} previousState - The previous state of the door sensor.
@@ -93,6 +100,22 @@ export async function changeSensorStatus(sensors: doorSensor[], armed: boolean):
 }
 
 /**
+ * Changes the status of multiple door sensors to unknown.
+ *
+ * @param {doorSensor[]} sensors - The array of door sensors to change the status of.
+ * @return {Promise<any[]>} A promise that resolves to an array of results from the promises of saving the door sensors to redis.
+ */
+export async function setSensorStatusUnknown(sensors: doorSensor[]): Promise<any[]> {
+    const savePromises = [];
+    for (const sensor of sensors) {
+        sensor.state = "unknown";
+        savePromises.push(doorSensorRepository.save(sensor));
+    }
+    const res = await Promise.all(savePromises);
+    return res;
+}
+
+/**
  * Updates the state and temperature of a door sensor, also checks if any alarms need to be triggered or if the temperature is too high.
  *
  * @param {object} params - An object containing the state, temperature, and sensor ID of the door sensor that triggered this endpoint.
@@ -104,10 +127,14 @@ export async function changeSensorStatus(sensors: doorSensor[], armed: boolean):
 export async function DoorSensorUpdate({
     state,
     temperature,
+    voltage,
+    frequency,
     sensorId,
 }: {
     state: "open" | "closed" | "unknown";
     temperature: number;
+    voltage: number | null | undefined;
+    frequency: number | null | undefined;
     sensorId: string;
 }): Promise<void> {
     const currentState = (await doorSensorRepository
@@ -123,11 +150,15 @@ export async function DoorSensorUpdate({
     checkSensorTemperature(temperature, currentState);
     currentState.state = state;
     currentState.temperature = temperature;
+    currentState.voltage = voltage ? voltage : undefined;
+    currentState.frequency = frequency ? frequency : undefined;
     currentState.lastUpdated = new Date();
     db.insert(sensorUpdatesTable).values({
         sensorId: currentState.externalID,
         state: state,
         temperature: temperature.toString(),
+        voltage: voltage ? voltage.toString() : null,
+        frequency: frequency,
     });
     await doorSensorRepository.save(currentState);
 }
