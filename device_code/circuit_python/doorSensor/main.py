@@ -21,6 +21,8 @@ def main_light_sleep():
     )
     while True:
         door_sensor.read_switch()
+        door_sensor.read_voltage()
+        door_sensor.read_frequency()
         door_sensor.read_temperature()
         door_sensor.send_data()
         door_sensor.pico.check_all_files()
@@ -34,12 +36,14 @@ def main_deep_sleep():
     network = Networking(
         pico, env["ssid"], env["password"], env["server_ip"], env["server_port"]
     )
-    network.connect()
     door_sensor = DoorSensor(
         pico, network, env["door_switch_pin"], env["time_to_sleep_s"]
     )
     door_sensor.read_switch()
     door_sensor.read_temperature()
+    door_sensor.read_voltage()
+    door_sensor.read_frequency()
+    network.connect()
     door_sensor.send_data()
     door_sensor.pico.check_all_files()
     network.disconnect()
