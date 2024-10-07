@@ -1,8 +1,8 @@
 import express from "express";
 import { doorSensor, doorSensorRepository } from "../../redis/doorSensors.js";
 import { changeSensorStatus } from "../../sensorFuncs.js";
-import { db } from "../../db/db.js";
-import { doorSensorsTable } from "../../db/schema/doorSensors.js";
+import { db, writePostgresCheckpoint } from "../../db/db.js";
+import { sensorsTable } from "../../db/schema/sensors.js";
 import { eq } from "drizzle-orm";
 import { buildingTable } from "../../db/schema/buildings.js";
 import { raiseError } from "../../errorHandling.js";
@@ -10,7 +10,9 @@ import { raiseEvent } from "../../notifiy.js";
 import { z } from "zod";
 import { makeID } from "../../utils.js";
 import { emitNewData } from "../socketHandler.js";
-
+import { changeAlarmState } from "../../alarmFuncs.js";
+import { Alarm, alarmRepository } from "../../redis/alarms.js";
+import { accessLogsTable } from "../../db/schema/accessLogs.js";
 const router = express.Router();
 
 /**
@@ -51,6 +53,7 @@ router.post("/new", async (req, res) => {
 		})
 		.returning();
 	await raiseEvent("info", `New building ${newBuilding.name} added with id ${newBuilding.id}`);
+	await writePostgresCheckpoint();
 	await emitNewData();
 	res.status(201).json({ status: "success", data: newBuilding });
 });
@@ -73,7 +76,7 @@ router.post("/:buildingName/arm", async (req, res) => {
 	const sensors = (await doorSensorRepository
 		.search()
 		.where("building")
-		.eq(buildingId[0].id)
+		.eq(buildingName)
 		.returnAll()) as doorSensor[];
 	if (sensors.length === 0) {
 		raiseError(404, "No viable sensors found in building");
@@ -99,16 +102,22 @@ router.post("/:buildingName/disarm", async (req, res) => {
 		raiseError(404, "Building not found");
 		return;
 	}
-	const sensors = (await doorSensorRepository
+	const allSensors = (await doorSensorRepository
 		.search()
-		.where("building")
-		.eq(buildingId[0].id)
 		.returnAll()) as doorSensor[];
+	const sensors = allSensors.filter(sensor => sensor.building === buildingName);
 	if (sensors.length === 0) {
 		raiseError(404, "No viable sensors found in building");
 		return;
 	}
-	await changeSensorStatus(sensors, false);
+	const alarms = await alarmRepository.search().returnAll() as Alarm[];
+	const alarmOn = alarms.some(alarm => alarm.playing);
+	if (alarmOn) {
+		await changeAlarmState(alarms, "off")
+		await changeSensorStatus(allSensors, false)
+	} else {
+		await changeSensorStatus(sensors, false)
+	}
 	await emitNewData();
 	res.json({ status: "success", message: `All sensors in building ${buildingName} disarmed` });
 });
