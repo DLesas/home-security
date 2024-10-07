@@ -21,6 +21,8 @@ class DoorSensor:
         self.switch = getattr(board, door_switch_pin)
         self.state = None
         self.temperature = None
+        self.voltage = None
+        self.frequency = None
         self.max_time_to_sleep_s = int(max_time_to_sleep_s)
 
     def read_switch(self):
@@ -32,6 +34,12 @@ class DoorSensor:
 
     def read_temperature(self):
         self.temperature = cpu.temperature
+        
+    def read_voltage(self):
+        self.voltage = cpu.voltage
+        
+    def read_frequency(self):
+        self.frequency = cpu.frequency
 
     def deep_sleep(self):
         print(
@@ -64,7 +72,7 @@ class DoorSensor:
             return
         self.pico.blink(3)
         self.pico.turn_on_led()
-        data = {"status": self.state, "temperature": self.temperature}
+        data = {"status": self.state, "temperature": self.temperature, "voltage": self.voltage, "frequency": self.frequency}
         data = json.dumps(data)
         # TODO: move this into a wifi class, as this should not be tied to a specific transmission protocol (e.g. HTTP, nrf24, etc.)
         url = f"http://{self.network.server_ip}:{self.network.server_port}/api/v1/sensors/update"
