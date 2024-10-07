@@ -51,10 +51,10 @@ class alarmRelay:
         self.temperature = cpu.temperature
         
     def read_voltage(self):
-        self.voltage = self.pico.read_voltage()
+        self.voltage = cpu.voltage
         
     def read_frequency(self):
-        self.frequency = self.pico.read_frequency()
+        self.frequency = cpu.frequency
         
     def send_ping(self):
         self.read_frequency()
@@ -62,7 +62,7 @@ class alarmRelay:
         self.read_temperature()
         data = {"state": self.state, "temperature": self.temperature, "voltage": self.voltage, "frequency": self.frequency}
         data = json.dumps(data)
-        url = f"http://{self.network.server_ip}:{self.network.server_port}/api/v1/alarms/update"
+        url = f"http://{self.network.server_ip}:{self.network.server_port}/api/v{self.pico.api_version}/alarms/update"
         headers = {
             "User-Agent": self.pico.user_agent,
             "Content-Type": "application/json",
