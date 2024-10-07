@@ -10,6 +10,9 @@ const doorSensorSchema = new Schema("doorSensors", {
   ipAddress: { type: "string" },
   macAddress: { type: "string" },
   temperature: { type: "number" },
+  voltage: { type: "number" },
+  frequency: { type: "number" },
+  expectedSecondsUpdated: { type: "number" },
   lastUpdated: { type: "date" },
 });
 
@@ -21,7 +24,10 @@ export interface doorSensor {
   state: "open" | "closed" | "unknown";
   ipAddress?: string;
   macAddress?: string;
-  temperature: number;
+  temperature?: number;
+  voltage?: number;
+  frequency?: number;
+  expectedSecondsUpdated: number;
   lastUpdated: Date;
 }
 
