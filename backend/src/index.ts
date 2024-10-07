@@ -18,8 +18,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "http://localhost:3000",
-        methods: ["GET", "POST"]
+        origin: ["http://localhost:3000", "http://192.168.0.4:3000", "http:100.77.41.71//:3000"],
     }
 });
 const port = process.env.PORT || 8080;
@@ -35,7 +34,7 @@ await setSensorStatusUnknown(await doorSensorRepository.search().returnAll() as 
 
 app.use(express.json());
 app.use(cors({
-	origin: "http://localhost:3000"
+	origin: ["http://localhost:3000", "http://192.168.0.4:3000", "http:100.77.41.71//:3000"],
 }))
 app.use(loggingMiddleware);
 
