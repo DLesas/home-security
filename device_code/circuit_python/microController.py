@@ -9,6 +9,7 @@ import wifi
 import adafruit_hashlib as hashlib
 import microcontroller
 import json
+import supervisor
 
 
 def inject_function_name(func):
@@ -101,7 +102,8 @@ class MicroController:
         self.max_log_file_size = max_log_file_size
         self.fatal_error = False
         self.name = None
-        self.read_only = bool(microcontroller.nvm[0])
+        self.read_only = supervisor.runtime.serial_connected
+        print(f"read only mode is set to: {self.read_only}" )
         print(f"LED initialized on pin: {self.led}")  # Debug print
 
     @staticmethod
