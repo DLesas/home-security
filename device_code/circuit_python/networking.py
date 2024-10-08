@@ -93,7 +93,7 @@ class Networking:
         self.ip = wifi.radio.ipv4_address
         self.mac = binascii.hexlify(bytearray(wifi.radio.mac_address))
         print(f"Connected. IP: {self.ip}, MAC: {self.mac}")
-        ntp = adafruit_ntp.NTP(pool, tz_offset=0, cache_seconds=3600)
+        ntp = adafruit_ntp.NTP(self.pico.pool, tz_offset=0, cache_seconds=3600)
         rtc.RTC().datetime = ntp.datetime
         self.handshake_with_server()
 
