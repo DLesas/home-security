@@ -70,7 +70,7 @@ class DoorSensor:
     def send_data(self):
         if self.state is None or self.temperature is None:
             return
-        self.pico.blink(3)
+        self.pico.blink(3, delay=0.05)
         self.pico.turn_on_led()
         data = {"status": self.state, "temperature": self.temperature, "voltage": self.voltage, "frequency": self.frequency}
         data = json.dumps(data)
