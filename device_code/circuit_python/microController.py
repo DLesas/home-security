@@ -103,6 +103,12 @@ class MicroController:
         self.fatal_error = False
         self.name = None
         self.read_only = supervisor.runtime.serial_connected
+        if self.read_only:
+            # Log that the device is in read-only mode for CircuitPython
+            self.log_issue("info", self.__class__.__name__, "init", "read only mode is set to: True")
+        else:
+            # Remount the filesystem as writable for CircuitPython
+            storage.remount("/", readonly=False)
         print(f"read only mode is set to: {self.read_only}" )
         print(f"LED initialized on pin: {self.led}")  # Debug print
 
@@ -114,7 +120,7 @@ class MicroController:
         gc.collect()
         print(f"Free memory: {gc.mem_free()} bytes")
 
-    def blink(self, times: int):
+    def blink(self, times: int, delay: float = 0.1):
         """
         Blink the LED at a specified rate.
 
@@ -125,9 +131,9 @@ class MicroController:
         """
         for _ in range(times):
             self.led.value = not self.led.value
-            time.sleep(0.1)
+            time.sleep(delay)
             self.led.value = not self.led.value
-            time.sleep(0.1)
+            time.sleep(delay)
 
     def turn_off_led(self):
         """
