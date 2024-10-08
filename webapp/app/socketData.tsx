@@ -111,7 +111,9 @@ function formatData(sensors: doorSensor[], alarms: Alarm[]): Data {
     [building: string]: DoorEntries;
   } = {};
   for (const sensor of sensors) {
-    logs[sensor.building] = {}
+    if (!logs[sensor.building]) {
+      logs[sensor.building] = {}
+    }
     logs[sensor.building][sensor.name] = {status: sensor.state, armed: sensor.armed}
   }
   return {
