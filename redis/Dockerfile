@@ -1,12 +1,17 @@
-# Use the official Redis image from Docker Hub
+# Use the official Redis Stack image
 FROM redis/redis-stack:latest
 
+# Create a directory for the configuration file
+RUN mkdir -p /usr/local/etc/redis
+
 # Copy the Redis configuration file
-COPY redis.conf /usr/local/etc/redis/redis.conf
+COPY redis.conf /usr/local/etc/redis/redis-stack.conf
 
-# Expose port 6379
-EXPOSE 6379
-EXPOSE 8001
+# Expose ports 6379 (Redis) and 8001 (RedisInsight)
+EXPOSE 6379 8001
 
-# Start Redis with the configuration file
-CMD ["redis-stack-server", "/usr/local/etc/redis/redis.conf"]
+# Set the data directory
+VOLUME /data
+
+# Start Redis Stack Server with the configuration file
+CMD ["redis-stack-server", "/usr/local/etc/redis/redis-stack.conf"]
