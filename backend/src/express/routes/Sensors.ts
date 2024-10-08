@@ -242,7 +242,7 @@ router.post("/new", async (req, res) => {
 		.returning();
 	const { buildingId, ...newSensorData } = newSensor;
 	const data = {id: newSensor.id, name: newSensor.name, expectedSecondsUpdated}
-	await doorSensorRepository.save({
+	await doorSensorRepository.save(newSensor.id,{
 		name: newSensor.name,
 		externalID: newSensor.id,
 		building: building,
