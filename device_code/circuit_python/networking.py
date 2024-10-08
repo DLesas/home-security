@@ -3,6 +3,8 @@ import wifi
 import ipaddress
 import binascii
 from microController import MicroController, inject_function_name
+import adafruit_ntp
+import rtc
 import json
 
 
@@ -91,6 +93,8 @@ class Networking:
         self.ip = wifi.radio.ipv4_address
         self.mac = binascii.hexlify(bytearray(wifi.radio.mac_address))
         print(f"Connected. IP: {self.ip}, MAC: {self.mac}")
+        ntp = adafruit_ntp.NTP(pool, tz_offset=0, cache_seconds=3600)
+        rtc.RTC().datetime = ntp.datetime
         self.handshake_with_server()
 
     def disconnect(self):
