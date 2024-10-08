@@ -10,7 +10,7 @@ import adafruit_hashlib as hashlib
 import microcontroller
 import json
 import supervisor
-
+import storage
 
 def inject_function_name(func):
     """
@@ -88,9 +88,9 @@ class MicroController:
         """
         self.log_dir = "logs"
         self.issue_file = "issue_logs.csv"
-        pool = adafruit_connection_manager.get_radio_socketpool(wifi.radio)
-        ssl_context = adafruit_connection_manager.get_radio_ssl_context(wifi.radio)
-        self.requests = adafruit_requests.Session(pool, ssl_context)
+        self.pool = adafruit_connection_manager.get_radio_socketpool(wifi.radio)
+        self.ssl_context = adafruit_connection_manager.get_radio_ssl_context(wifi.radio)
+        self.requests = adafruit_requests.Session(self.pool, self.ssl_context)
         self.user_agent = user_agent
         self.server_ip = server_ip
         self.server_port = server_port
@@ -102,13 +102,14 @@ class MicroController:
         self.max_log_file_size = max_log_file_size
         self.fatal_error = False
         self.name = None
-        self.read_only = supervisor.runtime.serial_connected
+        self.read_only = self.check_serial_connection()
         if self.read_only:
             # Log that the device is in read-only mode for CircuitPython
             self.log_issue("info", self.__class__.__name__, "init", "read only mode is set to: True")
         else:
             # Remount the filesystem as writable for CircuitPython
             storage.remount("/", readonly=False)
+            self.blink(3, 1)
         print(f"read only mode is set to: {self.read_only}" )
         print(f"LED initialized on pin: {self.led}")  # Debug print
 
@@ -119,6 +120,15 @@ class MicroController:
         """
         gc.collect()
         print(f"Free memory: {gc.mem_free()} bytes")
+        
+        
+    def check_serial_connection(self, timeout=5):
+        start_time = time.monotonic()
+        while time.monotonic() - start_time < timeout:
+            if supervisor.runtime.serial_connected:
+                return True
+            time.sleep(0.1)  # Small delay to prevent busy-waiting
+        return False
 
     def blink(self, times: int, delay: float = 0.1):
         """
@@ -177,7 +187,7 @@ class MicroController:
 Type: {type}
 Class: {class_name}
 Function: {function_name}
-Error: {error_message}
+Message: {error_message}
 Hash: {hashTxt}
         """
         if not self.read_only:
