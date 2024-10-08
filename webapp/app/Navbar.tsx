@@ -111,6 +111,7 @@ export default function App() {
     { name: 'Home', href: '/home' },
     { name: 'Logs', href: '/logs' },
     { name: 'Scheduling', href: '/scheduling' },
+    { name: 'Test', href: '/test' },  
   ]
 
   return (
