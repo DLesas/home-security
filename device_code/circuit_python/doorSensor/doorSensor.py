@@ -72,6 +72,7 @@ class DoorSensor:
             return
         self.pico.blink(3, delay=0.05)
         self.pico.turn_on_led()
+        original_state = self.state
         data = {"status": self.state, "temperature": self.temperature, "voltage": self.voltage, "frequency": self.frequency}
         data = json.dumps(data)
         # TODO: move this into a wifi class, as this should not be tied to a specific transmission protocol (e.g. HTTP, nrf24, etc.)
@@ -90,3 +91,7 @@ class DoorSensor:
         if "response" in locals():
             response.close()
         self.pico.turn_off_led()
+        self.read_switch()
+        if self.state != original_state:
+            self.pico.log_issue("info", self.__class__.__name__, "send_data", f"Door state changed from {original_state} to {self.state} whilst sending data, resending.....")
+            self.send_data()
