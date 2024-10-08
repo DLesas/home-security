@@ -45,8 +45,8 @@ class DoorSensor:
         print(
             f"Entering deep sleep mode for {self.max_time_to_sleep_s}s or until pin {self.switch} changes"
         )
-        pin_alarm_rising = alarm.pin.PinAlarm(pin=self.switch, value=True, pull=True)
-        pin_alarm_falling = alarm.pin.PinAlarm(pin=self.switch, value=False, pull=True)
+        pin_alarm_rising = alarm.pin.PinAlarm(pin=self.switch, value=True, edge=True)
+        pin_alarm_falling = alarm.pin.PinAlarm(pin=self.switch, value=False, edge=True, pull=True)
         timeout_alarm = alarm.time.TimeAlarm(
             monotonic_time=time.monotonic() + self.max_time_to_sleep_s
         )
@@ -56,10 +56,10 @@ class DoorSensor:
         
     def light_sleep(self):
         print(
-            f"Entering deep sleep mode for {self.max_time_to_sleep_s}s or until pin {self.switch} changes"
+            f"Entering light sleep mode for {self.max_time_to_sleep_s}s or until pin {self.switch} changes"
         )
-        pin_alarm_rising = alarm.pin.PinAlarm(pin=self.switch, value=True, pull=True)
-        pin_alarm_falling = alarm.pin.PinAlarm(pin=self.switch, value=False, pull=True)
+        pin_alarm_rising = alarm.pin.PinAlarm(pin=self.switch, value=True, edge=True)
+        pin_alarm_falling = alarm.pin.PinAlarm(pin=self.switch, value=False, edge=True, pull=True)
         timeout_alarm = alarm.time.TimeAlarm(
             monotonic_time=time.monotonic() + self.max_time_to_sleep_s
         )
