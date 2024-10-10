@@ -30,7 +30,7 @@ const router = express.Router();
  * @urlparam {string} sensorId - The ID of the sensor
  * @body {string} macAddress - The MAC address of the sensor (1-255 characters)
  */
-router.post("/:sensorId/handshake", async (req, res) => {
+router.post("/:sensorId/handshake", async (req, res, next) => {
 	const { sensorId } = req.params;
 	const validationSchema = z.object({
 		macAddress: z
@@ -40,7 +40,7 @@ router.post("/:sensorId/handshake", async (req, res) => {
 	});
 	const { error, data } = validationSchema.safeParse(req.body);
 	if (error) {
-		raiseError(400, JSON.stringify(error.errors));
+		next(raiseError(400, JSON.stringify(error.errors)));
 		return;
 	}
 	const { macAddress } = data;
@@ -51,7 +51,7 @@ router.post("/:sensorId/handshake", async (req, res) => {
 		.eq(sensorId)
 		.returnFirst()) as doorSensor | null;
 	if (!sensor) {
-		raiseError(404, "Sensor not recognized");
+		next(raiseError(404, "Sensor not recognized"));
 		return;
 	}
 	if (!sensor.ipAddress) {
@@ -61,15 +61,15 @@ router.post("/:sensorId/handshake", async (req, res) => {
 			ipAddress: req.ip,
 			lastUpdated: new Date(),
 		} as doorSensor);
+		await emitNewData();
 		await raiseEvent(
 			"info",
 			`Recieved first handshake from sensor ${sensor!.name} in ${sensor!.building} with ip: ${
 				req.ip
 			} , and mac: ${macAddress}`
 		);
-		await emitNewData();
 	}
-	res.json({ status: "success", message: "Sensor handshake successful" });
+	res.status(200).json({ status: "success", message: "Sensor handshake successful" });
 });
 
 /**
@@ -81,7 +81,7 @@ router.post("/:sensorId/handshake", async (req, res) => {
  * @body {string} status - The status of the sensor (open, closed)
  * @body {number} temperature - The temperature reading of the sensor (-100 to 120)
  */
-router.post("/update", async (req, res) => {
+router.post("/update", async (req, res, next) => {
 	const validationSchema = z.object({
 		status: z.enum(["open", "closed"], {
 			required_error: "status is required",
@@ -106,23 +106,29 @@ router.post("/update", async (req, res) => {
 	});
 	const result = validationSchema.safeParse(req.body);
 	if (!result.success) {
-		raiseError(400, JSON.stringify(result.error.errors));
+		next(raiseError(400, JSON.stringify(result.error.errors)));
 		return;
 	}
 	const ipAddress = req.ip;
 	if (!ipAddress) {
-		raiseError(400, "ip Address is required");
+		next(raiseError(400, "ip Address is required"));
 		return;
 	}
 	const sensor = await doorSensorRepository.search().where("ipAddress").eq(ipAddress).returnFirst() as doorSensor | null;
 	if (!sensor) {
-		raiseError(404, "Sensor not recognized");
+		next(raiseError(404, "Sensor not recognized"));
 		return;
 	}
 	const { status, temperature, voltage, frequency } = result.data;
-	await DoorSensorUpdate({ sensorId: sensor.externalID, state: status, temperature, voltage, frequency });
+	try {
+		await DoorSensorUpdate({ sensorId: sensor.externalID, state: status, temperature, voltage, frequency });
+	} catch (err) {
+		next(err);
+		return;
+	}
 	await emitNewData();
-	res.json({ status: "success", message: "update acknowledged" });
+	await raiseEvent("info", `Sensor ${sensor.name} in ${sensor.building} with id ${sensor.externalID} and ip address ${sensor.ipAddress} updated with state: ${status}, temperature: ${temperature}, voltage: ${voltage}, frequency: ${frequency}`);
+	res.status(200).json({ status: "success", message: "update acknowledged" });
 });
 
 /**
@@ -140,7 +146,7 @@ router.post("/update", async (req, res) => {
  * @body {string} logs[].Hash - The MD5 hash of the log
  * @body {number} logs[].Count - The count of occurrences
  */
-router.post("/logs", async (req, res) => {
+router.post("/logs", async (req, res, next) => {
 	const logSchema = z.object({
 		Timestamp: z.string().refine((val) => !isNaN(Date.parse(val)), {
 			message: "Timestamp must be a valid date string",
@@ -156,17 +162,17 @@ router.post("/logs", async (req, res) => {
 
 	const result = validationSchema.safeParse(req.body);
 	if (!result.success) {
-		raiseError(400, JSON.stringify(result.error.errors));
+		next(raiseError(400, JSON.stringify(result.error.errors)));
 		return;
 	}
 	const ipAddress = req.ip;
 	if (!ipAddress) {
-		raiseError(400, "ip Address is required");
+		next(raiseError(400, "ip Address is required"));
 		return;
 	}
 	const sensor = await doorSensorRepository.search().where("ipAddress").eq(ipAddress).returnFirst() as doorSensor | null;
 	if (!sensor) {
-		raiseError(404, "Sensor not recognized");
+		next(raiseError(404, "Sensor not recognized"));
 		return;
 	}
 	await db.insert(sensorLogsTable).values(result.data.map(item => ({
@@ -179,8 +185,8 @@ router.post("/logs", async (req, res) => {
 		errorMessage: item.Error_Message,
 		count: item.Count
 	})));
-	await raiseEvent("info", `Logs received from sensor ${sensor.name} in ${sensor.building}`);
-	res.json({ status: "success", message: "Logs received" });
+	await raiseEvent("info", `Logs received from sensor ${sensor.name} in ${sensor.building} with id ${sensor.externalID} and ip address ${sensor.ipAddress}`);
+	res.status(200).json({ status: "success", message: "Logs received" });
 });
 
 
@@ -196,7 +202,7 @@ router.post("/logs", async (req, res) => {
  * @body {string} name - The name of the sensor (1-255 characters)
  * @body {string} building - The name of the building (1-255 characters)
  */
-router.post("/new", async (req, res) => {
+router.post("/new", async (req, res, next) => {
 	const validationSchema = z.object({
 		name: z
 			.string({
@@ -223,13 +229,13 @@ router.post("/new", async (req, res) => {
 
 	const result = validationSchema.safeParse(req.body);
 	if (!result.success) {
-		raiseError(400, JSON.stringify(result.error.errors));
+		next(raiseError(400, JSON.stringify(result.error.errors)));
 		return;
 	}
 	const { name, building, expectedSecondsUpdated } = result.data;
 	const buildingExists = await db.select().from(buildingTable).where(eq(buildingTable.name, building)).limit(1);
 	if (buildingExists.length === 0) {
-		raiseError(404, "Building not found");
+		next(raiseError(404, "Building not found"));
 		return;
 	}
 	const [newSensor] = await db
@@ -267,21 +273,21 @@ router.post("/new", async (req, res) => {
  * @returns {void}
  * @urlparam {string} sensorId - The ID of the sensor to delete
  */
-router.delete("/:sensorId", async (req, res) => {
+router.delete("/:sensorId", async (req, res, next) => {
 	const { sensorId } = req.params;
 	const sensor = (await doorSensorRepository.search().where("externalID").eq(sensorId).returnFirst()) as doorSensor | null;
 	if (!sensor) {
-		raiseError(404, "Sensor not recognized");
+		next(raiseError(404, "Sensor not recognized"));
 		return;
 	}
 	const entityId = (sensor as any)[EntityId] as string;
 	await db.update(sensorsTable).set({ deleted: true }).where(eq(sensorsTable.id, sensorId));
 	await doorSensorRepository.remove(entityId);
-	await raiseEvent("info", `Sensor ${sensor.name} in ${sensor.building} deleted`);
+	await raiseEvent("warning", `Sensor ${sensor.name} in ${sensor.building} deleted`);
+	await emitNewData();
 	await writePostgresCheckpoint();
     await writeRedisCheckpoint();
-	await emitNewData();
-	res.json({ status: "success", message: `Sensor ${sensor.name} in ${sensor.building} deleted` });
+	res.status(200).json({ status: "success", message: `Sensor ${sensor.name} in ${sensor.building} deleted` });
 });
 
 
@@ -309,6 +315,7 @@ router.post("/:sensorId/arm", async (req, res) => {
 	}
 	await changeSensorStatus([sensor], true);
 	await emitNewData();
+	await raiseEvent("warning", `Sensor ${sensor.name} in ${sensor.building} armed`);
 	res.json({ status: "success", message: "Sensor armed" });
 });
 
@@ -333,6 +340,7 @@ router.post("/:sensorId/disarm", async (req, res) => {
 	}
 	await changeSensorStatus([sensor], false);
 	await emitNewData();
+	await raiseEvent("warning", `Sensor ${sensor.name} in ${sensor.building} disarmed`);
 	res.json({ status: "success", message: "Sensor disarmed" });
 });
 

@@ -8,4 +8,5 @@ export class CustomError extends Error {
 export function raiseError(statusCode: number, message: string) {
 	const err = new CustomError(statusCode, message);
 	console.error(err);
+	return err;
 }

@@ -23,7 +23,7 @@ const router = express.Router();
  * @returns {void}
  * @body {string} name - The name of the building (1-255 characters)
  */
-router.post("/new", async (req, res) => {
+router.post("/new", async (req, res, next) => {
 	const validationSchema = z.object({
 		name: z
 			.string({
@@ -36,13 +36,13 @@ router.post("/new", async (req, res) => {
 
 	const result = validationSchema.safeParse(req.body);
 	if (!result.success) {
-		raiseError(400, JSON.stringify(result.error.errors));
+		next(raiseError(400, JSON.stringify(result.error.errors)));
 		return;
 	}
 	const { name } = result.data;
 	const buildingExists = await db.select().from(buildingTable).where(eq(buildingTable.name, name)).limit(1);
 	if (buildingExists.length > 0) {
-		raiseError(400, "Building already exists");
+		next(raiseError(400, "Building already exists"));
 		return;
 	}
 	const [newBuilding] = await db
@@ -52,9 +52,9 @@ router.post("/new", async (req, res) => {
 			name,
 		})
 		.returning();
+	await emitNewData();
 	await raiseEvent("info", `New building ${newBuilding.name} added with id ${newBuilding.id}`);
 	await writePostgresCheckpoint();
-	await emitNewData();
 	res.status(201).json({ status: "success", data: newBuilding });
 });
 
@@ -66,11 +66,11 @@ router.post("/new", async (req, res) => {
  * @returns {void}
  * @urlparam {string} buildingName - The name of the building
  */
-router.post("/:buildingName/arm", async (req, res) => {
+router.post("/:buildingName/arm", async (req, res, next) => {
 	const { buildingName } = req.params;
 	const buildingId = await db.select().from(buildingTable).where(eq(buildingTable.name, buildingName)).limit(1);
 	if (buildingId.length === 0) {
-		raiseError(404, "Building not found");
+		next(raiseError(404, "Building not found"));
 		return;
 	}
 	const sensors = (await doorSensorRepository
@@ -79,12 +79,13 @@ router.post("/:buildingName/arm", async (req, res) => {
 		.eq(buildingName)
 		.returnAll()) as doorSensor[];
 	if (sensors.length === 0) {
-		raiseError(404, "No viable sensors found in building");
+		next(raiseError(404, "No viable sensors found in building"));
 		return;
 	}
 	await changeSensorStatus(sensors, true);
 	await emitNewData();
-	res.json({ status: "success", message: `All sensors in building ${buildingName} armed` });
+	await raiseEvent("warning", `All sensors in building ${buildingName} armed`);
+	res.status(200).json({ status: "success", message: `All sensors in building ${buildingName} armed` });
 });
 
 /**
@@ -95,11 +96,11 @@ router.post("/:buildingName/arm", async (req, res) => {
  * @returns {void}
  * @urlparam {string} buildingName - The name of the building
  */
-router.post("/:buildingName/disarm", async (req, res) => {
+router.post("/:buildingName/disarm", async (req, res, next) => {
 	const { buildingName } = req.params;
 	const buildingId = await db.select().from(buildingTable).where(eq(buildingTable.name, buildingName)).limit(1);
 	if (buildingId.length === 0) {
-		raiseError(404, "Building not found");
+		next(raiseError(404, "Building not found"));
 		return;
 	}
 	const allSensors = (await doorSensorRepository
@@ -107,7 +108,7 @@ router.post("/:buildingName/disarm", async (req, res) => {
 		.returnAll()) as doorSensor[];
 	const sensors = allSensors.filter(sensor => sensor.building === buildingName);
 	if (sensors.length === 0) {
-		raiseError(404, "No viable sensors found in building");
+		next(raiseError(404, "No viable sensors found in building"));
 		return;
 	}
 	const alarms = await alarmRepository.search().returnAll() as Alarm[];
@@ -119,7 +120,8 @@ router.post("/:buildingName/disarm", async (req, res) => {
 		await changeSensorStatus(sensors, false)
 	}
 	await emitNewData();
-	res.json({ status: "success", message: `All sensors in building ${buildingName} disarmed` });
+	await raiseEvent("warning", `All sensors in building ${buildingName} disarmed`);
+	res.status(200).json({ status: "success", message: `All sensors in building ${buildingName} disarmed` });
 });
 
 export default router;
