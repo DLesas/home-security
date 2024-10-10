@@ -54,7 +54,7 @@ router.post("/:sensorId/handshake", async (req, res, next) => {
 		next(raiseError(404, "Sensor not recognized"));
 		return;
 	}
-	if (!sensor.ipAddress) {
+	if (!sensor.ipAddress || sensor.ipAddress !== req.ip) {
 		await doorSensorRepository.save({
 			...sensor,
 			macAddress,
