@@ -1,10 +1,6 @@
 # Use the official Redis Stack image
 FROM redis/redis-stack:latest
 
-# Expose Redis ports (6379 for Redis, 8001 for RedisInsight)
-EXPOSE 6379
-EXPOSE 8001
-
 # Create a directory for Redis persistence data
 
 # Copy custom Redis configuration (if needed)
