@@ -1,4 +1,5 @@
 force system to static IP address
+set mdns for web app
 initialise default configurations on first start
 Abstract device code networking into seperate classes for NRF24, HTTP and other protocols
 redo device code, ported micropython to circuitpython and now the code is messy and structurally questionable
