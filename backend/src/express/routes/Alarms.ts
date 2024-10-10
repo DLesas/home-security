@@ -204,7 +204,7 @@ router.post("/:alarmId/handshake", async (req, res, next) => {
         next(raiseError(404, "Alarm not found"));
         return;
     }
-    if (!alarm.ipAddress) {
+    if (!alarm.ipAddress || alarm.ipAddress !== req.ip) {
         await alarmRepository.save({
             ...alarm,
             macAddress,
