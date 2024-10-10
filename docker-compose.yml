@@ -19,6 +19,8 @@ services:
       retries: 5
       start_period: 30s
       timeout: 5s 
+    networks:
+      - app-network
 
   postgres:
     build:
@@ -34,18 +36,23 @@ services:
     deploy:
       replicas: 1
     restart: always
+    user: root
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       retries: 5
       start_period: 30s
       timeout: 5s
+    networks:
+      - app-network
 
   web:
     build:
       context: ./webapp
     ports:
       - "3000:3000"
+    networks:
+      - external-network
 
   backend:
     build:
@@ -66,6 +73,9 @@ services:
     ports:
       - "8080:8080"
     restart: always
+    networks:
+      - app-network
+      - external-network
 
   # video_processor:
   #   build:
@@ -78,6 +88,9 @@ services:
   #     - backend
   #   volumes:
   #     - ./video_processing/data:/data
+  #   networks:
+  #     - app-network
+  #     - external-network
 
   # caddy:
   #   image: caddy:builder-alpine
@@ -94,4 +107,10 @@ services:
 
   # caddy_data:
   # caddy_config:
+
+  networks:
+    app-network:
+      driver: bridge  # Internal network for Docker containers
+    external-network:
+      external: true 
 
