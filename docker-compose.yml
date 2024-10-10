@@ -1,18 +1,24 @@
 version: '3.8'
 
 services:
-  redis:
+  redis-stack:
+    container_name: redis-stack
     build:
       context: ./redis
     ports:
       - "6379:6379"
       - "8001:8001"
     volumes:
-      - redis-data:/data
+      - ./redis/data:/data
     deploy:
       replicas: 1
-      restart_policy:
-        condition: on-failure
+    restart: always 
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 5s 
 
   postgres:
     build:
@@ -27,8 +33,13 @@ services:
       - ./postgres/data:/var/lib/postgresql/data
     deploy:
       replicas: 1
-      restart_policy:
-        condition: on-failure
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h localhost"]
+      interval: 5s
+      retries: 10
+      start_period: 30s
+      timeout: 5s
 
   web:
     build:
@@ -48,10 +59,13 @@ services:
       - SENSOR_WARNING_TEMPERATURE=${SENSOR_WARNING_TEMPERATURE}
       - SENSOR_CRITICAL_TEMPERATURE=${SENSOR_CRITICAL_TEMPERATURE}
     depends_on:
-      - redis
-      - postgres
+      postgres:
+        condition: service_healthy
+      redis-stack:
+        condition: service_healthy
     ports:
       - "8080:8080"
+    restart: always
 
   # video_processor:
   #   build:
@@ -79,6 +93,8 @@ services:
 
 volumes:
   redis-data:
+    driver: local
   postgres-data:
+    driver: local
   # caddy_data:
   # caddy_config:
