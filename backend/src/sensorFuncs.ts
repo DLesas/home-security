@@ -63,6 +63,7 @@ export async function checkSensorTemperature(temperature: number, sensor: doorSe
         await raiseEvent("warning", startText + `warning temperature ${config.sensorWarningTemparature}°C` + endText);
         return;
     }
+    return;
 }
 
 /**
@@ -115,14 +116,18 @@ export async function setSensorStatusUnknown(sensors: doorSensor[]): Promise<any
     return res;
 }
 
+
 /**
  * Updates the state and temperature of a door sensor, also checks if any alarms need to be triggered or if the temperature is too high.
  *
- * @param {object} params - An object containing the state, temperature, and sensor ID of the door sensor that triggered this endpoint.
+ * @param {object} params - An object containing the state, temperature, voltage, frequency, and sensor ID of the door sensor that triggered this endpoint.
  * @param {("open" | "closed" | "unknown")} params.state - The new state of the door sensor.
- * @param {number} params.temperature - The new temperature of the door sensor.
- * @param {string} params.sensorId - The sensor ID of the door sensor that triggered this endpoint.
+ * @param {number} params.temperature - The current temperature of the door sensor in degrees Celsius.
+ * @param {number | null | undefined} params.voltage - The current voltage of the door sensor (optional).
+ * @param {number | null | undefined} params.frequency - The current frequency of the door sensor (optional).
+ * @param {string} params.sensorId - The unique identifier of the door sensor.
  * @return {Promise<void>} A promise that resolves when the update of redis is complete.
+ * @throws {Error} If the sensor with the given ID is not found.
  */
 export async function DoorSensorUpdate({
     state,
@@ -143,8 +148,8 @@ export async function DoorSensorUpdate({
         .eq(sensorId)
         .returnFirst()) as doorSensor | null;
     if (!currentState) {
-        raiseError(404, `Sensor with Id ${sensorId} not found`);
-        return;
+        const err = raiseError(404, `Sensor with Id ${sensorId} not found`);
+        throw err;
     }
     checkSensorState(currentState, state);
     checkSensorTemperature(temperature, currentState);
@@ -153,6 +158,8 @@ export async function DoorSensorUpdate({
     currentState.voltage = voltage ? voltage : undefined;
     currentState.frequency = frequency ? frequency : undefined;
     currentState.lastUpdated = new Date();
+    await doorSensorRepository.save(currentState);
+    // not awaiting as server is running continously so this will happen in background
     db.insert(sensorUpdatesTable).values({
         sensorId: currentState.externalID,
         state: state,
@@ -160,5 +167,4 @@ export async function DoorSensorUpdate({
         voltage: voltage ? voltage.toString() : null,
         frequency: frequency,
     });
-    await doorSensorRepository.save(currentState);
 }
