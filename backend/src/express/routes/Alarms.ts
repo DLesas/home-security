@@ -29,7 +29,7 @@ const router = express.Router();
  * @requires {string} name - The name of the alarm (1-255 characters)
  * @requires {string} building - The name of the building (1-255 characters)
  */
-router.post("/new", async (req, res) => {
+router.post("/new", async (req, res, next) => {
     const validationSchema = z.object({
         name: z
             .string({
@@ -55,13 +55,14 @@ router.post("/new", async (req, res) => {
     });
     const result = validationSchema.safeParse(req.body);
     if (!result.success) {
-        raiseError(400, JSON.stringify(result.error.errors));
+        next(raiseError(400, JSON.stringify(result.error.errors)));
         return;
     }
     const { name, building, expectedSecondsUpdated } = result.data;
     const buildingExists = await db.select().from(buildingTable).where(eq(buildingTable.name, building)).limit(1);
     if (buildingExists.length === 0) {
-        raiseError(404, "Building not found");
+        next(raiseError(404, "Building not found"));
+        return;
     }
     const [newAlarm] = await db
         .insert(alarmsTable)
@@ -81,10 +82,10 @@ router.post("/new", async (req, res) => {
         expectedSecondsUpdated: expectedSecondsUpdated,
         lastUpdated: new Date(),
     } as Alarm);
+    await emitNewData();
     await raiseEvent("info", `New alarm ${newAlarm.name} in ${building} with id ${newAlarm.id} added`);
     await writePostgresCheckpoint();
     await writeRedisCheckpoint();
-    await emitNewData();
     res.status(201).json({ status: "success", data: data });
 });
 
@@ -96,20 +97,21 @@ router.post("/new", async (req, res) => {
  * @returns {void}
  * @requires {string} id - The ID of the alarm to delete
  */
-router.delete("/:alarmId", async (req, res) => {
+router.delete("/:alarmId", async (req, res, next) => {
     const { alarmId } = req.params;
     const alarm = await alarmRepository.search().where("externalID").eq(alarmId).returnFirst();
     if (!alarm) {
-        raiseError(404, "Alarm not found");
+        next(raiseError(404, "Alarm not found"));
         return;
     }
     const entityId = (alarm as any)[EntityId] as string;
     await db.update(alarmsTable).set({ deleted: true }).where(eq(alarmsTable.id, alarmId));
     await alarmRepository.remove(entityId);
     await emitNewData();
+    await raiseEvent("warning", `Alarm ${alarm.name} in ${alarm.building} with id ${alarm.id} deleted`);
     await writePostgresCheckpoint();
     await writeRedisCheckpoint();
-    res.json({ status: "success", message: "Alarm deleted" });
+    res.status(200).json({ status: "success", message: "Alarm deleted" });
 });
 
 
@@ -128,7 +130,7 @@ router.delete("/:alarmId", async (req, res) => {
  * @body {string} logs[].Hash - The MD5 hash of the log
  * @body {number} logs[].Count - The count of occurrences
  */
-router.post("/logs", async (req, res) => {
+router.post("/logs", async (req, res, next) => {
 	const logSchema = z.object({
 		Timestamp: z.string().refine((val) => !isNaN(Date.parse(val)), {
 			message: "Timestamp must be a valid date string",
@@ -144,17 +146,17 @@ router.post("/logs", async (req, res) => {
 
 	const result = validationSchema.safeParse(req.body);
 	if (!result.success) {
-		raiseError(400, JSON.stringify(result.error.errors));
+		next(raiseError(400, JSON.stringify(result.error.errors)));
 		return;
 	}
 	const ipAddress = req.ip;
 	if (!ipAddress) {
-		raiseError(400, "ip Address is required");
+		next(raiseError(400, "ip Address is required"));
 		return;
 	}
 	const alarm = await alarmRepository.search().where("ipAddress").eq(ipAddress).returnFirst() as Alarm | null;
 	if (!alarm) {
-		raiseError(404, "Sensor not recognized");
+		next(raiseError(404, "Sensor not recognized"));
 		return;
 	}
 	await db.insert(alarmLogsTable).values(result.data.map(item => ({
@@ -179,7 +181,7 @@ router.post("/logs", async (req, res) => {
  * @returns {void}
  * @requires {string} macAddress - The MAC address of the alarm (1-255 characters)
  */
-router.post("/:alarmId/handshake", async (req, res) => {
+router.post("/:alarmId/handshake", async (req, res, next) => {
     const { alarmId } = req.params;
     const validationSchema = z.object({
         macAddress: z
@@ -193,13 +195,13 @@ router.post("/:alarmId/handshake", async (req, res) => {
 
     const result = validationSchema.safeParse(req.body);
     if (!result.success) {
-        raiseError(400, JSON.stringify(result.error.errors));
+        next(raiseError(400, JSON.stringify(result.error.errors)));
         return;
     }
     const { macAddress } = result.data;
     const alarm = (await alarmRepository.search().where("externalID").eq(alarmId).returnFirst()) as Alarm | null;
     if (!alarm) {
-        raiseError(404, "Alarm not found");
+        next(raiseError(404, "Alarm not found"));
         return;
     }
     if (!alarm.ipAddress) {
@@ -209,16 +211,16 @@ router.post("/:alarmId/handshake", async (req, res) => {
             ipAddress: req.ip,
             lastUpdated: new Date(),
         } as Alarm);
+        await emitNewData();
         await raiseEvent(
             "info",
             `Recieved first handshake from Alarm ${alarm.name} in ${alarm.building} with ip: ${req.ip} , and mac: ${macAddress}`
         );
-        await emitNewData();
     }
     res.status(200).json({ status: "success", message: "Alarm handshake successful" });
 });
 
-router.post("/update", async (req, res) => {
+router.post("/update", async (req, res, next) => {
 	const validationSchema = z.object({
 		status: z.enum(["on", "off"], {
 			required_error: "status is required",
@@ -242,28 +244,21 @@ router.post("/update", async (req, res) => {
 	});
 	const result = validationSchema.safeParse(req.body);
 	if (!result.success) {
-		raiseError(400, JSON.stringify(result.error.errors));
+		next(raiseError(400, JSON.stringify(result.error.errors)));
 		return;
 	}
 	const ipAddress = req.ip;
 	if (!ipAddress) {
-		raiseError(400, "ip Address is required");
+		next(raiseError(400, "ip Address is required"));
 		return;
 	}
 	const alarm = await alarmRepository.search().where("ipAddress").eq(ipAddress).returnFirst() as Alarm | null;
 	if (!alarm) {
-		raiseError(404, "Alarm not recognized");
+		next(raiseError(404, "Alarm not recognized"));
 		return;
 	}
 	const { status, temperature, voltage, frequency } = result.data;
-    await db.insert(alarmUpdatesTable).values({
-        alarmId: alarm.externalID,
-        state: status,
-        temperature: temperature.toString(),
-        voltage: voltage ? voltage.toString() : null,
-        frequency: frequency,
-    });
-	await alarmRepository.save({
+    await alarmRepository.save({
 		...alarm,
 		status,
 		temperature,
@@ -272,6 +267,13 @@ router.post("/update", async (req, res) => {
 		lastUpdated: new Date(),
 	});
 	await emitNewData();
+    db.insert(alarmUpdatesTable).values({
+        alarmId: alarm.externalID,
+        state: status,
+        temperature: temperature.toString(),
+        voltage: voltage ? voltage.toString() : null,
+        frequency: frequency,
+    });
 	res.json({ status: "success", message: "update acknowledged" });
 });
 
