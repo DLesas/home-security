@@ -2,7 +2,7 @@ import { createClient } from "redis";
 import { Repository, Schema } from "redis-om";
 
 export const redis = createClient({
-  url: `redis://redis-stack:6379`
+  url: `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`
 });
 redis.on("error", (error: string) => console.error('Redis Client Error', error));
 export const connectRedis = async () => {
