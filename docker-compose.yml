@@ -55,8 +55,10 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_HOST=postgres
+      - POSTGRES_HOST=localhost
       - POSTGRES_PORT=5432
+      - REDIS_HOST=localhost
+      - REDIS_PORT=6379
       - SENSOR_WARNING_TEMPERATURE=${SENSOR_WARNING_TEMPERATURE}
       - SENSOR_CRITICAL_TEMPERATURE=${SENSOR_CRITICAL_TEMPERATURE}
     depends_on:
@@ -64,8 +66,10 @@ services:
         condition: service_healthy
       redis-stack:
         condition: service_healthy
-    ports:
-      - "8080:8080"
+    # ports:
+    #   - "8080:8080"
+    #   - "5353:5353/udp"
+    network_mode: host
     restart: always
 
   # video_processor:
