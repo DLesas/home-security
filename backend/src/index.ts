@@ -1,3 +1,4 @@
+import './config';
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
@@ -14,6 +15,7 @@ import { createConfigIndex, setDefaultConfig } from "./redis/config.js";
 import { createAlarmIndex } from "./redis/alarms.js";
 import { setSensorStatusUnknown } from "./sensorFuncs.js";
 import bonjour from "bonjour";
+
 
 const app = express();
 const server = http.createServer(app);
