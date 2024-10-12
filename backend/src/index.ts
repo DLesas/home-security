@@ -13,6 +13,7 @@ import { createDoorSensorIndex, doorSensor, doorSensorRepository} from "./redis/
 import { createConfigIndex, setDefaultConfig } from "./redis/config.js";
 import { createAlarmIndex } from "./redis/alarms.js";
 import { setSensorStatusUnknown } from "./sensorFuncs.js";
+import bonjour from "bonjour";
 
 const app = express();
 const server = http.createServer(app);
@@ -55,6 +56,17 @@ setupSocketHandlers(io);
 
 server.listen(port, () => {
 	console.log(`Server is running on http://localhost:${port}`);
+	
+	// Start Bonjour service advertisement
+	const bonjourInstance = bonjour();
+	bonjourInstance.publish({
+		name: 'SecurityGeneralBackend',
+		type: 'http',
+		port: port as number,
+		host: '0.0.0.0'  // This allows the service to be discoverable on all network interfaces
+	});
+
+	console.log('Bonjour service published');
 });
 
 export { io };
