@@ -246,7 +246,7 @@ Hash: {hashTxt}
 
     # might wantto consider changing this so it works with the camera and its recordings, i.e. check size of the entire dir first then send/truncate after instead of checking each file
     @inject_function_name
-    def check_all_files(self, func_name: str):
+    def check_all_files(self, ip: str = self.server_ip, port: int = self.server_port, func_name: str = None):
         """
         Check the size of all files in the log directory and delete rows if they exceed the maximum size.
 
@@ -259,7 +259,7 @@ Hash: {hashTxt}
                 size = self.get_file_size(file_dir)
                 if size > self.max_log_file_size or size == -1:
                     try:
-                        self.send_log(file_dir)
+                        self.send_log(file_dir, ip=ip, port=port)
                     except Exception as e:
                         self.log_issue(
                             "error",
@@ -272,7 +272,7 @@ Hash: {hashTxt}
 
     # might want to consider changing this so it works with the camera and its recordings, i.e. check the file format first and then send to different endpoint depending on the file type
     @inject_function_name
-    def send_log(self, file_path: str, func_name: str):
+    def send_log(self, file_path: str, ip: str = self.server_ip, port: int = self.server_port, func_name: str = None):
         """
         Parse a CSV log file, convert it to JSON in record format, and send it to the specified endpoint.
 
@@ -301,7 +301,7 @@ Hash: {hashTxt}
             }
             endpoint = (
             "http://"
-            + f"{self.server_ip}:{str(self.server_port)}/"
+            + f"{ip}:{str(port)}/"
             + "api/"
             + f"v{str(self.api_version)}/"
             + f"{self.type}s/"
