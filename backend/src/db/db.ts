@@ -6,6 +6,7 @@ import { db as schema } from "./schema/index.js";
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { setTimeout } from 'timers/promises';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,9 +15,42 @@ console.log(path.resolve(__dirname, '../../../db/drizzle')); // '/home/node/db/d
 console.log(path.join(__dirname, '../../../db/seed.sql')) // '/home/node/db/seed.sql'
 
 
-const queryClient = postgres(
-  `postgres://${process.env.POSTGRES_USER}:${process.env.POSTGRES_PASSWORD}@${process.env.POSTGRES_HOST}:${process.env.POSTGRES_PORT}/${process.env.POSTGRES_DB}`,
-);
+/**
+ * Attempts to connect to the PostgreSQL database with retry logic.
+ * @param retries Number of retry attempts
+ * @param interval Interval between retries in milliseconds
+ * @returns A postgres client
+ */
+/**
+ * Attempts to connect to the PostgreSQL database with retry logic.
+ * @param retries Number of retry attempts
+ * @param interval Interval between retries in milliseconds
+ * @returns A postgres client
+ * @throws Error if unable to connect after all retries
+ */
+async function connectWithRetry(retries = 50, interval = 1000): Promise<postgres.Sql> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const client = postgres(
+        `postgres://${process.env.POSTGRES_USER}:${process.env.POSTGRES_PASSWORD}@${process.env.POSTGRES_HOST}:${process.env.POSTGRES_PORT}/${process.env.POSTGRES_DB}`,
+      );
+      // Test the connection
+      await client`SELECT 1`;
+      console.log('Successfully connected to the database');
+      return client;
+    } catch (err) {
+      console.error(`Failed to connect to the database (attempt ${i + 1}/${retries}):`, err);
+      if (i < retries - 1) {
+        console.log(`Retrying in ${interval}ms...`);
+        await setTimeout(interval);
+      }
+    }
+  }
+  throw new Error(`Failed to connect to the database after ${retries} retries`);
+}
+
+// Replace the existing queryClient initialization with this:
+const queryClient = await connectWithRetry();
 
 export const db = drizzle(queryClient, { schema: schema });
 
@@ -71,5 +105,6 @@ export async function writePostgresCheckpoint() {
 		throw error;
 	}
 }
+
 
 
