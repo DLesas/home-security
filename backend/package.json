@@ -22,7 +22,7 @@
 		"typescript": "^5.5.3"
 	},
 	"dependencies": {
-		"bonjour": "^3.5.0",
+		"bonjour-service": "^1.2.1",
 		"cors": "^2.8.5",
 		"dotenv": "^16.4.5",
 		"drizzle-orm": "^0.32.0",
