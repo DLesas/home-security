@@ -6,11 +6,13 @@ import {
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
+import { eventTypeEnum } from "./eventLogs";
 
 export const errorLogsTable = pgTable("errorLogs", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   endpoint: varchar("endpoint", { length: 256 }).notNull(),
   errorTrace: varchar("errorTrace", { length: 2048 }).notNull(),
+  level: eventTypeEnum("level").notNull(),
   dateTime: timestamp("dateTime", { withTimezone: true }).defaultNow(),
 });
 

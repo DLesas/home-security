@@ -37,7 +37,8 @@ export const errorHandler = async (err: Error, req: Request, res: Response, next
 
 	await db.insert(errorLogsTable).values({
 		endpoint: req.baseUrl + req.path,
-		errorTrace: err.stack || err.message || String(err),
+		errorTrace: err.stack + "\n" + err.message + "\n" + String(err),
+		level: "warning",
 	});
 	res.status(statusCode).send({ status: "error", message });
 };
