@@ -14,7 +14,7 @@ def main():
     env = read_env_file()
     pico = MicroController(env["log_endpoint"], env["user_agent"], env["server_ip"], env["server_port"], env["id"], env["type"], env["api_version"])
     network = Networking(
-        pico, env["ssid"], env["password"], env["server_ip"], env["server_port"]
+        pico, env["ssid"], env["password"], env["server_ip"], env["server_port"], env["server_service_name"]
     )
     network.connect()
     alarm_relay = alarmRelay(pico, network, env["relay_pin"])
@@ -29,6 +29,7 @@ def main():
             pool_result = server.poll()
             if pool_result == REQUEST_HANDLED_RESPONSE_SENT:
                 pico.collect_garbage()
+            pico.check_all_files(ip=network.server_ip, port=network.server_port)
         except Exception as e:
             pico.log_issue("Error", "alarmRelayMain", "main", str(e))
             continue

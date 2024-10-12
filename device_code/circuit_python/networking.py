@@ -16,6 +16,7 @@ class Networking:
         password: str,
         server_ip: str,
         server_port: int,
+        server_service_name: str,
         max_attempts: int = 50,
         blinks: int = 3,
     ):
@@ -32,6 +33,7 @@ class Networking:
             password (str): The password of the WiFi network.
             server_ip (str): The server ip address to interact with.
             server_port (int): The server port to interact with.
+            server_service_name (str): The service name to use for the Bonjour/Avahi discovery.
             ID (int): The unique identifier for the device.
             user_agent (str): The user agent to use for the handshake.
             max_attempts (int, optional): Maximum number of connection attempts. Defaults to 50.
@@ -45,6 +47,7 @@ class Networking:
         self.blinks = blinks
         self.server_ip = server_ip
         self.server_port = server_port
+        self.server_service_name = server_service_name
         self.handshake_endpoint = (
             "http://"
             + f"{server_ip}:{str(server_port)}/"
@@ -95,7 +98,7 @@ class Networking:
         print(f"Connected. IP: {self.ip}, MAC: {self.mac}")
         ntp = adafruit_ntp.NTP(self.pico.pool, tz_offset=0, cache_seconds=3600)
         rtc.RTC().datetime = ntp.datetime
-        self.handshake_with_server()
+        self.find_server()
 
     def disconnect(self):
         """
@@ -112,7 +115,9 @@ class Networking:
         If the reconnection fails after the maximum number of attempts, the device is set to a fatal error state.
         After a successful reconnection, it automatically performs a handshake with the server.
         """
+        self.disconnect()
         self.connect()
+        self.handshake_with_server()
 
     @inject_function_name
     def check_connection(self, func_name: str = "check_connection"):
@@ -216,6 +221,14 @@ class Networking:
         if "response" in locals():
             response.close()
         self.pico.turn_off_led()
+        
+    def find_server(self, server_service_name: str = self.server_service_name):
+        mdnss = mdns.Server(wifi.radio)
+        services = mdnss.find(service_type="_http", protocol="_tcp")
+        for service in services:
+            if service.instance_name == server_service_name:
+                self.server_ip = service.ipv4_address
+                self.server_port = service.port
 
     # def open_socket(self, server_ip: str, port: int = 80):
     #     """

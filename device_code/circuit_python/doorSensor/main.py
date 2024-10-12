@@ -13,7 +13,7 @@ def main_light_sleep():
     env = read_env_file()
     pico = MicroController(env["log_endpoint"], env["user_agent"], env["server_ip"], env["server_port"], env["id"], env["type"], env["api_version"])
     network = Networking(
-        pico, env["ssid"], env["password"], env["server_ip"], env["server_port"]
+        pico, env["ssid"], env["password"], env["server_ip"], env["server_port"], env["server_service_name"]
     )
     network.connect()
     door_sensor = DoorSensor(
@@ -25,16 +25,15 @@ def main_light_sleep():
         door_sensor.read_frequency()
         door_sensor.read_temperature()
         door_sensor.send_data()
-        door_sensor.pico.check_all_files()
+        door_sensor.pico.check_all_files(ip=network.server_ip, port=network.server_port)
         door_sensor.light_sleep()
 
 
 def main_deep_sleep():
-    start = time.time()
     env = read_env_file()
     pico = MicroController(env["log_endpoint"], env["user_agent"], env["server_ip"], env["server_port"], env["id"], env["type"], env["api_version"])
     network = Networking(
-        pico, env["ssid"], env["password"], env["server_ip"], env["server_port"]
+        pico, env["ssid"], env["password"], env["server_ip"], env["server_port"], env["server_service_name"]
     )
     door_sensor = DoorSensor(
         pico, network, env["door_switch_pin"], env["time_to_sleep_s"]
@@ -45,7 +44,7 @@ def main_deep_sleep():
     door_sensor.read_frequency()
     network.connect()
     door_sensor.send_data()
-    door_sensor.pico.check_all_files()
+    door_sensor.pico.check_all_files(ip=network.server_ip, port=network.server_port)
     network.disconnect()
     door_sensor.deep_sleep()
 
