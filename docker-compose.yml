@@ -6,8 +6,8 @@ services:
     build:
       context: ./redis
     ports:
-      - "6379:6379"
-      - "8001:8001"
+      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_UI_PORT:-8001}:8001"
     volumes:
       - ./redis/data:/data
     deploy:
@@ -28,7 +28,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - ./postgres/data:/home/postgres/pgdata/data
     deploy:
@@ -48,29 +48,29 @@ services:
     ports:
       - "3000:3000"
 
-  backend:
-    build:
-      context: ./backend
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_HOST=localhost
-      - POSTGRES_PORT=5432
-      - REDIS_HOST=localhost
-      - REDIS_PORT=6379
-      - SENSOR_WARNING_TEMPERATURE=${SENSOR_WARNING_TEMPERATURE}
-      - SENSOR_CRITICAL_TEMPERATURE=${SENSOR_CRITICAL_TEMPERATURE}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis-stack:
-        condition: service_healthy
-    # ports:
-    #   - "8080:8080"
-    #   - "5353:5353/udp"
-    network_mode: host
-    restart: always
+  # backend:
+  #   build:
+  #     context: ./backend
+  #   environment:
+  #     - POSTGRES_USER=${POSTGRES_USER}
+  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+  #     - POSTGRES_DB=${POSTGRES_DB}
+  #     - POSTGRES_HOST=${POSTGRES_HOST}
+  #     - POSTGRES_PORT=${POSTGRES_PORT}
+  #     - REDIS_HOST=${REDIS_HOST}
+  #     - REDIS_PORT=${REDIS_PORT}
+  #     - SENSOR_WARNING_TEMPERATURE=${SENSOR_WARNING_TEMPERATURE}
+  #     - SENSOR_CRITICAL_TEMPERATURE=${SENSOR_CRITICAL_TEMPERATURE}
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis-stack:
+  #       condition: service_healthy
+  #   # ports:
+  #   #   - "8080:8080"
+  #   #   - "5353:5353/udp"
+  #   network_mode: host
+  #   restart: always
 
   # video_processor:
   #   build:
