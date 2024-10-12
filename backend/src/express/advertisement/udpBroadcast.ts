@@ -31,7 +31,7 @@ export function startUdpBroadcast(): () => void {
     interfaces?.forEach((iface) => {
       if (iface.family === 'IPv4' && !iface.internal) {
         const socket = dgram.createSocket("udp4");
-        const message = `${process.env.BROADCASTING_NAME}; port:${process.env.SERVER_PORT}; ip:${iface.address}`;
+        const message = `${process.env.BROADCASTING_NAME};port:${process.env.SERVER_PORT};ip:${iface.address}`;
 
         /**
          * Handles socket initialization errors.
