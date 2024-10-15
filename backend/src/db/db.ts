@@ -65,7 +65,7 @@ export const db = drizzle(queryClient, { schema: schema });
  */
 export async function runMigrations() {
 	console.log("Running migrations...");
-	await migrate(db, { migrationsFolder: path.resolve(__dirname, '../../../db/drizzle') });
+	await migrate(db, { migrationsFolder: path.resolve(__dirname, '../../db/drizzle') });
 	console.log("Migrations complete.");
 }
 
