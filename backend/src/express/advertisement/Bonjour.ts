@@ -1,4 +1,5 @@
-import { Bonjour, type Service, type Bonjour as BonjourType } from "bonjour-service";
+import { Bonjour, type Service } from "bonjour-service";
+import os from "os";
 
 /** The name of the Bonjour service to publish */
 const SERVICE_NAME = process.env.BROADCASTING_NAME || "DefaultService";
@@ -10,62 +11,81 @@ const PORT = process.env.SERVER_PORT ? Number(process.env.SERVER_PORT) : 3000;
 const CHECK_INTERVAL_MS = process.env.BROADCASTING_INTERVAL ? Number(process.env.BROADCASTING_INTERVAL) : 60000;
 
 /**
- * Starts a Bonjour service and sets up a regular check interval.
+ * Starts Bonjour services on all available network interfaces and sets up regular check intervals.
  * 
- * This function initializes a new Bonjour instance, publishes a service with the specified
- * name and port, and sets up a periodic check to ensure the service remains active.
+ * This function initializes a single Bonjour instance and uses it to publish services
+ * on each non-internal IPv4 interface with the specified name and port. It also sets up
+ * periodic checks to ensure the services remain active.
  * 
- * @returns {() => void} A cleanup function that stops the service check and unpublishes the Bonjour service when called.
+ * @returns {() => void} A cleanup function that stops all service checks and unpublishes all Bonjour services when called.
  */
 export function startBonjourService(): () => void {
-  let bonjourInstance: BonjourType;
-  let bonjourService: Service;
+  const bonjourInstance = new Bonjour();
+  const bonjourServices: Service[] = [];
   let checkInterval: NodeJS.Timeout;
 
   /**
-   * Initializes and publishes the Bonjour service.
+   * Initializes and publishes Bonjour services on all available network interfaces.
    */
-  function initializeService() {
-    bonjourInstance = new Bonjour();
-    bonjourService = bonjourInstance.publish({
-      name: SERVICE_NAME,
-      type: 'http',
-      port: PORT,
-      host: '0.0.0.0'
-    });
+  function initializeServices(): void {
+    const networkInterfaces = os.networkInterfaces();
 
-    console.log('Bonjour service published');
+    Object.values(networkInterfaces).forEach((interfaces) => {
+      interfaces?.forEach((iface) => {
+        if (iface.family === "IPv4" && !iface.internal) {
+          const bonjourService = bonjourInstance.publish({
+            name: SERVICE_NAME,
+            type: 'http',
+            port: PORT,
+            host: iface.address
+          });
+          bonjourServices.push(bonjourService);
+          console.log(`Bonjour service published with name ${SERVICE_NAME} on port ${PORT} for interface ${iface.address}`);
+        }
+      });
+    });
   }
 
   /**
-   * Checks the status of the Bonjour service and restarts it if not running.
+   * Checks the status of all Bonjour services and restarts them if not running.
    */
-  function checkBonjourService() {
-    if (!bonjourService || !bonjourService.published) {
-      console.log('Bonjour service not running, restarting...');
-      if (bonjourInstance) {
-        bonjourInstance.unpublishAll();
-        bonjourInstance.destroy();
+  function checkBonjourServices(): void {
+    bonjourServices.forEach((service, index) => {
+      if (!service || !service.published) {
+        console.log(`Bonjour service not running on interface with address ${service.host}, restarting...`);
+        const networkInterfaces = os.networkInterfaces();
+        const iface = Object.values(networkInterfaces)
+          .flat()
+          .find((i): i is os.NetworkInterfaceInfo => i !== undefined && i.family === "IPv4" && !i.internal);
+
+        if (iface) {
+          const newService = bonjourInstance.publish({
+            name: SERVICE_NAME,
+            type: 'http',
+            port: PORT,
+            host: iface.address
+          });
+          
+          bonjourServices[index] = newService;
+          console.log(`Restarted Bonjour service on interface with address ${iface.address}`);
+        }
       }
-      initializeService();
-    }
+    });
   }
 
-  // Initialize the service
-  initializeService();
+  // Initialize the services
+  initializeServices();
 
   // Set up the check interval
-  checkInterval = setInterval(checkBonjourService, CHECK_INTERVAL_MS);
+  checkInterval = setInterval(checkBonjourServices, CHECK_INTERVAL_MS);
 
   /**
-   * Cleanup function that stops the service check and unpublishes the Bonjour service.
+   * Cleanup function that stops all service checks and unpublishes all Bonjour services.
    */
   return () => {
     clearInterval(checkInterval);
-    if (bonjourInstance) {
-      bonjourInstance.unpublishAll();
-      bonjourInstance.destroy();
-    }
-    console.log('Bonjour service stopped and unpublished');
+    bonjourInstance.unpublishAll();
+    bonjourInstance.destroy();
+    console.log('All Bonjour services stopped and unpublished');
   };
 }
