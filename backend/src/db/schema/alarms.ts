@@ -10,6 +10,7 @@ export const alarmsTable = pgTable("alarms", {
 		.notNull()
 		.references(() => buildingTable.id, { onDelete: "cascade" }),
 	createdAt: timestamp("createdAt").defaultNow(),
+	port: integer("port").notNull(),
 	deleted: boolean("deleted").default(false),
 });
 

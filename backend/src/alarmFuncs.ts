@@ -19,8 +19,9 @@ export async function changeAlarmState(alarms: Alarm[] | [], state: "on" | "off"
 	const triggerPromises = [];
 	for (let index = 0; index < alarms.length; index++) {
 		const element = alarms[index];
-		if (element.ipAddress) {
-			const promise: Promise<Boolean> = fetch(state === "on" ? `${element.ipAddress}/on` : `${element.ipAddress}/off}`)
+		if (element.ipAddress && element.port) {
+			const ipaddr = `http://${element.ipAddress}:${element.port}`;
+			const promise: Promise<Boolean> = fetch(state === "on" ? `${ipaddr}/on` : `${ipaddr}/off}`)
 			.then(async response => {
 				const alarmResponse = await response.json() as AlarmResponse;
 				const saved = await saveAlarmState(element, alarmResponse);

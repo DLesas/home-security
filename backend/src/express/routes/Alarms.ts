@@ -52,13 +52,20 @@ router.post("/new", async (req, res, next) => {
             })
             .min(0, "expectedSecondsUpdated must be more than 0 seconds")
             .max(3600 * 24, "expectedSecondsUpdated must be less than 24 hours"),
+        port: z
+            .number({
+                required_error: "port is required",
+                invalid_type_error: "port must be a number",
+            })
+            .min(1, "port must be more than 0")
+            .max(65535, "port must be less than 65535"),
     });
     const result = validationSchema.safeParse(req.body);
     if (!result.success) {
         next(raiseError(400, JSON.stringify(result.error.errors)));
         return;
     }
-    const { name, building, expectedSecondsUpdated } = result.data;
+    const { name, building, expectedSecondsUpdated, port } = result.data;
     const buildingExists = await db.select().from(buildingTable).where(eq(buildingTable.name, building)).limit(1);
     if (buildingExists.length === 0) {
         next(raiseError(404, "Building not found"));
@@ -70,6 +77,7 @@ router.post("/new", async (req, res, next) => {
             id: makeID(),
             name,
             buildingId: buildingExists[0].id,
+            port,
         })
         .returning();
     const { buildingId, ...newAlarmData } = newAlarm;
@@ -80,6 +88,7 @@ router.post("/new", async (req, res, next) => {
         building: building,
         playing: false,
         expectedSecondsUpdated: expectedSecondsUpdated,
+        port: port,
         lastUpdated: new Date(),
     } as Alarm);
     await emitNewData();
