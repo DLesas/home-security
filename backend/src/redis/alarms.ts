@@ -7,6 +7,7 @@ const alarmSchema = new Schema("alarms", {
 	playing: { type: "boolean" },
 	building: { type: "string" },
 	ipAddress: { type: "string" },
+	port: { type: "number" },
 	macAddress: { type: "string" },
 	temperature: { type: "number" },
 	voltage: { type: "number" },
@@ -23,6 +24,7 @@ export interface Alarm {
 	playing: boolean;
 	building: string;
 	ipAddress?: string;
+	port: number;
 	macAddress?: string;
 	temperature?: number;
 	voltage?: number;
