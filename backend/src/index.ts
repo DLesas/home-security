@@ -19,7 +19,7 @@ import { createConfigIndex, setDefaultConfig } from "./redis/config.js";
 import { createAlarmIndex } from "./redis/alarms.js";
 import { setSensorStatusUnknown } from "./sensorFuncs.js";
 import { startBonjourService } from "./express/advertisement/Bonjour.js";
-import { startUdpBroadcast } from "./express/advertisement/udpBroadcast";
+import { startUdpListener } from "./express/advertisement/udpBroadcast";
 
 const app = express();
 const server = http.createServer(app);
@@ -75,7 +75,7 @@ setupSocketHandlers(io);
 server.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
   const cleanupBonjour = startBonjourService();
-  const cleanupUdpBroadcast = startUdpBroadcast();
+  const cleanupUdpBroadcast = startUdpListener();
 
   process.on("SIGINT", () => {
     cleanupBonjour();
