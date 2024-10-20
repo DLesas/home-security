@@ -69,7 +69,6 @@ class MicroController:
 
     def __init__(
         self,
-        log_endpoint: str,
         user_agent: str,
         server_ip: str,
         server_port: int,
@@ -88,9 +87,7 @@ class MicroController:
         """
         self.log_dir = "logs"
         self.issue_file = "issue_logs.csv"
-        self.pool = adafruit_connection_manager.get_radio_socketpool(wifi.radio)
-        self.ssl_context = adafruit_connection_manager.get_radio_ssl_context(wifi.radio)
-        self.requests = adafruit_requests.Session(self.pool, self.ssl_context)
+        
         self.user_agent = user_agent
         self.server_ip = server_ip
         self.server_port = server_port
@@ -129,7 +126,7 @@ class MicroController:
                 return True
             time.sleep(0.1)  # Small delay to prevent busy-waiting
         return False
-
+    
     def blink(self, times: int, delay: float = 0.1):
         """
         Blink the LED at a specified rate.
@@ -159,6 +156,7 @@ class MicroController:
         """
         self.led.value = True
 
+    
     def set_fatal_error(self):
         """
         Set the fatal error flag and turn on the LED.
@@ -228,7 +226,7 @@ Hash: {hashTxt}
                                 f.write(new_line.encode())
                         else:
                             new_line = f"{date_time},{type},{class_name},{function_name},{error_message},{hashTxt},1\n"
-                            f.write(new_line.encode())
+                            f.write(new_line)
                 else:
                     with open(file_path, "w") as f:
                         f.write("Timestamp,Type,Class,Function,Error_Message,Hash,Count\n")
@@ -246,7 +244,11 @@ Hash: {hashTxt}
 
     # might wantto consider changing this so it works with the camera and its recordings, i.e. check size of the entire dir first then send/truncate after instead of checking each file
     @inject_function_name
-    def check_all_files(self, ip: str = self.server_ip, port: int = self.server_port, func_name: str = None):
+    def check_all_files(self, ip: str = None, port: int = None, func_name: str = 'check_all_files'):
+        # Use self.server_ip and self.server_port if ip and port are not provided
+        ip = ip or self.server_ip
+        port = port or self.server_port
+        
         """
         Check the size of all files in the log directory and delete rows if they exceed the maximum size.
 
@@ -272,13 +274,15 @@ Hash: {hashTxt}
 
     # might want to consider changing this so it works with the camera and its recordings, i.e. check the file format first and then send to different endpoint depending on the file type
     @inject_function_name
-    def send_log(self, file_path: str, ip: str = self.server_ip, port: int = self.server_port, func_name: str = None):
+    def send_log(self, file_path: str, ip: str = None, port: int = None, func_name: str = 'send_log'):
         """
         Parse a CSV log file, convert it to JSON in record format, and send it to the specified endpoint.
 
         Args:
             file_path (str): The path to the log file.
         """
+        ip = ip or self.server_ip
+        port = port or self.server_port
         if not wifi.radio.connected:
             self.log_issue(
                 "error", self.__class__.__name__, func_name, "Wi-Fi not connected"
@@ -322,22 +326,7 @@ Hash: {hashTxt}
                 response.close()
             self.collect_garbage()
 
-    @staticmethod
-    def get_file_size(path_to_file: str) -> int:
-        """
-        Get the size of a file.
-
-        Args:
-            path_to_file (str): The path to the file.
-
-        Returns:
-            int: The size of the file in bytes. Returns -1 if there's an error accessing the file.
-        """
-        try:
-            return os.stat(path_to_file)[6]
-        except OSError as e:
-            print(f"Error getting file size: {e}")
-            return -1
+    
 
     def truncate_csv(self, path: str, rows_to_keep: int = 1000):
         """
@@ -363,3 +352,4 @@ Hash: {hashTxt}
 
 
 # Write your code here :-)
+
