@@ -1,24 +1,25 @@
 import time
-import wifi
-import ipaddress
-import binascii
-from microController import MicroController, inject_function_name
-import adafruit_ntp
-import rtc
 import json
+from .wifi import require_connection
+from .logging import inject_function_name
+
 
 
 class Networking:
     def __init__(
         self,
-        pico: MicroController,
-        ssid: str,
-        password: str,
-        server_ip: str,
-        server_port: int,
-        server_service_name: str,
-        max_attempts: int = 50,
-        blinks: int = 3,
+        wifi,
+        Logger,
+        Led,
+        server_finder,
+        max_attempts,
+        blink_frequency,
+        server_ip,
+        server_port,
+        server_ssl,
+        api_version,
+        deviceType,
+        user_agent,
     ):
         """
         Initializes the Networking class with the given parameters.
@@ -34,125 +35,33 @@ class Networking:
             server_ip (str): The server ip address to interact with.
             server_port (int): The server port to interact with.
             server_service_name (str): The service name to use for the Bonjour/Avahi discovery.
-            ID (int): The unique identifier for the device.
             user_agent (str): The user agent to use for the handshake.
             max_attempts (int, optional): Maximum number of connection attempts. Defaults to 50.
             blink_frequency (int, optional): Frequency of the LED blink during connection attempts. Defaults to 2.
         """
-        self.pico = pico
-        self.ssid = ssid
-        self.password = password
+        self.Wifi = wifi
+        self.Logger = Logger
+        self.Led = Led
+        self.server_finder = server_finder
         self.max_attempts = max_attempts
-        self.wlan = None
-        self.blinks = blinks
+        self.blinks = blink_frequency
         self.server_ip = server_ip
         self.server_port = server_port
-        self.server_service_name = server_service_name
-        self.handshake_endpoint = (
-            "http://"
-            + f"{server_ip}:{str(server_port)}/"
-            + "api/"
-            + f"v{str(self.pico.api_version)}/"
-            + f"{self.pico.type}s/"
-            + str(self.pico.ID)
-            + "/handshake"
-        )
-        self.connection = None
-        self.ip = None
-        self.mac = None
+        self.server_protocol = 'https' if server_ssl else 'http'
+        self.api_version = api_version
+        self.deviceType = deviceType
+        self.user_agent = user_agent
 
-    def connect(self):
-        """
-        Connects to the WiFi network using the provided SSID and password.
 
-        This method attempts to connect to the WiFi network and blinks an LED during the process.
-        If the connection is successful, it retrieves and prints the IP and MAC address.
-        After a successful connection, it automatically performs a handshake with the server.
-        """
-        print("Connecting to network...")
-        wifi.radio.enabled = True
-        self.pico.blink(self.blinks)
-        retry_count = 0
-        while not wifi.radio.connected and retry_count < self.max_attempts:
-            try:
-                wifi.radio.connect(self.ssid, self.password)
-            except Exception as e:
-                self.pico.log_issue(
-                    "Error",
-                    self.__class__.__name__,
-                    "connect",
-                    f"Failed to connect to WiFi: {e}",
-                )
-                time.sleep(1)
-            retry_count += 1
-        if not wifi.radio.connected:
-            self.pico.log_issue(
-                "Error",
-                self.__class__.__name__,
-                func_name,
-                f"Failed to connect to WiFi after {self.max_attempts} attempts",
-            )
-            self.pico.set_fatal_error()
-        self.ip = wifi.radio.ipv4_address
-        self.mac = binascii.hexlify(bytearray(wifi.radio.mac_address))
-        print(f"Connected. IP: {self.ip}, MAC: {self.mac}")
-        ntp = adafruit_ntp.NTP(self.pico.pool, tz_offset=0, cache_seconds=3600)
-        rtc.RTC().datetime = ntp.datetime
-        self.find_server()
+        
+    def find_server(self, func_name: str = "find_server"):
+        res = self.server_finder.find_server()
+        if res is not None:
+            self.server_ip = res["ip"]
+            self.server_port = res["port"]
 
-    def disconnect(self):
-        """
-        Disconnects from the WiFi network.
-        """
-        wifi.radio.enabled = False
 
-    @inject_function_name
-    def reconnect(self, func_name: str = "reconnect"):
-        """
-        Reconnects to the WiFi network.
-
-        This method disconnects from the current network, performs a network cleanup, and attempts to reconnect.
-        If the reconnection fails after the maximum number of attempts, the device is set to a fatal error state.
-        After a successful reconnection, it automatically performs a handshake with the server.
-        """
-        self.disconnect()
-        self.connect()
-        self.handshake_with_server()
-
-    @inject_function_name
-    def check_connection(self, func_name: str = "check_connection"):
-        """
-        Checks the current WiFi connection status.
-
-        This method performs a keep-alive check by retrieving the network configuration.
-        If the check fails or the WLAN is not connected, it attempts to reconnect.
-        After a successful reconnection, it automatically performs a handshake with the server.
-        """
-        if wifi.radio.connected:
-            try:
-                ip1 = ipaddress.ip_address(self.server_ip)
-                print("ping:", wifi.radio.ping(ip1))
-                if wifi.radio.ping(ip1) == None or wifi.radio.ping(ip1) > 1000:
-                    self.pico.log_issue(
-                        "Warning",
-                        self.__class__.__name__,
-                        func_name,
-                        "Failed to Ping to server, reconnecting...",
-                    )
-                    self.reconnect()
-            except Exception as e:
-                error_message = f"Keep-alive operation failed: {e}"
-                self.pico.log_issue(
-                    "Error", self.__class__.__name__, func_name, error_message
-                )
-                self.reconnect()
-        else:
-            self.pico.log_issue(
-                "Warning", self.__class__.__name__, func_name, "WLAN is not connected"
-            )
-            print("WLAN is not connected")
-            self.reconnect()
-
+    @require_connection
     @inject_function_name
     def handshake_with_server(self, func_name: str = "handshake_with_server"):
         """
@@ -162,26 +71,26 @@ class Networking:
         It retries the handshake up to the class's maximum number of attempts. If the handshake fails after
         the maximum attempts, the device is set to a fatal error state.
         """
+        handshake_endpoint = f"{self.server_protocol}://" + f"{self.server_ip}:{str(self.server_port)}/" + "api/" + f"v{str(self.api_version)}/" + f"{self.deviceType}s/" + str(self.ID) + "/handshake"
         print("Handshaking with server...")
         attempt = 0
         success = False
-        self.pico.blink(self.blinks)
-        self.pico.turn_on_led()
+        self.Led.blink(self.blinks)
+        self.Led.turn_on_led()
         while attempt < self.max_attempts:
             try:
-                data = {"macAddress": self.mac}
+                data = {"macAddress": self.Wifi.mac}
                 data = json.dumps(data)
                 headers = {
-                    "User-Agent": self.pico.user_agent,
+                    "User-Agent": self.user_agent,
                     "Content-Type": "application/json",
                 }
-                # TODO: move this into a wifi class, as this should not be tied to a specific transmission protocol (e.g. HTTP, nrf24, etc.)
-                response = self.pico.requests.post(
-                    self.handshake_endpoint, headers=headers, data=data
+                response = self.Wifi.requests.post(
+                    handshake_endpoint, headers=headers, data=data
                 )
                 if response.status_code == 200:
                     print("Handshake complete")
-                    self.pico.log_issue(
+                    self.Logger.log_issue(
                         "Info",
                         self.__class__.__name__,
                         func_name,
@@ -190,18 +99,14 @@ class Networking:
                     success = True
                     break
                 else:
-                    self.pico.log_issue(
+                    self.Logger.log_issue(
                         "Error",
                         self.__class__.__name__,
                         func_name,
                         f"Handshake failed, got the following status code: {response.status_code} and response: {response.text}",
                     )
-                    print(
-                        f"Handshake failed, got the following status code: {response.status_code} and response: {response.text}"
-                    )
             except Exception as e:
-                print(f"Handshake error: {e}")
-                self.pico.log_issue(
+                self.Logger.log_issue(
                     "Error",
                     self.__class__.__name__,
                     func_name,
@@ -209,26 +114,73 @@ class Networking:
                 )
             attempt += 1
             print(f"Retrying handshake... Attempt {attempt}/{self.max_attempts}")
-            time.sleep(1)  # Optional: Add a delay between retries
+            time.sleep(0.3)  # Optional: Add a delay between retries
         if not success:
-            self.pico.log_issue(
+            self.Logger.log_issue(
                 "Error",
                 self.__class__.__name__,
                 func_name,
                 f"Failed to complete handshake after {self.max_attempts} attempts",
             )
-            self.pico.set_fatal_error()
+            self.Led.set_fatal_error()
         if "response" in locals():
             response.close()
-        self.pico.turn_off_led()
+        self.Led.turn_off_led()
+      
         
-    def find_server(self, server_service_name: str = self.server_service_name):
-        mdnss = mdns.Server(wifi.radio)
-        services = mdnss.find(service_type="_http", protocol="_tcp")
-        for service in services:
-            if service.instance_name == server_service_name:
-                self.server_ip = service.ipv4_address
-                self.server_port = service.port
+    @require_connection
+    @inject_function_name
+    def send_logs(self, func_name: str = 'send_logs'):
+        """
+        Parse a CSV log file, convert it to JSON in record format, and send it to the specified endpoint.
+
+        Args:
+            file_path (str): The path to the log file.
+        """
+        self.Led.blink(self.blinks)
+        self.Led.turn_on_led()
+        for file in os.listdir(self.log_dir):
+            file_path = f"{self.log_dir}/{file}"
+            try:
+                with open(file_path, "r") as f:
+                    header = f.readline().strip().split(",")
+                    records = []
+                    for line in f:
+                        values = line.strip().split(",")
+                        record = {column: value for column, value in zip(header, values)}
+                        records.append(record)
+                data = records
+                data = json.dumps(data)
+                headers = {
+                    "User-Agent": self.user_agent,
+                    "Content-Type": "application/json",
+                }   
+                endpoint = (
+                    f"{self.server_protocol}://"
+                    + f"{self.server_ip}:{str(self.server_port)}/"
+                    + "api/"
+                    + f"v{str(self.api_version)}/"
+                    + f"{self.deviceType}s/"
+                    + f"logs")
+                response = self.requests.post(endpoint, headers=headers, data=data)
+                if response.status_code == 200:
+                    print(f"Log data sent successfully to {endpoint}")
+                    self.Logger.truncate_log_file(file_path, 0)
+                else:
+                    self.Logger.truncate_log_file(file_path)
+                    self.Logger.log_issue("Error", self.__class__.__name__, func_name, f"Failed to send log data. Status code: {response.status_code}, response: {response.text}")
+            except Exception as e:
+                self.Logger.truncate_log_file(file_path)
+                self.log_issue("error", self.__class__.__name__, func_name, str(e))
+            finally:
+                if "response" in locals():
+                    response.close()
+        self.Led.turn_off_led()
+        self.collect_garbage()
+        
+
+    
+
 
     # def open_socket(self, server_ip: str, port: int = 80):
     #     """
