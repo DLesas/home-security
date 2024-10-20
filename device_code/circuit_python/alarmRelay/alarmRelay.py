@@ -1,3 +1,4 @@
+from logging import inject_function_name
 from microController import MicroController
 from microcontroller import cpu
 from digitalio import DigitalInOut, Direction, Pull
@@ -19,23 +20,31 @@ from adafruit_httpserver import (
 class alarmRelay:
     def __init__(
         self,
-        pico: MicroController,
-        network: Networking,
+        Logger: Logger,
+        Led: Led,
+        Device: Device,
+        Wifi: Wifi, 
+        Networking: Networking,
         relay_pin: str,
+        port: int = 8000,
         debug: bool = True,
     ):
-        self.pico = pico
-        self.network = network
+        self.Logger = Logger
+        self.Led = Led
+        self.Device = Device
+        self.Wifi = Wifi
+        self.Networking = Networking
         self.relay = getattr(board, relay_pin)
+        self.pool = socketpool.SocketPool(wifi.radio)
+        self.server = Server(self.pool, debug=True)
         self.state = "off"
         self.temperature = None
         self.voltage = None
         self.frequency = None
-        self.pool = socketpool.SocketPool(wifi.radio)
-        self.server = Server(socketpool.SocketPool(wifi.radio), debug=True)
         self.register_routes()
+        self.port = port
         self.server.headers = {
-            "User-Agent": self.pico.user_agent,
+            "User-Agent": self.Networking.user_agent,
             "Content-Type": "application/json",
         }
 
@@ -44,34 +53,26 @@ class alarmRelay:
         switch.direction = Direction.OUTPUT
         switch.value = bool(state)
         self.state = "on" if state else "off"
-        self.pico.turn_on_led() if state else self.pico.turn_off_led()
+        self.Led.turn_on_led() if state else self.pico.turn_off_led()
         switch.deinit()
 
-    def read_temperature(self):
-        self.temperature = cpu.temperature
-        
-    def read_voltage(self):
-        self.voltage = cpu.voltage
-        
-    def read_frequency(self):
-        self.frequency = cpu.frequency
-        
+    def read_all_stats(self):
+        self.temperature = self.Device.read_temperature()
+        self.voltage = self.Device.read_voltage()
+        self.frequency = self.Device.read_frequency()
+    
+    @require_connection    
     def send_ping(self):
-        self.read_frequency()
-        self.read_voltage()
-        self.read_temperature()
+        self.read_all_stats()
         data = {"state": self.state, "temperature": self.temperature, "voltage": self.voltage, "frequency": self.frequency}
         data = json.dumps(data)
-        url = f"http://{self.network.server_ip}:{self.network.server_port}/api/v{self.pico.api_version}/alarms/update"
-        headers = {
-            "User-Agent": self.pico.user_agent,
-            "Content-Type": "application/json",
-        }
-        response = self.pico.requests.post(url, headers=headers, data=data)
+        url = f"{self.Networking.server_protocol}://{self.Networking.server_ip}:{self.Networking.server_port}/api/v{self.Networking.api_version}/{self.Networking.deviceType}s/update"
+        headers = self.server.headers
+        response = self.Networking.requests.post(url, headers=headers, data=data)
         if response.status_code == 200:
             print(f"Successfully sent alarm state: {self.state}")
         else:
-            self.pico.log_issue("Error", "alarmRelay", "send_ping", f"Failed to send alarm state, status code: {response.status_code}, response: {response.text}")
+            self.Logger.log_issue("Error", self.__class__.__name__, "send_ping", f"Failed to send alarm state, status code: {response.status_code}, response: {response.text}")
         if "response" in locals():
             response.close()
 
@@ -84,10 +85,8 @@ class alarmRelay:
             ip = request.client_address
             userAgent =requests.header.sget("User-Agent")
             self.change_relay_state(True)
-            self.read_temperature()
-            self.read_voltage()
-            self.read_frequency()
-            self.pico.log_issue("Info", "alarmRelay", "alarm_on", f"Alarm turned on at {time.monotonic()} by {ip} with {userAgent}")
+            self.read_all_stats()
+            self.Logger.log_issue("Info", self.__class__.__name__, "alarm_on", f"Alarm turned on at {time.monotonic()} by {ip} with {userAgent}")
             data = {"state": self.state, "temperature": self.temperature, "voltage": self.voltage, "frequency": self.frequency}
             return JSONResponse(data)
 
@@ -99,13 +98,11 @@ class alarmRelay:
             ip = request.client_address
             userAgent =requests.header.sget("User-Agent")
             self.change_relay_state(False)
-            self.read_temperature()
-            self.read_voltage()
-            self.read_frequency()
-            self.pico.log_issue("Info", "alarmRelay", "alarm_off", f"Alarm turned off at {time.monotonic()} by {ip} with {userAgent}")
+            self.read_all_stats()
+            self.Logger.log_issue("Info", self.__class__.__name__, "alarm_off", f"Alarm turned off at {time.monotonic()} by {ip} with {userAgent}")
             data = {"state": self.state, "temperature": self.temperature, "voltage": self.voltage, "frequency": self.frequency}
             return JSONResponse(data)
         
     def start_server(self):
-        self.server.start(str(wifi.radio.ipv4_address))
+        self.server.start(str(wifi.radio.ipv4_address), self.port)
         return self.server

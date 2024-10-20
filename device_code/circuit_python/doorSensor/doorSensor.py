@@ -1,7 +1,8 @@
-from microController import MicroController
-from microcontroller import cpu
-from digitalio import DigitalInOut, Direction, Pull
+from logging import Logger
+from led import Led
+from wifi import Wifi
 from networking import Networking
+from digitalio import DigitalInOut, Direction, Pull
 import json
 import board
 import alarm
@@ -11,19 +12,25 @@ import time
 class DoorSensor:
     def __init__(
         self,
-        pico: MicroController,
-        network: Networking,
+        Logger: Logger,
+        Led: Led,
+        Device: Device,
+        Wifi: Wifi, 
+        Networking: Networking,
         door_switch_pin: str,
         max_time_to_sleep_s: int = 1800,
     ):
-        self.pico = pico
-        self.network = network
+        self.Logger = Logger
+        self.Led = Led
+        self.Device = Device
+        self.Wifi = Wifi
+        self.Networking = Networking
         self.switch = getattr(board, door_switch_pin)
+        self.max_time_to_sleep_s = int(max_time_to_sleep_s)
         self.state = None
         self.temperature = None
         self.voltage = None
         self.frequency = None
-        self.max_time_to_sleep_s = int(max_time_to_sleep_s)
 
     def read_switch(self):
         switch = DigitalInOut(self.switch)
@@ -31,15 +38,13 @@ class DoorSensor:
         switch.pull = Pull.UP
         self.state = "open" if switch.value else "closed"
         switch.deinit()
+        
+    def read_all_stats(self):
+        self.temperature = self.Device.read_temperature()
+        self.voltage = self.Device.read_voltage()
+        self.frequency = self.Device.read_frequency()
+        self.read_switch()
 
-    def read_temperature(self):
-        self.temperature = cpu.temperature
-        
-    def read_voltage(self):
-        self.voltage = cpu.voltage
-        
-    def read_frequency(self):
-        self.frequency = cpu.frequency
 
     def deep_sleep(self):
         print(
@@ -67,21 +72,20 @@ class DoorSensor:
             pin_alarm_rising, pin_alarm_falling, timeout_alarm
         )
 
-    def send_data(self):
+    def send_data(self, data: dict):
         if self.state is None or self.temperature is None:
             return
-        self.pico.blink(3, delay=0.05)
-        self.pico.turn_on_led()
+        self.Led.blink(3, delay=0.05)
+        self.Led.turn_on_led()
         original_state = self.state
         data = {"status": self.state, "temperature": self.temperature, "voltage": self.voltage, "frequency": self.frequency}
         data = json.dumps(data)
-        # TODO: move this into a wifi class, as this should not be tied to a specific transmission protocol (e.g. HTTP, nrf24, etc.)
-        url = f"http://{self.network.server_ip}:{self.network.server_port}/api/v1/sensors/update"
+        url = f"{self.Networking.server_protocol}://{self.Networking.server_ip}:{self.Networking.server_port}/api/v{self.Networking.api_version}/{self.Networking.deviceType}s/update"
         headers = {
-            "User-Agent": self.pico.user_agent,
+            "User-Agent": self.Networking.user_agent,
             "Content-Type": "application/json",
         }
-        response = self.pico.requests.post(url, headers=headers, data=data)
+        response = self.Wifi.requests.post(url, headers=headers, data=data)
         if response.status_code == 200:
             print(f"Successfully sent door state: {self.state}")
         else:
@@ -90,8 +94,8 @@ class DoorSensor:
             )
         if "response" in locals():
             response.close()
-        self.pico.turn_off_led()
+        self.Led.turn_off_led()
         self.read_switch()
         if self.state != original_state:
-            self.pico.log_issue("info", self.__class__.__name__, "send_data", f"Door state changed from {original_state} to {self.state} whilst sending data, resending.....")
+            self.Logger.log_issue("info", self.__class__.__name__, "send_data", f"Door state changed from {original_state} to {self.state} whilst sending data, resending.....")
             self.send_data()
