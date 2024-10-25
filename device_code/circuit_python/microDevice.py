@@ -1,4 +1,10 @@
-class Device:
+import os
+import time
+import gc
+import supervisor
+from microcontroller import cpu
+
+class microDevice:
     def __init__(self):
         self.read_only = self.check_serial_connection()
     
