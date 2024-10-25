@@ -1,14 +1,15 @@
 import time
 import json
-from .wifi import require_connection
-from .logging import inject_function_name
+from deviceWifi import require_connection
+from logging import inject_function_name
 
 
 
 class Networking:
     def __init__(
         self,
-        wifi,
+        deviceWifi,
+        microDevice,
         Logger,
         Led,
         server_finder,
@@ -39,15 +40,16 @@ class Networking:
             max_attempts (int, optional): Maximum number of connection attempts. Defaults to 50.
             blink_frequency (int, optional): Frequency of the LED blink during connection attempts. Defaults to 2.
         """
-        self.Wifi = wifi
+        self.deviceWifi = deviceWifi
+        self.Device = microDevice
         self.Logger = Logger
         self.Led = Led
         self.server_finder = server_finder
-        self.max_attempts = max_attempts
-        self.blinks = blink_frequency
+        self.max_attempts = int(max_attempts)
+        self.blinks = int(blink_frequency)
         self.server_ip = server_ip
-        self.server_port = server_port
-        self.server_protocol = 'https' if server_ssl else 'http'
+        self.server_port = int(server_port)
+        self.server_protocol = 'https' if bool(int(server_ssl)) else 'http'
         self.api_version = api_version
         self.deviceType = deviceType
         self.user_agent = user_agent
@@ -58,7 +60,8 @@ class Networking:
         res = self.server_finder.find_server()
         if res is not None:
             self.server_ip = res["ip"]
-            self.server_port = res["port"]
+            #self.server_port = int(res["port"])
+            #print(f"Server found: {self.server_ip} % {self.server_port}")
 
 
     @require_connection
@@ -71,7 +74,7 @@ class Networking:
         It retries the handshake up to the class's maximum number of attempts. If the handshake fails after
         the maximum attempts, the device is set to a fatal error state.
         """
-        handshake_endpoint = f"{self.server_protocol}://" + f"{self.server_ip}:{str(self.server_port)}/" + "api/" + f"v{str(self.api_version)}/" + f"{self.deviceType}s/" + str(self.ID) + "/handshake"
+        handshake_endpoint = f"{self.server_protocol}://" + f"{self.server_ip}:{str(self.server_port)}/" + "api/" + f"v{str(self.api_version)}/" + f"{self.deviceType}s/" + str(self.deviceWifi.ID) + "/handshake"
         print("Handshaking with server...")
         attempt = 0
         success = False
@@ -79,13 +82,13 @@ class Networking:
         self.Led.turn_on_led()
         while attempt < self.max_attempts:
             try:
-                data = {"macAddress": self.Wifi.mac}
+                data = {"macAddress": self.deviceWifi.mac}
                 data = json.dumps(data)
                 headers = {
                     "User-Agent": self.user_agent,
                     "Content-Type": "application/json",
                 }
-                response = self.Wifi.requests.post(
+                response = self.deviceWifi.requests.post(
                     handshake_endpoint, headers=headers, data=data
                 )
                 if response.status_code == 200:
@@ -162,7 +165,7 @@ class Networking:
                     + f"v{str(self.api_version)}/"
                     + f"{self.deviceType}s/"
                     + f"logs")
-                response = self.requests.post(endpoint, headers=headers, data=data)
+                response = self.deviceWifi.requests.post(endpoint, headers=headers, data=data)
                 if response.status_code == 200:
                     print(f"Log data sent successfully to {endpoint}")
                     self.Logger.truncate_log_file(file_path, 0)
@@ -176,7 +179,7 @@ class Networking:
                 if "response" in locals():
                     response.close()
         self.Led.turn_off_led()
-        self.collect_garbage()
+        self.Device.collect_garbage()
         
 
     
