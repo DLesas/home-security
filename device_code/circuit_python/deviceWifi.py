@@ -1,5 +1,10 @@
-from .logging import inject_function_name
+from logging import inject_function_name
 import wifi
+import adafruit_connection_manager
+import adafruit_requests
+import time
+import binascii
+import ipaddress
 
 def require_connection(func):
     """
@@ -18,11 +23,11 @@ def require_connection(func):
             class_name = self.__class__.__name__
             func_name = func.__name__
             self.__class__.Logger.log_issue("Error", class_name, func_name, "WiFi is not connected")
-            self.__class__.Wifi.reconnect()
+            self.__class__.deviceWifi.reconnect()
         return func(self, *args, **kwargs)
     return wrapper
 
-class Wifi:
+class deviceWifi:
     def __init__(self, Logger, Led, ssid, password, server_ip, server_port, max_attempts, blinks, ID):
         self.Logger = Logger
         self.Led = Led
@@ -31,8 +36,8 @@ class Wifi:
         self.requests = adafruit_requests.Session(self.pool, self.ssl_context)
         self.ssid = ssid
         self.password = password
-        self.max_attempts = max_attempts
-        self.blinks = blinks
+        self.max_attempts = int(max_attempts)
+        self.blinks = int(blinks)
         self.wlan = None
         self.ip = None
         self.mac = None
@@ -62,7 +67,7 @@ class Wifi:
                     f"Failed to connect to WiFi: {e}",
                 )
                 time.sleep(0.5)
-            retry_count += 1
+            retry_count = retry_count + 1
         if not wifi.radio.connected:
             self.Logger.log_issue(
                 "Error",
@@ -70,7 +75,7 @@ class Wifi:
                 func_name,
                 f"Failed to connect to WiFi after {self.max_attempts} attempts",
             )
-            self.pico.set_fatal_error()
+            self.Led.set_fatal_error()
         self.ip = wifi.radio.ipv4_address
         self.mac = binascii.hexlify(bytearray(wifi.radio.mac_address))
         print(f"Connected. IP: {self.ip}, MAC: {self.mac}")
