@@ -2,23 +2,23 @@ import "./config";
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
-import { errorHandler, loggingMiddleware } from "./express/middleware.js";
+import { errorHandler, loggingMiddleware } from "./express/middleware";
 import cors from "cors";
-import sensorRoutes from "./express/routes/Sensors.js";
-import buildingRoutes from "./express/routes/Buildings.js";
-import alarmRoutes from "./express/routes/Alarms.js";
-import setupSocketHandlers from "./express/socketHandler.js";
-import { runMigrations, runCustomSQL } from "./db/db.js";
-import { connectRedis } from "./redis/index.js";
+import sensorRoutes from "./express/routes/Sensors";
+import buildingRoutes from "./express/routes/Buildings";
+import alarmRoutes from "./express/routes/Alarms";
+import setupSocketHandlers from "./express/socketHandler";
+import { runMigrations, runCustomSQL } from "./db/db";
+import { connectRedis } from "./redis/index";
 import {
   createDoorSensorIndex,
   doorSensor,
   doorSensorRepository,
-} from "./redis/doorSensors.js";
-import { createConfigIndex, setDefaultConfig } from "./redis/config.js";
-import { createAlarmIndex } from "./redis/alarms.js";
-import { setSensorStatusUnknown } from "./sensorFuncs.js";
-import { startBonjourService } from "./express/advertisement/Bonjour.js";
+} from "./redis/doorSensors";
+import { createConfigIndex, setDefaultConfig } from "./redis/config";
+import { createAlarmIndex } from "./redis/alarms";
+import { setSensorStatusUnknown } from "./sensorFuncs";
+import { startBonjourService } from "./express/advertisement/Bonjour";
 import { startUdpListener } from "./express/advertisement/udpBroadcast";
 
 const app = express();
@@ -74,13 +74,29 @@ setupSocketHandlers(io);
 
 server.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
-  const cleanupBonjour = startBonjourService();
+  //const cleanupBonjour = startBonjourService();
   const cleanupUdpBroadcast = startUdpListener();
 
-  process.on("SIGINT", () => {
-    cleanupBonjour();
+  const shutdown = async () => {
+    console.log('Shutting down gracefully...');
+    //cleanupBonjour();
     cleanupUdpBroadcast();
-  });
+    
+    // Close the server
+    server.close(() => {
+      console.log('HTTP server closed');
+    });
+    
+    // Close Socket.IO connections
+    io.close(() => {
+      console.log('Socket.IO server closed');
+    });
+
+    process.exit(0);
+  };
+
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 });
 
 export { io };
