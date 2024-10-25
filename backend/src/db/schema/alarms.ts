@@ -1,6 +1,6 @@
 import { boolean, integer, text, timestamp } from "drizzle-orm/pg-core";
 import { pgTable, serial, varchar } from "drizzle-orm/pg-core";
-import { buildingTable } from "./buildings.js";
+import { buildingTable } from "./buildings";
 import { InferInsertModel, InferSelectModel } from "drizzle-orm";
 
 export const alarmsTable = pgTable("alarms", {

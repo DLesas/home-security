@@ -1,13 +1,13 @@
-import { doorSensorStateEnum, sensorUpdatesTable } from "./sensorUpdates.js";
-import { sensorsTable } from "./sensors.js";
-import { buildingTable as buildingsTable } from "./buildings.js";
-import { eventLogsTable, eventTypeEnum } from "./eventLogs.js";
-import { accessLogsTable, actionEnum, connectionEnum } from "./accessLogs.js";
-import { errorLogsTable } from "./errorLogs.js";
-import { sensorLogsTable } from "./sensorLogs.js";
-import { alarmLogsTable } from "./alarmLogs.js";
-import { alarmUpdatesTable, alarmStateEnum } from "./alarmUpdates.js";
-import { alarmsTable } from "./alarms.js";
+import { doorSensorStateEnum, sensorUpdatesTable } from "./sensorUpdates";
+import { sensorsTable } from "./sensors";
+import { buildingTable as buildingsTable } from "./buildings";
+import { eventLogsTable, eventTypeEnum } from "./eventLogs";
+import { accessLogsTable, actionEnum, connectionEnum } from "./accessLogs";
+import { errorLogsTable } from "./errorLogs";
+import { sensorLogsTable } from "./sensorLogs";
+import { alarmLogsTable } from "./alarmLogs";
+import { alarmUpdatesTable, alarmStateEnum } from "./alarmUpdates";
+import { alarmsTable } from "./alarms";
 
 export const actionEnums = actionEnum;
 export const eventTypeEnums = eventTypeEnum;
