@@ -1,5 +1,4 @@
-from typing import Optional, Dict
-from .wifi import require_connection
+from devicewifi import require_connection
 import mdns
 import wifi
 
@@ -11,7 +10,7 @@ class Bonjour:
     using mDNS (multicast DNS) service discovery.
     """
 
-    def __init__(self, Wifi, logger, Led, server_name: str, server_password: str, udp_port: int, udp_timeout: int):
+    def __init__(self, deviceWifi, logger, Led, server_name: str, server_password: str, udp_port: int, udp_timeout: int):
         """
         Initialize the Bonjour instance.
 
@@ -23,7 +22,7 @@ class Bonjour:
             udp_port (int): The UDP port for server communication.
             udp_timeout (int): The timeout for UDP operations in seconds.
         """
-        self.Wifi = Wifi
+        self.deviceWifi = deviceWifi
         self.Logger = logger
         self.Led = Led
         self.server_password = server_password
@@ -32,7 +31,7 @@ class Bonjour:
         self.udp_timeout = udp_timeout
     
     @require_connection
-    def find_server(self) -> Optional[Dict[str, str]]:
+    def find_server(self):
         """
         Attempt to find the server using Bonjour/mDNS.
 
