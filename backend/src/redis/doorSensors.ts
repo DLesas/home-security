@@ -1,5 +1,5 @@
 import { Repository, Schema } from "redis-om";
-import { redis } from "./index.js";
+import { redis } from "./index";
 
 const doorSensorSchema = new Schema("doorSensors", {
   name: { type: "string" },

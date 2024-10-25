@@ -1,5 +1,5 @@
 import { bigserial, integer, numeric, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
-import { alarmsTable } from "./alarms.js";
+import { alarmsTable } from "./alarms";
 import { InferInsertModel, InferSelectModel } from "drizzle-orm";
 
 export const alarmStateEnum = pgEnum("alarmState", ["on", "off"]);

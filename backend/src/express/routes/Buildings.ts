@@ -1,18 +1,18 @@
 import express from "express";
-import { doorSensor, doorSensorRepository } from "../../redis/doorSensors.js";
-import { changeSensorStatus } from "../../sensorFuncs.js";
-import { db, writePostgresCheckpoint } from "../../db/db.js";
-import { sensorsTable } from "../../db/schema/sensors.js";
+import { doorSensor, doorSensorRepository } from "../../redis/doorSensors";
+import { changeSensorStatus } from "../../sensorFuncs";
+import { db, writePostgresCheckpoint } from "../../db/db";
+import { sensorsTable } from "../../db/schema/sensors";
 import { eq } from "drizzle-orm";
-import { buildingTable } from "../../db/schema/buildings.js";
-import { raiseError } from "../../errorHandling.js";
-import { raiseEvent } from "../../notifiy.js";
+import { buildingTable } from "../../db/schema/buildings";
+import { raiseError } from "../../errorHandling";
+import { raiseEvent } from "../../notifiy";
 import { z } from "zod";
-import { makeID } from "../../utils.js";
-import { emitNewData } from "../socketHandler.js";
-import { changeAlarmState } from "../../alarmFuncs.js";
-import { Alarm, alarmRepository } from "../../redis/alarms.js";
-import { accessLogsTable } from "../../db/schema/accessLogs.js";
+import { makeID } from "../../utils";
+import { emitNewData } from "../socketHandler";
+import { changeAlarmState } from "../../alarmFuncs";
+import { Alarm, alarmRepository } from "../../redis/alarms";
+import { accessLogsTable } from "../../db/schema/accessLogs";
 const router = express.Router();
 
 /**

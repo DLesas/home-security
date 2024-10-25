@@ -1,6 +1,6 @@
 import { Repository, Schema } from "redis-om";
-import { redis } from "./index.js";
-import { raiseError } from "../errorHandling.js";
+import { redis } from "./index";
+import { raiseError } from "../errorHandling";
 
 const configSchema = new Schema("config", {
   sensorWarningTemparature: { type: "number" },
