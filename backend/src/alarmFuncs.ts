@@ -1,4 +1,4 @@
-import { type Alarm, alarmRepository } from "./redis/alarms.js";
+import { type Alarm, alarmRepository } from "./redis/alarms";
 
 // Define the expected response type
 interface AlarmResponse {

@@ -2,7 +2,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
-import { db as schema } from "./schema/index.js";
+import { db as schema } from "./schema/index";
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';

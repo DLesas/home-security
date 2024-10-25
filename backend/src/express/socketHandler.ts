@@ -1,7 +1,7 @@
-import { io } from "../index.js";
+import { io } from "../index";
 import { Server } from "socket.io";
-import { type doorSensor, doorSensorRepository } from "../redis/doorSensors.js";
-import { type Alarm, alarmRepository } from "../redis/alarms.js";
+import { type doorSensor, doorSensorRepository } from "../redis/doorSensors";
+import { type Alarm, alarmRepository } from "../redis/alarms";
 
 
 export async function emitNewData() {
