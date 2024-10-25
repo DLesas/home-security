@@ -1,11 +1,11 @@
-import { raiseError } from "./errorHandling.js";
-import { changeAlarmState } from "./alarmFuncs.js";
-import { raiseEvent } from "./notifiy.js";
-import { type Alarm, alarmRepository } from "./redis/alarms.js";
-import { type Config, configRepository } from "./redis/config.js";
-import { type doorSensor, doorSensorRepository } from "./redis/doorSensors.js";
-import { db } from "./db/db.js";
-import { sensorUpdatesTable } from "./db/schema/sensorUpdates.js";
+import { raiseError } from "./errorHandling";
+import { changeAlarmState } from "./alarmFuncs";
+import { raiseEvent } from "./notifiy";
+import { type Alarm, alarmRepository } from "./redis/alarms";
+import { type Config, configRepository } from "./redis/config";
+import { type doorSensor, doorSensorRepository } from "./redis/doorSensors";
+import { db } from "./db/db";
+import { sensorUpdatesTable } from "./db/schema/sensorUpdates";
 
 interface sensorResponse {
     state: string;
@@ -21,7 +21,7 @@ interface sensorResponse {
  * @return {Promise<void>} A promise that resolves when all alarms are triggered and the event is raised/logged.
  */
 export async function checkSensorState(previousState: doorSensor, state: "open" | "closed" | "unknown"): Promise<void> {
-    if (previousState.armed && state === "open") {
+    if (previousState.armed && state === "open" && previousState.state !== "open") {
         const alarms = (await alarmRepository.search().returnAll()) as Alarm[] | [];
         const alarmpromises = [];
         alarmpromises.push(changeAlarmState(alarms, "on"));
