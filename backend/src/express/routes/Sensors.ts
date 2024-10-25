@@ -1,19 +1,19 @@
 import express from "express";
 import { z } from "zod";
-import { doorSensorRepository, type doorSensor } from "../../redis/doorSensors.js";
-import { changeSensorStatus, DoorSensorUpdate } from "../../sensorFuncs.js";
-import { db, writePostgresCheckpoint } from "../../db/db.js";
-import { sensorsTable } from "../../db/schema/sensors.js";
-import { buildingTable } from "../../db/schema/buildings.js";
+import { doorSensorRepository, type doorSensor } from "../../redis/doorSensors";
+import { changeSensorStatus, DoorSensorUpdate } from "../../sensorFuncs";
+import { db, writePostgresCheckpoint } from "../../db/db";
+import { sensorsTable } from "../../db/schema/sensors";
+import { buildingTable } from "../../db/schema/buildings";
 import { eq } from "drizzle-orm";
-import { raiseEvent } from "../../notifiy.js";
-import { emitNewData } from "../socketHandler.js";
-import { errorLogsTable } from "../../db/schema/errorLogs.js";
+import { raiseEvent } from "../../notifiy";
+import { emitNewData } from "../socketHandler";
+import { errorLogsTable } from "../../db/schema/errorLogs";
 import { EntityId } from "redis-om";
-import { raiseError } from "../../errorHandling.js";
-import { makeID } from "../../utils.js";
-import { sensorLogsTable } from "../../db/schema/sensorLogs.js";
-import { writeRedisCheckpoint } from "../../redis/index.js";
+import { raiseError } from "../../errorHandling";
+import { makeID, normalizeIpAddress } from "../../utils";
+import { sensorLogsTable } from "../../db/schema/sensorLogs";
+import { writeRedisCheckpoint } from "../../redis/index";
 
 const router = express.Router();
 
@@ -39,6 +39,7 @@ router.post("/:sensorId/handshake", async (req, res, next) => {
 			.max(255, "macAddress must be less than 255 characters"),
 	});
 	const { error, data } = validationSchema.safeParse(req.body);
+	const ipAddress = normalizeIpAddress(req.ip);
 	if (error) {
 		next(raiseError(400, JSON.stringify(error.errors)));
 		return;
@@ -51,21 +52,22 @@ router.post("/:sensorId/handshake", async (req, res, next) => {
 		.eq(sensorId)
 		.returnFirst()) as doorSensor | null;
 	if (!sensor) {
+		console.log(await doorSensorRepository.search().returnAll())
 		next(raiseError(404, "Sensor not recognized"));
 		return;
 	}
-	if (!sensor.ipAddress || sensor.ipAddress !== req.ip) {
+	if (!sensor.ipAddress || sensor.ipAddress !== ipAddress) {
 		await doorSensorRepository.save({
 			...sensor,
 			macAddress,
-			ipAddress: req.ip,
+			ipAddress: ipAddress,
 			lastUpdated: new Date(),
 		} as doorSensor);
 		await emitNewData();
 		await raiseEvent(
 			"info",
 			`Recieved first handshake from sensor ${sensor!.name} in ${sensor!.building} with ip: ${
-				req.ip
+				ipAddress
 			} , and mac: ${macAddress}`
 		);
 	}
@@ -109,7 +111,7 @@ router.post("/update", async (req, res, next) => {
 		next(raiseError(400, JSON.stringify(result.error.errors)));
 		return;
 	}
-	const ipAddress = req.ip;
+	const ipAddress = normalizeIpAddress(req.ip);
 	if (!ipAddress) {
 		next(raiseError(400, "ip Address is required"));
 		return;
@@ -165,7 +167,7 @@ router.post("/logs", async (req, res, next) => {
 		next(raiseError(400, JSON.stringify(result.error.errors)));
 		return;
 	}
-	const ipAddress = req.ip;
+	const ipAddress = normalizeIpAddress(req.ip);
 	if (!ipAddress) {
 		next(raiseError(400, "ip Address is required"));
 		return;
@@ -234,6 +236,8 @@ router.post("/new", async (req, res, next) => {
 	}
 	const { name, building, expectedSecondsUpdated } = result.data;
 	const buildingExists = await db.select().from(buildingTable).where(eq(buildingTable.name, building)).limit(1);
+	console.log(await db.select().from(buildingTable))
+	console.log(buildingExists)
 	if (buildingExists.length === 0) {
 		next(raiseError(404, "Building not found"));
 		return;

@@ -1,22 +1,22 @@
 import express from "express";
 import { z } from "zod";
-import { doorSensorRepository, type doorSensor } from "../../redis/doorSensors.js";
-import { changeSensorStatus } from "../../sensorFuncs.js";
-import { db, writePostgresCheckpoint } from "../../db/db.js";
-import { sensorsTable } from "../../db/schema/sensors.js";
-import { buildingTable } from "../../db/schema/buildings.js";
+import { doorSensorRepository, type doorSensor } from "../../redis/doorSensors";
+import { changeSensorStatus } from "../../sensorFuncs";
+import { db, writePostgresCheckpoint } from "../../db/db";
+import { sensorsTable } from "../../db/schema/sensors";
+import { buildingTable } from "../../db/schema/buildings";
 import { eq } from "drizzle-orm";
-import { raiseEvent } from "../../notifiy.js";
-import { emitNewData } from "../socketHandler.js";
-import { errorLogsTable } from "../../db/schema/errorLogs.js";
-import { alarmsTable } from "../../db/schema/alarms.js";
-import { type Alarm, alarmRepository } from "../../redis/alarms.js";
+import { raiseEvent } from "../../notifiy";
+import { emitNewData } from "../socketHandler";
+import { errorLogsTable } from "../../db/schema/errorLogs";
+import { alarmsTable } from "../../db/schema/alarms";
+import { type Alarm, alarmRepository } from "../../redis/alarms";
 import { EntityId } from "redis-om";
-import { raiseError } from "../../errorHandling.js";
-import { makeID } from "../../utils.js";
-import { alarmLogsTable } from "../../db/schema/alarmLogs.js";
-import { alarmUpdatesTable } from "../../db/schema/alarmUpdates.js";
-import { writeRedisCheckpoint } from "../../redis/index.js";
+import { raiseError } from "../../errorHandling";
+import { makeID, normalizeIpAddress } from "../../utils";
+import { alarmLogsTable } from "../../db/schema/alarmLogs";
+import { alarmUpdatesTable } from "../../db/schema/alarmUpdates";
+import { writeRedisCheckpoint } from "../../redis/index";
 
 const router = express.Router();
 
@@ -158,7 +158,7 @@ router.post("/logs", async (req, res, next) => {
 		next(raiseError(400, JSON.stringify(result.error.errors)));
 		return;
 	}
-	const ipAddress = req.ip;
+	const ipAddress = normalizeIpAddress(req.ip);
 	if (!ipAddress) {
 		next(raiseError(400, "ip Address is required"));
 		return;
@@ -208,16 +208,17 @@ router.post("/:alarmId/handshake", async (req, res, next) => {
         return;
     }
     const { macAddress } = result.data;
+    const ipAddress = normalizeIpAddress(req.ip);
     const alarm = (await alarmRepository.search().where("externalID").eq(alarmId).returnFirst()) as Alarm | null;
     if (!alarm) {
         next(raiseError(404, "Alarm not found"));
         return;
     }
-    if (!alarm.ipAddress || alarm.ipAddress !== req.ip) {
+    if (!alarm.ipAddress || alarm.ipAddress !== ipAddress) {
         await alarmRepository.save({
             ...alarm,
             macAddress,
-            ipAddress: req.ip,
+            ipAddress: ipAddress,
             lastUpdated: new Date(),
         } as Alarm);
         await emitNewData();
@@ -256,7 +257,7 @@ router.post("/update", async (req, res, next) => {
 		next(raiseError(400, JSON.stringify(result.error.errors)));
 		return;
 	}
-	const ipAddress = req.ip;
+	const ipAddress = normalizeIpAddress(req.ip);
 	if (!ipAddress) {
 		next(raiseError(400, "ip Address is required"));
 		return;
