@@ -1,3 +1,7 @@
+import digitalio
+import board
+import time
+
 class Led:
     def __init__(self):
         self.led = digitalio.DigitalInOut(board.LED)
@@ -32,3 +36,7 @@ class Led:
         Turn on the LED.
         """
         self.led.value = True
+        
+    def set_fatal_error(self):
+        self.fatal_error = True
+
