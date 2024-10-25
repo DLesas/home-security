@@ -1,11 +1,11 @@
 from alarmRelay import alarmRelay
-from device import Device
+from microDevice import microDevice
 from led import Led
-from logger import Logger
+from logging import Logger
 from timeClock import TimeClock
 from udp import Udp
 from networking import Networking
-from wifi import Wifi
+from deviceWifi import deviceWifi
 from utils import read_env_file
 from adafruit_httpserver import (
     REQUEST_HANDLED_RESPONSE_SENT,
@@ -17,18 +17,18 @@ import time
 
 def main():
     env = read_env_file()
-    Device = Device()
-    Led = Led()
-    Logger = Logger(Device)
-    Wifi = Wifi(Logger, Led, env["ssid"], env["password"], env["server_ip"], env["server_port"], env["max_wifi_attempts"], env["wifi_blinks"], env["id"])
-    Wifi.connect()
-    RTC = TimeClock(Wifi, Logger, Led)
-    RTC.set_time_ntp()
-    Udp = Udp(Wifi, Logger, Led, env["server_udp_port"], env["server_service_name"], env["server_password"], env["tcp_timeout"], env["tcp_port"])
-    Networking = Networking(Wifi, Logger, Led, Udp, env["max_networking_attempts"], env["networking_blinks"], env["server_ip"], env["server_port"], env["server_ssl"], env["api_version"], env["deviceType"], env["user_agent"])
-    Networking.find_server()
-    Networking.handshake_with_server()
-    alarm_relay = alarmRelay(Logger, Led, Device, Wifi, Networking, env["relay_pin"], env["port"])
+    Device = microDevice()
+    led = Led()
+    logger = Logger(Device)
+    DeviceWifi = deviceWifi(logger, led, env["ssid"], env["password"], env["server_ip"], env["server_port"], env["max_wifi_attempts"], env["wifi_blinks"], env["id"])
+    DeviceWifi.connect()
+    timeclock = TimeClock(logger, led, DeviceWifi)
+    timeclock.set_time_ntp()
+    udp = Udp(DeviceWifi, logger, led, env["server_udp_port"], env["server_service_name"], env["server_password"], env["tcp_timeout"], env["tcp_port"])
+    networking = Networking(DeviceWifi, Device, logger, led, udp, env["max_networking_attempts"], env["networking_blinks"], env["server_ip"], env["server_port"], env["server_ssl"], env["api_version"], env["deviceType"], env["user_agent"])
+    networking.find_server()
+    networking.handshake_with_server()
+    alarm_relay = alarmRelay(logger, led, Device, DeviceWifi, networking, env["relay_pin"], env["port"])
     server = alarm_relay.start_server()
     start = time.time()
     ping_interval_s = int(env["ping_interval_s"])
@@ -40,11 +40,11 @@ def main():
             pool_result = server.poll()
             if pool_result == REQUEST_HANDLED_RESPONSE_SENT:
                 Device.collect_garbage()
-            needsClearing = Logger.check_log_files()
+            needsClearing = logger.check_log_files()
             if needsClearing:
-                Networking.send_logs()
+                networking.send_logs()
         except Exception as e:
-            Logger.log_issue("Error", "alarmRelayMain", "main", str(e))
+            logger.log_issue("Error", "alarmRelayMain", "main", str(e))
             continue
 
 

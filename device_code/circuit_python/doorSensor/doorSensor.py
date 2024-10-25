@@ -1,6 +1,7 @@
 from logging import Logger
 from led import Led
-from wifi import Wifi
+from microDevice import microDevice
+from deviceWifi import deviceWifi
 from networking import Networking
 from digitalio import DigitalInOut, Direction, Pull
 import json
@@ -14,8 +15,8 @@ class DoorSensor:
         self,
         Logger: Logger,
         Led: Led,
-        Device: Device,
-        Wifi: Wifi, 
+        Device: microDevice,
+        deviceWifi: deviceWifi, 
         Networking: Networking,
         door_switch_pin: str,
         max_time_to_sleep_s: int = 1800,
@@ -23,7 +24,7 @@ class DoorSensor:
         self.Logger = Logger
         self.Led = Led
         self.Device = Device
-        self.Wifi = Wifi
+        self.deviceWifi = deviceWifi
         self.Networking = Networking
         self.switch = getattr(board, door_switch_pin)
         self.max_time_to_sleep_s = int(max_time_to_sleep_s)
@@ -72,7 +73,7 @@ class DoorSensor:
             pin_alarm_rising, pin_alarm_falling, timeout_alarm
         )
 
-    def send_data(self, data: dict):
+    def send_data(self):
         if self.state is None or self.temperature is None:
             return
         self.Led.blink(3, delay=0.05)
@@ -85,7 +86,7 @@ class DoorSensor:
             "User-Agent": self.Networking.user_agent,
             "Content-Type": "application/json",
         }
-        response = self.Wifi.requests.post(url, headers=headers, data=data)
+        response = self.deviceWifi.requests.post(url, headers=headers, data=data)
         if response.status_code == 200:
             print(f"Successfully sent door state: {self.state}")
         else:

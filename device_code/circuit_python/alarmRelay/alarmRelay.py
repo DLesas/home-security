@@ -1,8 +1,10 @@
 from logging import inject_function_name
-from microController import MicroController
-from microcontroller import cpu
-from digitalio import DigitalInOut, Direction, Pull
+from logging import Logger
+from led import Led
+from microDevice import microDevice
+from deviceWifi import deviceWifi
 from networking import Networking
+from digitalio import DigitalInOut, Direction, Pull
 import json
 import board
 import alarm
@@ -22,8 +24,8 @@ class alarmRelay:
         self,
         Logger: Logger,
         Led: Led,
-        Device: Device,
-        Wifi: Wifi, 
+        Device: microDevice,
+        deviceWifi: deviceWifi, 
         Networking: Networking,
         relay_pin: str,
         port: int = 8000,
@@ -32,7 +34,7 @@ class alarmRelay:
         self.Logger = Logger
         self.Led = Led
         self.Device = Device
-        self.Wifi = Wifi
+        self.deviceWifi = deviceWifi
         self.Networking = Networking
         self.relay = getattr(board, relay_pin)
         self.pool = socketpool.SocketPool(wifi.radio)
@@ -42,7 +44,7 @@ class alarmRelay:
         self.voltage = None
         self.frequency = None
         self.register_routes()
-        self.port = port
+        self.port = int(port)
         self.server.headers = {
             "User-Agent": self.Networking.user_agent,
             "Content-Type": "application/json",
@@ -68,7 +70,7 @@ class alarmRelay:
         data = json.dumps(data)
         url = f"{self.Networking.server_protocol}://{self.Networking.server_ip}:{self.Networking.server_port}/api/v{self.Networking.api_version}/{self.Networking.deviceType}s/update"
         headers = self.server.headers
-        response = self.Networking.requests.post(url, headers=headers, data=data)
+        response = self.deviceWifi.requests.post(url, headers=headers, data=data)
         if response.status_code == 200:
             print(f"Successfully sent alarm state: {self.state}")
         else:
