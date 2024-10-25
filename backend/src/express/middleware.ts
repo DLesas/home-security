@@ -1,11 +1,12 @@
 import { Request, Response, NextFunction } from "express";
-import { db } from "../db/db.js";	
-import { accessLogsTable } from "../db/schema/accessLogs.js";
-import { errorLogsTable } from "../db/schema/errorLogs.js";
-import { CustomError, raiseError } from "../errorHandling.js";
+import { db } from "../db/db";	
+import { accessLogsTable } from "../db/schema/accessLogs";
+import { errorLogsTable } from "../db/schema/errorLogs";
+import { CustomError, raiseError } from "../errorHandling";
+import { normalizeIpAddress } from "../utils";
 
 export const loggingMiddleware = async (req: Request, res: Response, next: NextFunction) => {
-	const clientIp = req.ip!;
+	const clientIp = normalizeIpAddress(req.ip!)!;
 	try {
 		console.log("recieved request, endpoint: ", req.baseUrl + req.path, "query: ", req.query, "body: ", req.body, "method: ", req.method, "clientIp: ", clientIp, "userAgent: ", req.headers["user-agent"]);
 		await db.insert(accessLogsTable).values({
