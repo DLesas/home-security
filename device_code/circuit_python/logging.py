@@ -1,4 +1,6 @@
-
+import os
+import time
+import adafruit_hashlib as hashlib
 
 def inject_function_name(func):
     """
@@ -17,8 +19,8 @@ def inject_function_name(func):
     return wrapper
 
 class Logger:
-    def __init__(self, Device):
-        self.Device = Device
+    def __init__(self, microDevice):
+        self.Device = microDevice
         self.log_dir = "logs"
         self.issue_file = "issue_logs.csv"
         self.max_log_file_size = 512 * 1024

@@ -1,6 +1,5 @@
-from typing import Optional, Dict
-from .logging import inject_function_name
-from .wifi import require_connection
+from logging import inject_function_name
+from deviceWifi import require_connection
 import wifi
 import socketpool
 
@@ -12,12 +11,12 @@ class Udp:
     by emitting UDP broadcasts and waiting for a TCP connection from the server.
     """
 
-    def __init__(self, Wifi, logger, Led, udp_port: int, server_service_name: str, server_password: str, client_tcp_timeout: int, client_tcp_port: int):
+    def __init__(self, deviceWifi, logger, Led, udp_port: int, server_service_name: str, server_password: str, client_tcp_timeout: int, client_tcp_port: int):
         """
         Initialize the Udp instance.
 
         Args:
-            Wifi: The WiFi object for network operations.
+            deviceWifi: The WiFi object for network operations.
             logger: The logger object for logging messages.
             Led: The LED object for visual feedback.
             udp_port (int): The UDP port to broadcast to for server discovery.
@@ -26,7 +25,7 @@ class Udp:
             client_tcp_timeout (int): The timeout for TCP connection attempts in seconds.
             client_tcp_port (int): The TCP port on which to listen for server connections.
         """
-        self.Wifi = Wifi
+        self.deviceWifi = deviceWifi
         self.Logger = logger
         self.Led = Led
         self.udp_port = int(udp_port)
@@ -37,7 +36,7 @@ class Udp:
     
     @inject_function_name
     @require_connection
-    def find_server(self, func_name: str = "find_server") -> Optional[Dict[str, str]]:
+    def find_server(self, func_name: str = "find_server"):
         """
         Attempt to find the server by emitting a UDP broadcast and waiting for a TCP connection.
 
@@ -53,9 +52,6 @@ class Udp:
         tcp_sock = pool.socket(pool.AF_INET, pool.SOCK_STREAM)
         
         try:
-            # Set up UDP socket for broadcasting
-            udp_sock.setsockopt(pool.SOL_SOCKET, pool.SO_BROADCAST, 1)
-            
             # Set up TCP socket for listening on the predefined port
             tcp_sock.bind(("0.0.0.0", self.client_tcp_port))
             tcp_sock.listen(1)
@@ -71,9 +67,14 @@ class Udp:
             try:
                 client_sock, addr = tcp_sock.accept()
                 try:
-                    client_message = self.Wifi.ID
+                    client_message = self.deviceWifi.ID
                     client_sock.send(client_message.encode())
-                    server_message = client_sock.recv(1024).decode().strip()
+                    
+                    # Use recv_into instead of recv
+                    buffer = bytearray(1024)
+                    bytes_received = client_sock.recv_into(buffer)
+                    server_message = buffer[:bytes_received].decode().strip()
+                    print(f"Received from server: {server_message}")
                     if server_message == self.server_password:
                         print(f"Received from server: {server_message}")
                         server_info = {"ip": addr[0], "port": str(addr[1])}
@@ -81,6 +82,7 @@ class Udp:
                         return server_info
                     else:
                         print(f"Received from server: {server_message}")
+                        print(self.Logger)
                         self.Logger.log_issue(
                             "Warning",
                             self.__class__.__name__,
@@ -98,7 +100,7 @@ class Udp:
             udp_sock.close()
             tcp_sock.close()
 
-    def _log_server_found(self, func_name: str, server_info: Dict[str, str]) -> None:
+    def _log_server_found(self, func_name: str, server_info) -> None:
         """
         Log that the server has been found.
 
