@@ -3,6 +3,15 @@ import path, { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerRoute } from '../lib/electron-router-dom'
 import icon from '../../resources/icon.png?asset'
+import { USBDeviceMonitor, writeEnvFile } from './usb'
+import { WiFiMonitor } from './wifi'
+import { IpAddressManager } from './ipAddress'
+
+
+let mainWindow: BrowserWindow | null = null
+const usbMonitor = new USBDeviceMonitor()
+const wifiMonitor = new WiFiMonitor()
+const ipAddressManager = new IpAddressManager()
 
 function createWindow(): void {
   // Create the browser window.
@@ -14,7 +23,8 @@ function createWindow(): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      webSecurity: false
     }
   })
 
@@ -40,6 +50,16 @@ function createWindow(): void {
   // } else {
   //   mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   // }
+
+  usbMonitor.on('devicesChanged', (devices) => {
+    mainWindow?.webContents.send('usb-devices-updated', devices)
+  })
+
+  // Listen for network changes
+  wifiMonitor.on('networksChanged', (networks) => {
+    // Send to renderer process
+    mainWindow.webContents.send('wifi-networks-updated', networks)
+  })
 }
 
 // This method will be called when Electron has finished
@@ -58,6 +78,29 @@ app.whenReady().then(() => {
 
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
+  ipcMain.handle('get-local-ip-address', () => {
+    return ipAddressManager.getLocalIpAddress()
+  })
+  ipcMain.handle('get-usb-devices', () => {
+    return usbMonitor.getDeviceList()
+  })
+
+  ipcMain.on('save-env', (event, data, devicePath) => {
+    try {
+      writeEnvFile(data, devicePath)
+      event?.reply('save-env-result', { success: true })
+    } catch (error) {
+      event?.reply('save-env-result', { success: false, error: (error as Error).message })
+    }
+  })
+
+  ipcMain.handle('get-wifi-networks', async () => {
+    return await wifiMonitor.getNetworks()
+  })
+
+  // ipcMain.handle('connect-wifi', async (_, ssid: string, password: string) => {
+  //   await wifiMonitor.connect(ssid, password)
+  // })
 
   createWindow()
 
