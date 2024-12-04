@@ -21,16 +21,18 @@ import { setSensorStatusUnknown } from "./sensorFuncs";
 import { startBonjourService } from "./express/advertisement/Bonjour";
 import { startUdpListener } from "./express/advertisement/udpBroadcast";
 
+const corsOptions = {
+  origin: [
+    "http://localhost:*",
+    "http://192.168.0.4:3000",
+    "http:100.77.41.71//:3000",
+  ],
+}
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: [
-      "http://localhost:3000",
-      "http://192.168.0.4:3000",
-      "http:100.77.41.71//:3000",
-    ],
-  },
+  cors: corsOptions
 });
 const port = process.env.SERVER_PORT? Number(process.env.SERVER_PORT) : 8080;
 
@@ -47,13 +49,7 @@ await setSensorStatusUnknown(
 
 app.use(express.json());
 app.use(
-  cors({
-    origin: [
-      "http://localhost:3000",
-      "http://192.168.0.4:3000",
-      "http:100.77.41.71//:3000",
-    ],
-  })
+  cors(corsOptions)
 );
 app.use(loggingMiddleware);
 
