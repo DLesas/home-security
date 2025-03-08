@@ -43,6 +43,10 @@ await createAlarmIndex();
 await setDefaultConfig();
 await runMigrations();
 // await runCustomSQL();
+// on startup might want to consider setting all sensors
+// to unknown as to not trigger false alarms
+// as previous state of sensors will stay in redis
+// if power outages happen
 await setSensorStatusUnknown(
   (await doorSensorRepository.search().returnAll()) as doorSensor[]
 );
@@ -53,10 +57,7 @@ app.use(
 );
 app.use(loggingMiddleware);
 
-// on startup might want to consider setting all sensors
-// to unknown as to not trigger false alarms
-// as previous state of sensors will stay in redis
-// if power outages happen
+
 
 // Routes
 app.use("/api/v1/sensors", sensorRoutes);
