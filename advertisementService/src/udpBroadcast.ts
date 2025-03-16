@@ -1,9 +1,9 @@
 import dgram from "dgram";
 import net from "net";
-import { db } from "../../db/db";
-import { errorLogsTable } from "../../db/schema/errorLogs";
-import { doorSensorRepository, type doorSensor } from "../../redis/doorSensors";
-import { raiseEvent } from "src/notifiy";
+import { db } from "./shared/db/db";
+import { errorLogsTable } from "./shared/db/schema/errorLogs";
+import { doorSensorRepository, type doorSensor } from "./shared/redis/doorSensors";
+import { raiseEvent } from "./shared/notifiy";
 
 /** The port number for UDP listening */
 const UDP_PORT = process.env.UDP_LISTEN_PORT
@@ -17,9 +17,13 @@ const SERVICE_NAME = process.env.SERVER_NAME!;
 const SERVER_PASS = process.env.SERVER_PASS!;
 
 /** The port number for the server's main service (e.g., HTTP) */
-const SERVER_PORT = process.env.SERVER_PORT? Number(process.env.SERVER_PORT) : 8080;
+const SERVER_PORT = process.env.SERVER_PORT
+  ? Number(process.env.SERVER_PORT)
+  : 8080;
 
-const CLIENT_TCP_PORT = process.env.CLIENT_TCP_PORT? Number(process.env.CLIENT_TCP_PORT) : 31337;
+const CLIENT_TCP_PORT = process.env.CLIENT_TCP_PORT
+  ? Number(process.env.CLIENT_TCP_PORT)
+  : 31337;
 
 /** Timeout for TCP connection in milliseconds */
 const TCP_TIMEOUT = 10000; // 10 seconds
@@ -43,7 +47,9 @@ export function startUdpListener(): () => void {
 
   socket.on("message", (msg: Buffer, rinfo: dgram.RemoteInfo) => {
     const message = msg.toString();
-    console.log(`Received UDP message from ${rinfo.address}:${rinfo.port}: ${message}`);
+    console.log(
+      `Received UDP message from ${rinfo.address}:${rinfo.port}: ${message}`
+    );
 
     if (message === SERVICE_NAME) {
       establishTcpConnection(rinfo.address, CLIENT_TCP_PORT);
@@ -68,7 +74,9 @@ function establishTcpConnection(clientIp: string, clientPort: number): void {
   const tcpSocket = new net.Socket();
 
   tcpSocket.connect(clientPort, clientIp, () => {
-    console.log(`TCP connection established with client ${clientIp}:${clientPort}`);
+    console.log(
+      `TCP connection established with client ${clientIp}:${clientPort}`
+    );
     // Set a timeout for the TCP connection in milliseconds
     tcpSocket.setTimeout(TCP_TIMEOUT);
   });
@@ -82,7 +90,10 @@ function establishTcpConnection(clientIp: string, clientPort: number): void {
       .returnFirst()) as doorSensor | null;
     if (!sensor) {
       console.log(`Received message from client: ${clientMessage}`);
-      await raiseEvent("critical", `A device tried to connect to the server but the server does not recognize it, the device has ip ${clientIp} and port ${clientPort}, it sent the message ${clientMessage}`);
+      await raiseEvent(
+        "critical",
+        `A device tried to connect to the server but the server does not recognize it, the device has ip ${clientIp} and port ${clientPort}, it sent the message ${clientMessage}`
+      );
     } else {
       tcpSocket.write(SERVER_PASS);
       console.log(`Received message from client: ${clientMessage}`);
@@ -93,13 +104,21 @@ function establishTcpConnection(clientIp: string, clientPort: number): void {
   });
 
   tcpSocket.on("timeout", () => {
-    console.error(`TCP connection timed out with client ${clientIp}:${clientPort}`);
+    console.error(
+      `TCP connection timed out with client ${clientIp}:${clientPort}`
+    );
     tcpSocket.destroy();
   });
 
   tcpSocket.on("error", async (error: Error) => {
-    console.error(`TCP connection error with client ${clientIp}:${clientPort}:`, error);
-    await logError(`TCP connection error with client ${clientIp}:${clientPort}`, error);
+    console.error(
+      `TCP connection error with client ${clientIp}:${clientPort}:`,
+      error
+    );
+    await logError(
+      `TCP connection error with client ${clientIp}:${clientPort}`,
+      error
+    );
     tcpSocket.destroy();
   });
 
