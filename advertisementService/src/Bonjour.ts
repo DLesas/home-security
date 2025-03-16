@@ -2,13 +2,13 @@ import { Bonjour, type Service } from "bonjour-service";
 import os from "os";
 
 /** The name of the Bonjour service to publish */
-const SERVICE_NAME = process.env.BROADCASTING_NAME || "DefaultService";
+const SERVICE_NAME = process.env.BONJOUR_BROADCASTING_NAME || "DefaultService";
 
 /** The port number for the Bonjour service */
-const PORT = process.env.SERVER_PORT ? Number(process.env.SERVER_PORT) : 3000;
+const PORT = process.env.BONJOUR_PORT ? Number(process.env.BONJOUR_PORT) : 4000;
 
 /** The interval (in milliseconds) between service checks */
-const CHECK_INTERVAL_MS = process.env.BROADCASTING_INTERVAL ? Number(process.env.BROADCASTING_INTERVAL) : 60000;
+const CHECK_INTERVAL_MS = process.env.BONJOUR_BROADCASTING_INTERVAL ? Number(process.env.BONJOUR_BROADCASTING_INTERVAL) : 60000;
 
 /**
  * Starts Bonjour services on all available network interfaces and sets up regular check intervals.
