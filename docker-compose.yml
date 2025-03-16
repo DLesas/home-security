@@ -19,6 +19,8 @@ services:
       retries: 5
       start_period: 30s
       timeout: 5s 
+    networks:
+      - backend
 
   postgres:
     build:
@@ -41,6 +43,8 @@ services:
       retries: 5
       start_period: 30s
       timeout: 5s
+    networks:
+      - backend
 
   web:
     build:
@@ -48,56 +52,173 @@ services:
     ports:
       - "3000:3000"
 
-  # backend:
-  #   build:
-  #     context: ./backend
-  #   environment:
-  #     - POSTGRES_USER=${POSTGRES_USER}
-  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-  #     - POSTGRES_DB=${POSTGRES_DB}
-  #     - POSTGRES_HOST=${POSTGRES_HOST}
-  #     - POSTGRES_PORT=${POSTGRES_PORT}
-  #     - REDIS_HOST=${REDIS_HOST}
-  #     - REDIS_PORT=${REDIS_PORT}
-  #     - SENSOR_WARNING_TEMPERATURE=${SENSOR_WARNING_TEMPERATURE}
-  #     - SENSOR_CRITICAL_TEMPERATURE=${SENSOR_CRITICAL_TEMPERATURE}
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis-stack:
-  #       condition: service_healthy
-  #   # ports:
-  #   #   - "8080:8080"
-  #   #   - "5353:5353/udp"
-  #   network_mode: host
-  #   restart: always
+  backend:
+    build:
+      context: ./backend
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - REDIS_HOST=redis-stack
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - SENSOR_WARNING_TEMPERATURE=${SENSOR_WARNING_TEMPERATURE}
+      - SENSOR_CRITICAL_TEMPERATURE=${SENSOR_CRITICAL_TEMPERATURE}
+      - SERVER_PORT=${SERVER_PORT:-8080}
+      - SERVER_PASS=${SERVER_PASS}
+      - SERVER_NAME=${SERVER_NAME}
+      - UDP_BROADCAST_ADDR=${UDP_BROADCAST_ADDR}
+      - UDP_BROADCAST_PORT=${UDP_BROADCAST_PORT:-41234}
+      - CLIENT_TCP_PORT=${CLIENT_TCP_PORT:-31337}
+      - BONJOUR_BROADCASTING_NAME=${BONJOUR_BROADCASTING_NAME}
+      - BONJOUR_PORT=${BONJOUR_PORT:-4000}
+      - BONJOUR_BROADCASTING_INTERVAL=${BONJOUR_BROADCASTING_INTERVAL:-10000}
+    ports:
+      - "${SERVER_PORT:-8080}:${SERVER_PORT:-8080}"
+      - "${UDP_BROADCAST_PORT:-41234}:${UDP_BROADCAST_PORT:-41234}/udp"
+      - "${CLIENT_TCP_PORT:-31337}:${CLIENT_TCP_PORT:-31337}"
+      - "${BONJOUR_PORT:-4000}:${BONJOUR_PORT:-4000}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-stack:
+        condition: service_healthy
+      event-system:
+        condition: service_healthy
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${SERVER_PORT:-8080}/health"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 5s
+    networks:
+      - backend
+
+  event-system:
+    build:
+      context: ./eventSystem
+      dockerfile: ./eventSystem/Dockerfile
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - REDIS_HOST=redis-stack
+      - REDIS_PORT=${REDIS_PORT:-6379}
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-stack:
+        condition: service_healthy
+
+  advertisement:
+    build:
+      context: .
+      dockerfile: ./advertisementService/Dockerfile
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - REDIS_HOST=redis-stack
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - SERVER_PORT=${SERVER_PORT:-8080}
+      - SERVER_PASS=${SERVER_PASS}
+      - SERVER_NAME=${SERVER_NAME}
+      - UDP_BROADCAST_ADDR=${UDP_BROADCAST_ADDR}
+      - UDP_BROADCAST_PORT=${UDP_BROADCAST_PORT:-41234}
+      - CLIENT_TCP_PORT=${CLIENT_TCP_PORT:-31337}
+      - BONJOUR_BROADCASTING_NAME=${BONJOUR_BROADCASTING_NAME}
+      - BONJOUR_PORT=${BONJOUR_PORT:-4000}
+      - BONJOUR_BROADCASTING_INTERVAL=${BONJOUR_BROADCASTING_INTERVAL:-10000}
+      # Add other environment variables as needed
+    # ports:
+    #   - "${UDP_BROADCAST_PORT:-41234}:${UDP_BROADCAST_PORT:-41234}/udp"
+    #   - "${CLIENT_TCP_PORT:-31337}:${CLIENT_TCP_PORT:-31337}"
+    #   - "${BONJOUR_PORT:-4000}:${BONJOUR_PORT:-4000}"
+    network_mode: "host"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE  # Needed to bind to ports
+      - NET_BROADCAST    # Needed for UDP broadcasts
+      - NET_RAW         # Needed for network interface detection
+    read_only: true
+    tmpfs:
+      - /tmp
+    depends_on:
+      redis-stack:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
 
   # video_processor:
   #   build:
   #     context: ./video_processing
   #   environment:
-  #     - REDIS_HOST=redis
-  #     - REDIS_PORT=6379
+  #     - POSTGRES_USER=${POSTGRES_USER}
+  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+  #     - POSTGRES_DB=${POSTGRES_DB}
+  #     - POSTGRES_HOST=postgres
+  #     - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+  #     - REDIS_HOST=redis-stack
+  #     - REDIS_PORT=${REDIS_PORT:-6379}
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all    # Use all available GPUs
+  #             capabilities: [gpu]
   #   depends_on:
   #     - redis
   #     - backend
   #   volumes:
   #     - ./video_processing/data:/data
 
-  # caddy:
-  #   image: caddy:builder-alpine
-  #   restart: unless-stopped
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #     - "443:443/udp"
-  #   volumes:
-  #     - ./caddy/Caddyfile:/etc/caddy/Caddyfile
-  #     - caddy_data:caddy/data
-  #     - caddy_config:caddy/config
+  caddy:
+    build:
+      context: ./caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data/caddy
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      - DOMAIN=backend.home.local
+    networks:
+      - backend
+      - frontend
+    network_mode: host
+
+networks:
+  backend:
+    internal: true
+  frontend:
+
+volumes:
+  caddy_data:
+    driver: local
 
 
-  # caddy_data:
-  # caddy_config:
+
+
+
 
 

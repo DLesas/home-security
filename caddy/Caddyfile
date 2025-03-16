@@ -1,0 +1,112 @@
+{
+    # Enable debug logging
+    debug
+    # Use local storage for certificates
+    storage file_system {
+        root /data/caddy
+    }
+    # Auto HTTPS with self-signed certificates
+    auto_https off
+    # Disable HTTPS redirect since we're handling it ourselves
+    https_redirect off
+    # Server settings
+    servers {
+        protocols h1 h2 h2c
+    }
+}
+
+# Single domain for both web and API
+backend.home.local {
+    # TLS with self-signed certificate
+    tls internal {
+        generate
+        lifetime 8760h
+    }
+
+    # Security headers for all routes
+    header {
+        # Defensive security headers
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"  # If you need to embed in iframes from same domain
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:;"
+    }
+
+    # API and WebSocket routes
+    handle_path /api/* {
+        reverse_proxy backend:8080 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-Port {server_port}
+            
+            # Trusted proxies
+            trusted_proxies private_ranges
+        }
+    }
+
+    # WebSocket routes
+    handle_path /ws/* {
+        reverse_proxy backend:8080 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            
+            # WebSocket configuration
+            transport http {
+                versions h1 h2c
+                keepalive 30s
+            }
+        }
+    }
+
+    # Rate limiting for API and WebSocket
+    @ddos {
+        path /api/* /ws/*
+        rate_limit {
+            zone dynamic_zone
+            window 10s
+            events 100
+            burst 50
+        }
+    }
+    respond @ddos 429 {
+        body "Too many requests"
+    }
+
+    # Everything else goes to the web app
+    handle {
+        reverse_proxy web:3000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Logging
+    log {
+        output file /data/caddy/access.log {
+            roll_size 10MB
+            roll_keep 10
+        }
+        format json {
+            time_format "iso8601"
+            message_key "message"
+        }
+        level INFO
+        # Include client IP in logs
+        output filter {
+            wrap json
+            fields {
+                client_ip {remote_host}
+                request_id {request_id}
+            }
+        }
+    }
+}
