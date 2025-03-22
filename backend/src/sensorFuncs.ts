@@ -1,4 +1,4 @@
-import { raiseError } from "./errorHandling";
+import { raiseError } from "./notifiy";
 import { changeAlarmState } from "./alarmFuncs";
 import { raiseEvent } from "./notifiy";
 import { type Alarm, alarmRepository } from "./redis/alarms";
@@ -8,10 +8,10 @@ import { db } from "./db/db";
 import { sensorUpdatesTable } from "./db/schema/sensorUpdates";
 
 interface sensorResponse {
-    state: string;
-    temperature: number;
-    voltage: number;
-    frequency: number;
+  state: string;
+  temperature: number;
+  voltage: number;
+  frequency: number;
 }
 
 /**
@@ -20,21 +20,30 @@ interface sensorResponse {
  * @param {"open" | "closed" | "unknown"} state - The current state of the door sensor.
  * @return {Promise<void>} A promise that resolves when all alarms are triggered and the event is raised/logged.
  */
-export async function checkSensorState(previousState: doorSensor, state: "open" | "closed" | "unknown"): Promise<void> {
-    if (previousState.armed && state === "open" && previousState.state !== "open") {
-        const alarms = (await alarmRepository.search().returnAll()) as Alarm[] | [];
-        const alarmpromises = [];
-        alarmpromises.push(changeAlarmState(alarms, "on"));
-        alarmpromises.push(
-            raiseEvent(
-                "critical",
-                `Alarm triggered by sensor at ${previousState.name} in ${previousState.building} with ip address of ${
-                    previousState.ipAddress
-                }. \n This was detected at ${new Date().toString()}`
-            )
-        );
-        await Promise.all(alarmpromises);
-    }
+export async function checkSensorState(
+  previousState: doorSensor,
+  state: "open" | "closed" | "unknown"
+): Promise<void> {
+  if (
+    previousState.armed &&
+    state === "open" &&
+    previousState.state !== "open"
+  ) {
+    const alarms = (await alarmRepository.search().returnAll()) as Alarm[] | [];
+    const alarmpromises = [];
+    alarmpromises.push(changeAlarmState(alarms, "on"));
+    alarmpromises.push(
+      raiseEvent(
+        "critical",
+        `Alarm triggered by sensor at ${previousState.name} in ${
+          previousState.building
+        } with ip address of ${
+          previousState.ipAddress
+        }. \n This was detected at ${new Date().toString()}`
+      )
+    );
+    await Promise.all(alarmpromises);
+  }
 }
 
 /**
@@ -44,26 +53,38 @@ export async function checkSensorState(previousState: doorSensor, state: "open" 
  * @param {doorSensor} sensor - The relevant door sensor info.
  * @return {Promise<void>} A promise that resolves when the event is raised/logged.
  */
-export async function checkSensorTemperature(temperature: number, sensor: doorSensor): Promise<void> {
-    const config = (await configRepository.search().returnFirst()) as Config | null;
-    if (!config) {
-        raiseError(500, "No config found");
-        return;
-    }
-    const startText = `Sensor at ${sensor.name} in ${sensor.building} is above configured`;
-    const endText = `, current temperature is ${temperature}°C. \n This was detected at ${new Date().toString()}. \n These devices are rated to work between -20C and 80C.`;
-    if (temperature > config.sensorCriticalTemparature) {
-        await raiseEvent(
-            "critical",
-            startText + `critical temperature ${config.sensorCriticalTemparature}°C` + endText
-        );
-        return;
-    }
-    if (temperature > config.sensorWarningTemparature) {
-        await raiseEvent("warning", startText + `warning temperature ${config.sensorWarningTemparature}°C` + endText);
-        return;
-    }
+export async function checkSensorTemperature(
+  temperature: number,
+  sensor: doorSensor
+): Promise<void> {
+  const config = (await configRepository
+    .search()
+    .returnFirst()) as Config | null;
+  if (!config) {
+    raiseError(500, "No config found");
     return;
+  }
+  const startText = `Sensor at ${sensor.name} in ${sensor.building} is above configured`;
+  const endText = `, current temperature is ${temperature}°C. \n This was detected at ${new Date().toString()}. \n These devices are rated to work between -20C and 80C.`;
+  if (temperature > config.sensorCriticalTemparature) {
+    await raiseEvent(
+      "critical",
+      startText +
+        `critical temperature ${config.sensorCriticalTemparature}°C` +
+        endText
+    );
+    return;
+  }
+  if (temperature > config.sensorWarningTemparature) {
+    await raiseEvent(
+      "warning",
+      startText +
+        `warning temperature ${config.sensorWarningTemparature}°C` +
+        endText
+    );
+    return;
+  }
+  return;
 }
 
 /**
@@ -73,31 +94,36 @@ export async function checkSensorTemperature(temperature: number, sensor: doorSe
  * @param {boolean} armed - The new armed status of the door sensors.
  * @return {Promise<any[]>} A promise that resolves to an array of results from the promises of saving the door sensors to redis.
  */
-export async function changeSensorStatus(sensors: doorSensor[], armed: boolean): Promise<any[]> {
-    const savePromises = [];
-    for (const sensor of sensors) {
-        sensor.armed = armed;
-        savePromises.push(doorSensorRepository.save(sensor));
-    }
-    const res = await Promise.all(savePromises);
-    const checkPromises = [];
-    const raisePromises = [];
-    // This is necessary to trigger the alarms based on a change
-    // in armed status (e.g. door open and user changes status to armed)
-    for (const sensor of sensors) {
-        checkPromises.push(checkSensorState(sensor, sensor.state));
-        // TODO: raise events in batches
-        raisePromises.push(
-            raiseEvent(
-                "info",
-                `Sensor at ${sensor.name} in ${sensor.building} was ${sensor.armed ? "armed" : "disarmed"}`
-            )
-        );
-    }
-    await Promise.all(checkPromises);
-    // not necessary to await raise events promises as they
-    // can happen in background so we return to user quickly
-    return res;
+export async function changeSensorStatus(
+  sensors: doorSensor[],
+  armed: boolean
+): Promise<any[]> {
+  const savePromises = [];
+  for (const sensor of sensors) {
+    sensor.armed = armed;
+    savePromises.push(doorSensorRepository.save(sensor));
+  }
+  const res = await Promise.all(savePromises);
+  const checkPromises = [];
+  const raisePromises = [];
+  // This is necessary to trigger the alarms based on a change
+  // in armed status (e.g. door open and user changes status to armed)
+  for (const sensor of sensors) {
+    checkPromises.push(checkSensorState(sensor, sensor.state));
+    // TODO: raise events in batches
+    raisePromises.push(
+      raiseEvent(
+        "info",
+        `Sensor at ${sensor.name} in ${sensor.building} was ${
+          sensor.armed ? "armed" : "disarmed"
+        }`
+      )
+    );
+  }
+  await Promise.all(checkPromises);
+  // not necessary to await raise events promises as they
+  // can happen in background so we return to user quickly
+  return res;
 }
 
 /**
@@ -106,16 +132,17 @@ export async function changeSensorStatus(sensors: doorSensor[], armed: boolean):
  * @param {doorSensor[]} sensors - The array of door sensors to change the status of.
  * @return {Promise<any[]>} A promise that resolves to an array of results from the promises of saving the door sensors to redis.
  */
-export async function setSensorStatusUnknown(sensors: doorSensor[]): Promise<any[]> {
-    const savePromises = [];
-    for (const sensor of sensors) {
-        sensor.state = "unknown";
-        savePromises.push(doorSensorRepository.save(sensor));
-    }
-    const res = await Promise.all(savePromises);
-    return res;
+export async function setSensorStatusUnknown(
+  sensors: doorSensor[]
+): Promise<any[]> {
+  const savePromises = [];
+  for (const sensor of sensors) {
+    sensor.state = "unknown";
+    savePromises.push(doorSensorRepository.save(sensor));
+  }
+  const res = await Promise.all(savePromises);
+  return res;
 }
-
 
 /**
  * Updates the state and temperature of a door sensor, also checks if any alarms need to be triggered or if the temperature is too high.
@@ -130,41 +157,41 @@ export async function setSensorStatusUnknown(sensors: doorSensor[]): Promise<any
  * @throws {Error} If the sensor with the given ID is not found.
  */
 export async function DoorSensorUpdate({
-    state,
-    temperature,
-    voltage,
-    frequency,
-    sensorId,
+  state,
+  temperature,
+  voltage,
+  frequency,
+  sensorId,
 }: {
-    state: "open" | "closed" | "unknown";
-    temperature: number;
-    voltage: number | null | undefined;
-    frequency: number | null | undefined;
-    sensorId: string;
+  state: "open" | "closed" | "unknown";
+  temperature: number;
+  voltage: number | null | undefined;
+  frequency: number | null | undefined;
+  sensorId: string;
 }): Promise<void> {
-    const currentState = (await doorSensorRepository
-        .search()
-        .where("externalID")
-        .eq(sensorId)
-        .returnFirst()) as doorSensor | null;
-    if (!currentState) {
-        const err = raiseError(404, `Sensor with Id ${sensorId} not found`);
-        throw err;
-    }
-    checkSensorState(currentState, state);
-    checkSensorTemperature(temperature, currentState);
-    currentState.state = state;
-    currentState.temperature = temperature;
-    currentState.voltage = voltage ? voltage : undefined;
-    currentState.frequency = frequency ? frequency : undefined;
-    currentState.lastUpdated = new Date();
-    await doorSensorRepository.save(currentState);
-    // not awaiting as server is running continously so this will happen in background
-    db.insert(sensorUpdatesTable).values({
-        sensorId: currentState.externalID,
-        state: state,
-        temperature: temperature.toString(),
-        voltage: voltage ? voltage.toString() : null,
-        frequency: frequency,
-    });
+  const currentState = (await doorSensorRepository
+    .search()
+    .where("externalID")
+    .eq(sensorId)
+    .returnFirst()) as doorSensor | null;
+  if (!currentState) {
+    const err = raiseError(404, `Sensor with Id ${sensorId} not found`);
+    throw err;
+  }
+  checkSensorState(currentState, state);
+  checkSensorTemperature(temperature, currentState);
+  currentState.state = state;
+  currentState.temperature = temperature;
+  currentState.voltage = voltage ? voltage : undefined;
+  currentState.frequency = frequency ? frequency : undefined;
+  currentState.lastUpdated = new Date();
+  await doorSensorRepository.save(currentState);
+  // not awaiting as server is running continously so this will happen in background
+  db.insert(sensorUpdatesTable).values({
+    sensorId: currentState.externalID,
+    state: state,
+    temperature: temperature.toString(),
+    voltage: voltage ? voltage.toString() : null,
+    frequency: frequency,
+  });
 }

@@ -1,6 +1,6 @@
 import { Repository, Schema } from "redis-om";
 import { redis } from "./index";
-import { raiseError } from "../errorHandling";
+import { raiseError } from "src/notifiy";
 
 const configSchema = new Schema("config", {
   sensorWarningTemparature: { type: "number" },
@@ -19,23 +19,32 @@ export const createConfigIndex = async () => {
   try {
     await configRepository.createIndex();
   } catch (error) {
-    console.error('Error creating config index:', error);
+    console.error("Error creating config index:", error);
   }
 };
 
-
 export const setDefaultConfig = async () => {
-  const config = (await configRepository.search().returnFirst()) as Config | null;
+  const config = (await configRepository
+    .search()
+    .returnFirst()) as Config | null;
   if (config) {
     return;
   }
-  if (!process.env.SENSOR_WARNING_TEMPERATURE || !process.env.SENSOR_CRITICAL_TEMPERATURE) {
-    raiseError(500, "SENSOR_WARNING_TEMPERATURE or SENSOR_CRITICAL_TEMPERATURE is not set");
+  if (
+    !process.env.SENSOR_WARNING_TEMPERATURE ||
+    !process.env.SENSOR_CRITICAL_TEMPERATURE
+  ) {
+    raiseError(
+      500,
+      "SENSOR_WARNING_TEMPERATURE or SENSOR_CRITICAL_TEMPERATURE is not set"
+    );
     return;
   }
   await configRepository.save({
     sensorWarningTemparature: parseInt(process.env.SENSOR_WARNING_TEMPERATURE!),
-    sensorCriticalTemparature: parseInt(process.env.SENSOR_CRITICAL_TEMPERATURE!),
+    sensorCriticalTemparature: parseInt(
+      process.env.SENSOR_CRITICAL_TEMPERATURE!
+    ),
     pushTokens: [],
   } as Config);
 };
