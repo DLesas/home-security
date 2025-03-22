@@ -189,6 +189,9 @@ services:
   caddy:
     build:
       context: ./caddy
+    environment:
+      - SERVER_PORT=${SERVER_PORT:-8080}
+      - DOMAIN=backend.home.local
     restart: unless-stopped
     ports:
       - "80:80"
@@ -200,8 +203,6 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    environment:
-      - DOMAIN=backend.home.local
     networks:
       - backend
       - frontend
