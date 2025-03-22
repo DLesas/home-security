@@ -5,10 +5,10 @@ RUN mkdir -p /data/caddy
 
 # Copy Caddyfile
 COPY Caddyfile /etc/caddy/Caddyfile
+# Handled in docker-compose.yml, for Documentation purposes. Expose ports
 
-# Expose ports
-EXPOSE 80
-EXPOSE 443
+# EXPOSE 80
+# EXPOSE 443
 
 # Set volume for Caddy data
 VOLUME ["/data/caddy"] 

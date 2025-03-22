@@ -2,5 +2,5 @@
 FROM timescale/timescaledb-ha:pg16
 
 
-# Expose port 5432
-EXPOSE 5432
+# Handled in docker-compose.yml, for Documentation purposes. Expose ports
+#EXPOSE 5432

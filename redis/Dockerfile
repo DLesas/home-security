@@ -7,8 +7,8 @@ FROM redis/redis-stack:latest
 COPY redis-stack.conf /redis-stack.conf
 
 
-# Expose ports 6379 (Redis) and 8001 (RedisInsight)
-EXPOSE 6379 8001
+# Handled in docker-compose.yml, for Documentation purposes. 6379 is the default port for Redis and 8001 is the default port for RedisInsight
+#EXPOSE 6379 8001
 
 # Set the working directory to /data for persistence
 WORKDIR /data
