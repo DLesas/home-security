@@ -16,7 +16,7 @@
 }
 
 # Single domain for both web and API
-backend.home.local {
+{$DOMAIN:backend.home.local} {
     # TLS with self-signed certificate
     tls internal {
         generate
@@ -37,7 +37,7 @@ backend.home.local {
 
     # API and WebSocket routes
     handle_path /api/* {
-        reverse_proxy backend:8080 {
+        reverse_proxy backend:{$SERVER_PORT:8080} {
             header_up Host {host}
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}
@@ -51,7 +51,7 @@ backend.home.local {
 
     # WebSocket routes
     handle_path /ws/* {
-        reverse_proxy backend:8080 {
+        reverse_proxy backend:{$SERVER_PORT:8080} {
             header_up Host {host}
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}
