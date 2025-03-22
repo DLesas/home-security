@@ -21,6 +21,7 @@ COPY --chown=node:node db /home/node/db
 # Build the TypeScript code
 RUN npm run build
 
-EXPOSE 8080
+# Handled in docker-compose.yml, for Documentation purposes. Expose ports
+#EXPOSE 8080
 
 CMD [ "npm", "start" ]
