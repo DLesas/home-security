@@ -6,13 +6,14 @@ WORKDIR /app
 # Copy shared files with correct path
 COPY backend/src/db ./shared/db
 COPY backend/src/redis ./shared/redis
+COPY backend/src/events ./shared/events
 
 # Copy advertisement service files
-COPY eventSystem/package*.json ./
+COPY eventService/package*.json ./
 RUN npm install
 
-COPY eventSystem/src ./src
-COPY eventSystem/tsconfig.json ./
+COPY eventService/src ./src
+COPY eventService/tsconfig.json ./
 
 # Port Documentation:
 # This service uses the following ports (configured in docker-compose.yml):
