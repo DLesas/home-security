@@ -6,6 +6,7 @@ WORKDIR /app
 # Copy shared files with correct path
 COPY backend/src/db ./shared/db
 COPY backend/src/redis ./shared/redis
+COPY backend/src/events ./shared/events
 
 # Copy advertisement service files
 COPY advertisementService/package*.json ./
