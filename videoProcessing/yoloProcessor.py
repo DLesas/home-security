@@ -2,7 +2,7 @@ from ultralytics import YOLO
 import multiprocessing as mp
 import numpy as np
 import time
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any, Tuple, Literal
 from queue import Empty, Full
 import torch
 import logging
@@ -13,6 +13,9 @@ import torch.cuda
 from collections import defaultdict
 from performanceMonitor import measure_operation
 from yoloClasses import yolo_classes
+
+# Create a literal type from yolo_classes
+YoloClassName = Literal[tuple(class_info['name'] for class_info in yolo_classes.values())]
 
 @dataclass
 class BoundingBox:
@@ -26,9 +29,9 @@ class Detection:
     bbox: BoundingBox
     confidence: float
     class_id: int
-    class_name: str
+    class_name: YoloClassName
     class_color: Tuple[int, int, int]
-    
+
 @dataclass
 class ProcessedFrame:
     frame_id: int
@@ -52,13 +55,8 @@ class YOLOProcessor:
         self.logger = logging.getLogger(__name__)
 
         # Get optimal configuration
-        self.num_workers = ResourceManager.get_optimal_process_count(min_cores_available=4)
-        self.batch_size = 8
-        # ResourceManager.calculate_optimal_batch_size(
-        #     memory_fraction=memory_fraction,
-        #     num_workers=self.num_workers
-        # )
-
+        self.num_workers = 1  #ResourceManager.get_optimal_process_count(min_cores_available=4)
+        self.memory_fraction = memory_fraction
         self.model_path = model_path
         self.shared_queue = shared_queue
         self.result_queue = result_queue
@@ -88,7 +86,8 @@ class YOLOProcessor:
                     self.drop_frames,
                     self.logging_queue,
                     self.running,
-                    self.batch_size,
+                    self.num_workers,
+                    self.memory_fraction,
                     self.device
                 ),
                 daemon=True
@@ -96,7 +95,7 @@ class YOLOProcessor:
             process.start()
             self.processes.append(process)
 
-        self.logger.info(f"Started {self.num_workers} YOLO workers with batch size {self.batch_size}")
+        self.logger.info(f"Started {self.num_workers} YOLO workers")
 
     def stop(self) -> None:
         """Stop all processes"""
@@ -130,7 +129,8 @@ class YOLOProcessor:
         drop_frames: mp.Value,
         logging_queue: mp.Queue,
         running: mp.Event,
-        batch_size: int,
+        num_workers: int,
+        memory_fraction: float,
         device: str,
     ) -> None:
         """Worker process for YOLO inference"""
@@ -148,6 +148,10 @@ class YOLOProcessor:
             with measure_operation(performance_queue, stream_id, "model_load"):
                 model = YOLO(model_path)
                 model.to(device)
+
+            batch_size = ResourceManager.calculate_optimal_batch_size(
+                model, memory_fraction=memory_fraction, num_workers=num_workers, logging_queue=logging_queue
+            )
 
             logging_queue.put({
                 "severity": "info",
@@ -179,14 +183,14 @@ class YOLOProcessor:
                             })
                         except Empty:
                             break
-        
+
                 if not batch_frames:
                     time.sleep(0.01)
                     continue
 
                 # Process batch
                 with measure_operation(performance_queue, stream_id, "inference"):
-                    results = model(batch_frames, verbose=False)
+                    results: list[Any] = model(batch_frames, verbose=False)
 
                 # Process results
                 with measure_operation(performance_queue, stream_id, "post_processing"):
