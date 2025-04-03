@@ -3,7 +3,7 @@ import net from "net";
 import { db } from "./shared/db/db";
 import { errorLogsTable } from "./shared/db/schema/errorLogs";
 import { doorSensorRepository, type doorSensor } from "./shared/redis/doorSensors";
-import { raiseEvent } from "./shared/notifiy";
+import { raiseEvent } from "./shared/events/notify";
 
 /** The port number for UDP listening */
 const UDP_PORT = process.env.UDP_LISTEN_PORT
@@ -92,7 +92,8 @@ function establishTcpConnection(clientIp: string, clientPort: number): void {
       console.log(`Received message from client: ${clientMessage}`);
       await raiseEvent(
         "critical",
-        `A device tried to connect to the server but the server does not recognize it, the device has ip ${clientIp} and port ${clientPort}, it sent the message ${clientMessage}`
+        `A device tried to connect to the server but the server does not recognize it, the device has ip ${clientIp} and connected via port ${clientPort}, it sent the message ${clientMessage}`,
+        "advertisementService:udpBroadcast:TCP"
       );
     } else {
       tcpSocket.write(SERVER_PASS);
