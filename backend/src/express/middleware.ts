@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { db } from "../db/db";
 import { accessLogsTable } from "../db/schema/accessLogs";
 import { errorLogsTable } from "../db/schema/errorLogs";
-import { CustomError, raiseError } from "src/notifiy";
+import { CustomError, raiseError } from "src/events/notify";
 import { getIpAddress, normalizeIpAddress } from "../utils";
 
 /**

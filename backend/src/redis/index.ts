@@ -1,5 +1,4 @@
 import { createClient, RedisClientType } from "redis";
-import { Repository, Schema } from "redis-om";
 
 /**
  * Redis client instance.

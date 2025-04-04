@@ -6,10 +6,10 @@ import { db, writePostgresCheckpoint } from "../../db/db";
 import { sensorsTable } from "../../db/schema/sensors";
 import { buildingTable } from "../../db/schema/buildings";
 import { eq } from "drizzle-orm";
-import { raiseEvent } from "../../notifiy";
+import { raiseEvent } from "../../events/notify";
 import { emitNewData } from "../socketHandler";
 import { EntityId } from "redis-om";
-import { raiseError } from "src/notifiy";
+import { raiseError } from "src/events/notify";
 import { getIpAddress, makeID, normalizeIpAddress } from "../../utils";
 import { sensorLogsTable } from "../../db/schema/sensorLogs";
 import { writeRedisCheckpoint } from "../../redis/index";
@@ -65,7 +65,8 @@ router.post("/:sensorId/handshake", async (req, res, next) => {
       "info",
       `Recieved first handshake from sensor ${sensor!.name} in ${
         sensor!.building
-      } with ip: ${ipAddress} , and mac: ${macAddress}`
+      } with ip: ${ipAddress} , and mac: ${macAddress}`,
+      "backend:sensors"
     );
   }
   res
@@ -144,7 +145,8 @@ router.post("/update", async (req, res, next) => {
   await emitNewData();
   await raiseEvent(
     "info",
-    `Sensor ${sensor.name} in ${sensor.building} with id ${sensor.externalID} and ip address ${sensor.ipAddress} updated with state: ${status}, temperature: ${temperature}, voltage: ${voltage}, frequency: ${frequency}`
+    `Sensor ${sensor.name} in ${sensor.building} with id ${sensor.externalID} and ip address ${sensor.ipAddress} updated with state: ${status}, temperature: ${temperature}, voltage: ${voltage}, frequency: ${frequency}`,
+    "backend:sensors"
   );
   res.status(200).json({ status: "success", message: "update acknowledged" });
 });
@@ -213,7 +215,8 @@ router.post("/logs", async (req, res, next) => {
   );
   await raiseEvent(
     "info",
-    `Logs received from sensor ${sensor.name} in ${sensor.building} with id ${sensor.externalID} and ip address ${sensor.ipAddress}`
+    `Logs received from sensor ${sensor.name} in ${sensor.building} with id ${sensor.externalID} and ip address ${sensor.ipAddress}`,
+    "backend:sensors"
   );
   res.status(200).json({ status: "success", message: "Logs received" });
 });
@@ -297,7 +300,8 @@ router.post("/new", async (req, res, next) => {
   } as doorSensor);
   await raiseEvent(
     "info",
-    `New sensor ${newSensor.name} in ${building} with id ${newSensor.id} added`
+    `New sensor ${newSensor.name} in ${building} with id ${newSensor.id} added`,
+    "backend:sensors"
   );
   await writePostgresCheckpoint();
   await writeRedisCheckpoint();
@@ -332,7 +336,8 @@ router.delete("/:sensorId", async (req, res, next) => {
   await doorSensorRepository.remove(entityId);
   await raiseEvent(
     "warning",
-    `Sensor ${sensor.name} in ${sensor.building} deleted`
+    `Sensor ${sensor.name} in ${sensor.building} deleted`,
+    "backend:sensors"
   );
   await emitNewData();
   await writePostgresCheckpoint();
@@ -368,7 +373,8 @@ router.post("/:sensorId/arm", async (req, res) => {
   await emitNewData();
   await raiseEvent(
     "warning",
-    `Sensor ${sensor.name} in ${sensor.building} armed`
+    `Sensor ${sensor.name} in ${sensor.building} armed`,
+    "backend:sensors"
   );
   res.json({ status: "success", message: "Sensor armed" });
 });
@@ -396,7 +402,8 @@ router.post("/:sensorId/disarm", async (req, res) => {
   await emitNewData();
   await raiseEvent(
     "warning",
-    `Sensor ${sensor.name} in ${sensor.building} disarmed`
+    `Sensor ${sensor.name} in ${sensor.building} disarmed`,
+    "backend:sensors"
   );
   res.json({ status: "success", message: "Sensor disarmed" });
 });

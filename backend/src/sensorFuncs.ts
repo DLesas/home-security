@@ -1,6 +1,6 @@
-import { raiseError } from "./notifiy";
+import { raiseError } from "./events/notify";
 import { changeAlarmState } from "./alarmFuncs";
-import { raiseEvent } from "./notifiy";
+import { raiseEvent } from "./events/notify";
 import { type Alarm, alarmRepository } from "./redis/alarms";
 import { type Config, configRepository } from "./redis/config";
 import { type doorSensor, doorSensorRepository } from "./redis/doorSensors";
@@ -39,7 +39,8 @@ export async function checkSensorState(
           previousState.building
         } with ip address of ${
           previousState.ipAddress
-        }. \n This was detected at ${new Date().toString()}`
+        }. \n This was detected at ${new Date().toString()}`,
+        "backend:sensors:funcs"
       )
     );
     await Promise.all(alarmpromises);
@@ -71,7 +72,8 @@ export async function checkSensorTemperature(
       "critical",
       startText +
         `critical temperature ${config.sensorCriticalTemparature}°C` +
-        endText
+        endText,
+      "backend:sensors:funcs"
     );
     return;
   }
@@ -80,7 +82,8 @@ export async function checkSensorTemperature(
       "warning",
       startText +
         `warning temperature ${config.sensorWarningTemparature}°C` +
-        endText
+        endText,
+      "backend:sensors:funcs"
     );
     return;
   }
@@ -116,7 +119,8 @@ export async function changeSensorStatus(
         "info",
         `Sensor at ${sensor.name} in ${sensor.building} was ${
           sensor.armed ? "armed" : "disarmed"
-        }`
+        }`,
+        "backend:sensors:funcs"
       )
     );
   }
