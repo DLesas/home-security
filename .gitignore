@@ -56,3 +56,6 @@ swe-worker-*
 */data*
 
 *__pycache__
+
+# YOLO models
+videoProcessing/yoloModels/**
