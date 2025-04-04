@@ -1,13 +1,13 @@
-import wifi from 'node-wifi'
+import si from 'systeminformation'
 import { EventEmitter } from 'events'
-import { networkInterfaces } from 'os'
 
 export interface WiFiNetwork {
   ssid: string
+  bssid: string
   quality: number
-  security: string
+  security: string[]
   frequency: number
-  signal_level: number
+  signalLevel: number
   isConnected?: boolean
   localIpAddress?: string | null
 }
@@ -18,9 +18,6 @@ export class WiFiMonitor extends EventEmitter {
   
   constructor() {
     super()
-    wifi.init({
-      iface: null,
-    })
     this.startMonitoring()
   }
 
@@ -36,22 +33,31 @@ export class WiFiMonitor extends EventEmitter {
 
   private async updateNetworks() {
     try {
-      const networks = await wifi.scan()
-      
-      const currentConnection = await this.getCurrentConnection()
-      console.log('currentConnection', currentConnection)
-      // Get the WiFi interface name based on platform
-      const wifiInterface = this.getWifiInterfaceName();
-      const localIp = wifiInterface ? this.getLocalIPv4ForInterface(wifiInterface) : null;
-      console.log('localIp', localIp)
-      const enhancedNetworks = networks.map((network: WiFiNetwork) => ({
-        ...network,
-        isConnected: currentConnection?.ssid === network.ssid,
-        localIpAddress: network.ssid === currentConnection?.ssid ? localIp : undefined
-      }))
-      console.log('enhancedNetworks', enhancedNetworks)
+      // Get WiFi networks and current connection
+      const [networks, currentConnection] = await Promise.all([
+        si.wifiNetworks(),
+        si.wifiConnections()
+      ])
 
-      this.currentNetwork = currentConnection
+      // Get the current connected network
+      const currentWifi = currentConnection[0]
+      
+      // Get local IP address for the current connection
+      const localIp = currentWifi ? await this.getLocalIpAddress() : null
+
+      // Transform networks to our format
+      const enhancedNetworks = networks.map(network => ({
+        ssid: network.ssid,
+        bssid: network.bssid,
+        quality: network.quality,
+        security: network.security,
+        frequency: network.frequency,
+        signalLevel: network.signalLevel,
+        isConnected: currentWifi?.ssid === network.ssid,
+        localIpAddress: currentWifi?.ssid === network.ssid ? localIp : undefined
+      }))
+
+      this.currentNetwork = currentWifi ? enhancedNetworks.find(n => n.isConnected) || null : null
       this.emit('networksChanged', enhancedNetworks)
       return enhancedNetworks
     } catch (error) {
@@ -60,44 +66,25 @@ export class WiFiMonitor extends EventEmitter {
     }
   }
 
-  public async getCurrentConnection(): Promise<WiFiNetwork | null> {
+  private async getLocalIpAddress(): Promise<string | null> {
     try {
-      const currentConnection = await wifi.getCurrentConnections()
-      if (!currentConnection?.[0]) return null;
-      
-      const connection = currentConnection[0];
-      
-      // On Windows, if SSID is 'connected', use BSSID instead
-      if (process.platform === 'win32' && connection.ssid === 'connected' && connection.bssid) {
-        connection.ssid = connection.bssid;
+      const networkInterfaces = await si.networkInterfaces();
+      const interfaces = Array.isArray(networkInterfaces) ? networkInterfaces : [networkInterfaces];
+      const wifiInterface = interfaces.find(iface => 
+        iface.operstate === 'up' && 
+        (iface.type === 'wireless' || iface.type === 'wifi')
+      );
+
+      if (wifiInterface) {
+        const ipv4 = wifiInterface.ip4;
+        return ipv4 || null;
       }
-      
-      return connection
+      return null;
     } catch (error) {
-      console.error('Error getting current WiFi connection:', error)
-      return null
+      console.error('Error getting local IP address:', error);
+      return null;
     }
   }
-
-//   public async connect(ssid: string, password: string): Promise<void> {
-//     try {
-//       await wifi.connect({ ssid, password })
-//       await this.updateNetworks() // Refresh the network list after connection
-//     } catch (error) {
-//       console.error('Error connecting to WiFi:', error)
-//       throw error
-//     }
-//   }
-
-//   public async disconnect(): Promise<void> {
-//     try {
-//       await wifi.disconnect()
-//       await this.updateNetworks()
-//     } catch (error) {
-//       console.error('Error disconnecting from WiFi:', error)
-//       throw error
-//     }
-//   }
 
   public stopMonitoring() {
     if (this.scanInterval) {
@@ -108,46 +95,6 @@ export class WiFiMonitor extends EventEmitter {
 
   public async getNetworks(): Promise<WiFiNetwork[]> {
     return this.updateNetworks()
-  }
-
-  private getWifiInterfaceName(): string | null {
-    const platform = process.platform;
-    
-    // Get all network interfaces
-    const interfaces = networkInterfaces();
-    switch (platform) {
-      case 'win32': // Windows
-        return Object.keys(interfaces).find(name => 
-          name.toLowerCase().includes('wi-fi') || 
-          name.toLowerCase().includes('wireless')
-        ) || null;
-        
-      case 'darwin': // macOS
-        return Object.keys(interfaces).find(name => 
-          name.toLowerCase().startsWith('en')
-        ) || null;
-        
-      case 'linux': // Linux
-        return Object.keys(interfaces).find(name => 
-          name.toLowerCase().includes('wlan')
-        ) || null;
-        
-      default:
-        return null;
-    }
-  }
-
-  private getLocalIPv4ForInterface(interfaceName: string): string | null {
-    const interfaces = networkInterfaces();
-    const interfaceInfo = interfaces[interfaceName];
-    if (!interfaceInfo) return null;
-
-    for (const address of interfaceInfo) {
-      if (address.family === 'IPv4') {
-        return address.address;
-      }
-    }
-    return null;
   }
 }
 
