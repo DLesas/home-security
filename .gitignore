@@ -59,3 +59,4 @@ swe-worker-*
 
 # YOLO models
 videoProcessing/yoloModels/**
+_archive/backend_python/models/**
