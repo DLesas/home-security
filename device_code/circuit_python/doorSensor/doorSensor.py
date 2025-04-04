@@ -93,6 +93,7 @@ class DoorSensor:
             print(
                 f"Failed to send door state, status code: {response.status_code}, response: {response.text}"
             )
+            # TODO: if failure to send data, should broadcast via udp to get server ip address again
         if "response" in locals():
             response.close()
         self.Led.turn_off_led()
