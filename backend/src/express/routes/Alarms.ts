@@ -3,12 +3,12 @@ import { z } from "zod";
 import { db, writePostgresCheckpoint } from "../../db/db";
 import { buildingTable } from "../../db/schema/buildings";
 import { eq } from "drizzle-orm";
-import { raiseEvent } from "../../notifiy";
+import { raiseEvent } from "../../events/notify";
 import { emitNewData } from "../socketHandler";
 import { alarmsTable } from "../../db/schema/alarms";
 import { type Alarm, alarmRepository } from "../../redis/alarms";
 import { EntityId } from "redis-om";
-import { raiseError } from "src/notifiy";
+import { raiseError } from "src/events/notify";
 import { getIpAddress, makeID, normalizeIpAddress } from "../../utils";
 import { alarmLogsTable } from "../../db/schema/alarmLogs";
 import { alarmUpdatesTable } from "../../db/schema/alarmUpdates";
@@ -94,7 +94,8 @@ router.post("/new", async (req, res, next) => {
   await emitNewData();
   await raiseEvent(
     "info",
-    `New alarm ${newAlarm.name} in ${building} with id ${newAlarm.id} added`
+    `New alarm ${newAlarm.name} in ${building} with id ${newAlarm.id} added`,
+    "backend:alarms"
   );
   await writePostgresCheckpoint();
   await writeRedisCheckpoint();
@@ -129,7 +130,8 @@ router.delete("/:alarmId", async (req, res, next) => {
   await emitNewData();
   await raiseEvent(
     "warning",
-    `Alarm ${alarm.name} in ${alarm.building} with id ${alarm.id} deleted`
+    `Alarm ${alarm.name} in ${alarm.building} with id ${alarm.id} deleted`,
+    "backend:alarms"
   );
   await writePostgresCheckpoint();
   await writeRedisCheckpoint();
@@ -200,7 +202,8 @@ router.post("/logs", async (req, res, next) => {
   );
   await raiseEvent(
     "info",
-    `Logs received from alarm ${alarm.name} in ${alarm.building}`
+    `Logs received from alarm ${alarm.name} in ${alarm.building}`,
+    "backend:alarms"
   );
   res.json({ status: "success", message: "Logs received" });
 });
@@ -251,7 +254,8 @@ router.post("/:alarmId/handshake", async (req, res, next) => {
     await emitNewData();
     await raiseEvent(
       "info",
-      `Recieved first handshake from Alarm ${alarm.name} in ${alarm.building} with ip: ${alarm.ipAddress} , and mac: ${macAddress}`
+      `Recieved first handshake from Alarm ${alarm.name} in ${alarm.building} with ip: ${alarm.ipAddress} , and mac: ${macAddress}`,
+      "backend:alarms"
     );
   }
   res

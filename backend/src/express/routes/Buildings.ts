@@ -4,8 +4,8 @@ import { changeSensorStatus } from "../../sensorFuncs";
 import { db, writePostgresCheckpoint } from "../../db/db";
 import { eq } from "drizzle-orm";
 import { buildingTable } from "../../db/schema/buildings";
-import { raiseError } from "src/notifiy";
-import { raiseEvent } from "../../notifiy";
+import { raiseError } from "src/events/notify";
+import { raiseEvent } from "../../events/notify";
 import { z } from "zod";
 import { makeID } from "../../utils";
 import { emitNewData } from "../socketHandler";
@@ -57,7 +57,8 @@ router.post("/new", async (req, res, next) => {
   await emitNewData();
   await raiseEvent(
     "info",
-    `New building ${newBuilding.name} added with id ${newBuilding.id}`
+    `New building ${newBuilding.name} added with id ${newBuilding.id}`,
+    "backend:buildings"
   );
   await writePostgresCheckpoint();
   res.status(201).json({ status: "success", data: newBuilding });
@@ -93,7 +94,11 @@ router.post("/:buildingName/arm", async (req, res, next) => {
   }
   await changeSensorStatus(sensors, true);
   await emitNewData();
-  await raiseEvent("warning", `All sensors in building ${buildingName} armed`);
+  await raiseEvent(
+    "warning",
+    `All sensors in building ${buildingName} armed`,
+    "backend:buildings"
+  );
   res.status(200).json({
     status: "success",
     message: `All sensors in building ${buildingName} armed`,
@@ -140,7 +145,8 @@ router.post("/:buildingName/disarm", async (req, res, next) => {
   await emitNewData();
   await raiseEvent(
     "warning",
-    `All sensors in building ${buildingName} disarmed`
+    `All sensors in building ${buildingName} disarmed`,
+    "backend:buildings"
   );
   res.status(200).json({
     status: "success",
