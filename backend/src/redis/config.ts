@@ -1,16 +1,14 @@
 import { Repository, Schema } from "redis-om";
 import { redis } from "./index";
-import { raiseError } from "src/notifiy";
+import { raiseError } from "src/events/notify";
 
 const configSchema = new Schema("config", {
   sensorWarningTemparature: { type: "number" },
   sensorCriticalTemparature: { type: "number" },
-  pushTokens: { type: "string[]" },
 });
 export interface Config {
   sensorWarningTemparature: number;
   sensorCriticalTemparature: number;
-  pushTokens: string[];
 }
 
 export const configRepository = new Repository(configSchema, redis);
@@ -45,6 +43,5 @@ export const setDefaultConfig = async () => {
     sensorCriticalTemparature: parseInt(
       process.env.SENSOR_CRITICAL_TEMPERATURE!
     ),
-    pushTokens: [],
   } as Config);
 };
