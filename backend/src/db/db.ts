@@ -11,8 +11,8 @@ import { setTimeout } from 'timers/promises';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-console.log(path.resolve(__dirname, '../../../db/drizzle')); // '/home/node/db/drizzle'
-console.log(path.join(__dirname, '../../../db/seed.sql')) // '/home/node/db/seed.sql'
+//console.log(path.resolve(__dirname, '../../../db/drizzle')); // '/home/node/db/drizzle'
+//console.log(path.join(__dirname, '../../../db/seed.sql')) // '/home/node/db/seed.sql'
 
 
 /**
