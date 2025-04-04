@@ -1,0 +1,75 @@
+# name: Build and Push Docker Images
+
+# on:
+#   push:
+#     branches: [ main ]  # Triggers on push to main
+#     tags: [ 'v*' ]     # And when you create version tags
+#   pull_request:
+#     branches: [ main ]  # Also on PRs to main
+
+# jobs:
+#   build:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Login to Docker Hub
+#         uses: docker/login-action@v3
+#         with:
+#           username: ${{ secrets.DOCKERHUB_USERNAME }}
+#           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+#       - name: Set up Docker Buildx
+#         uses: docker/setup-buildx-action@v3
+
+#       # Build and push backend
+#       - name: Build and push backend
+#         uses: docker/build-push-action@v5
+#         with:
+#           context: ./backend
+#           push: true
+#           tags: |
+#             yourusername/homesecurity-backend:latest
+#             yourusername/homesecurity-backend:${{ github.sha }}
+
+#       # Build and push PostgreSQL with TimescaleDB
+#       - name: Build and push PostgreSQL
+#         uses: docker/build-push-action@v5
+#         with:
+#           context: ./postgres
+#           push: true
+#           tags: |
+#             yourusername/homesecurity-postgres:latest
+#             yourusername/homesecurity-postgres:${{ github.sha }}
+
+#       # Build and push Redis Stack
+#       - name: Build and push Redis
+#         uses: docker/build-push-action@v5
+#         with:
+#           context: ./redis
+#           push: true
+#           tags: |
+#             yourusername/homesecurity-redis:latest
+#             yourusername/homesecurity-redis:${{ github.sha }}
+
+#       # Build and push Caddy
+#       - name: Build and push Caddy
+#         uses: docker/build-push-action@v5
+#         with:
+#           context: ./caddy
+#           push: true
+#           tags: |
+#             yourusername/homesecurity-caddy:latest
+#             yourusername/homesecurity-caddy:${{ github.sha }}
+
+#       # Build and push Web App
+#       # - name: Build and push Web App
+#       #   uses: docker/build-push-action@v5
+#       #   with:
+#       #     context: ./webapp
+#       #     push: true
+#       #     tags: |
+#       #       yourusername/homesecurity-webapp:latest
+#       #       yourusername/homesecurity-webapp:${{ github.sha }}
