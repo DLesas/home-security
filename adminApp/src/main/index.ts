@@ -1,17 +1,21 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import path, { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerRoute } from '../lib/electron-router-dom'
 import icon from '../../resources/icon.png?asset'
-import { USBDeviceMonitor, writeEnvFile } from './usb'
+import { USBDeviceMonitor } from './usb'
 import { WiFiMonitor } from './wifi'
 import { IpAddressManager } from './ipAddress'
-
+import { checkDockerInstallation } from '../lib/docker'
+import { getPlatformInfo, getCpuInfo } from '../lib/systemInfo'
+import { DockerService } from '../lib/docker/dockerService'
+import { setupDockerHandlers } from './docker'
 
 let mainWindow: BrowserWindow | null = null
 const usbMonitor = new USBDeviceMonitor()
 const wifiMonitor = new WiFiMonitor()
 const ipAddressManager = new IpAddressManager()
+const dockerService = new DockerService()
 
 function createWindow(): void {
   // Create the browser window.
@@ -52,7 +56,7 @@ function createWindow(): void {
   // }
 
   usbMonitor.on('devicesChanged', (devices) => {
-    mainWindow?.webContents.send('usb-devices-updated', devices)
+    mainWindow.webContents.send('usb-devices-changed', devices)
   })
 
   // Listen for network changes
@@ -62,12 +66,69 @@ function createWindow(): void {
   })
 }
 
+
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
+
+  // --- Docker Check Start ---
+  const isDockerInstalled = await checkDockerInstallation()
+  if (!isDockerInstalled) {
+    const platformInfo = await getPlatformInfo()
+    const platform = platformInfo.platform
+    let dockerUrl = 'https://www.docker.com/products/docker-desktop/' // Default URL
+
+    if (platform === 'win32') {
+      dockerUrl = 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe'
+    } else if (platform === 'darwin') {
+      const cpuInfo = await getCpuInfo()
+      if (cpuInfo.architecture === 'arm64') {
+        dockerUrl = 'https://desktop.docker.com/mac/main/arm64/Docker.dmg' // Apple Silicon
+      } else if (cpuInfo.architecture === 'x64') {
+        dockerUrl = 'https://desktop.docker.com/mac/main/amd64/Docker.dmg' // Intel
+      } else {
+        // Fallback for other architectures or if detection fails
+        console.warn('Could not determine specific Mac architecture, using general download page.')
+        dockerUrl = 'https://www.docker.com/products/docker-desktop/'
+      }
+    } else if (platform === 'linux') {
+      dockerUrl = 'https://docs.docker.com/engine/install/#server' // Link to install instructions
+    }
+
+    const messageDetail = platform === 'linux'
+      ? 'Please follow the instructions on the Docker website to install Docker Engine for your distribution. Would you like to open the instructions page?'
+      : 'Please download and run the Docker Desktop installer from the official website. Would you like to open the download page now?'
+
+    const choice = await dialog.showMessageBox({
+      type: 'error',
+      title: 'Docker Required',
+      message: 'Docker is not detected or running. This application requires Docker to function properly.',
+      detail: messageDetail,
+      buttons: ['Yes, open page', 'Cancel'],
+      defaultId: 0,
+      cancelId: 1
+    })
+
+    if (choice.response === 0) {
+      await shell.openExternal(dockerUrl)
+      // Inform the user they might need to restart the app after installing Docker.
+      await dialog.showMessageBox({
+          type: 'info',
+          title: 'Installation Guide',
+          message: 'The Docker download/instruction page has been opened in your browser.',
+          detail: 'Please install Docker and ensure it is running, then restart this application if necessary.',
+          buttons: ['OK']
+      });
+    }
+    // Optional: Quit the app if Docker is absolutely mandatory
+    // app.quit();
+    // return; 
+  }
+  // --- Docker Check End ---
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -76,21 +137,26 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC test
+  // IPC handlers
   ipcMain.on('ping', () => console.log('pong'))
   ipcMain.handle('get-local-ip-address', () => {
     return ipAddressManager.getLocalIpAddress()
   })
-  ipcMain.handle('get-usb-devices', () => {
-    return usbMonitor.getDeviceList()
+  ipcMain.handle('get-usb-devices', async () => {
+    try {
+      return await usbMonitor.getDeviceList()
+    } catch (error) {
+      console.error('Error getting USB devices:', error)
+      return []
+    }
   })
 
-  ipcMain.on('save-env', (event, data, devicePath) => {
+  ipcMain.handle('write-env-file', async (_, data: string, devicePath: string) => {
     try {
-      writeEnvFile(data, devicePath)
-      event?.reply('save-env-result', { success: true })
+      await usbMonitor.writeEnvFile(data, devicePath)
     } catch (error) {
-      event?.reply('save-env-result', { success: false, error: (error as Error).message })
+      console.error('Error writing env file:', error)
+      throw error
     }
   })
 
@@ -98,9 +164,13 @@ app.whenReady().then(() => {
     return await wifiMonitor.getNetworks()
   })
 
-  // ipcMain.handle('connect-wifi', async (_, ssid: string, password: string) => {
-  //   await wifiMonitor.connect(ssid, password)
-  // })
+  // Set up Docker handlers
+  setupDockerHandlers(dockerService)
+
+  // Clean up all streams when the app is quitting
+  app.on('before-quit', () => {
+    dockerService.stopAllLogStreams()
+  })
 
   createWindow()
 
