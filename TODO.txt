@@ -1,6 +1,13 @@
-force system to static IP address
+force system to static IP address (addressed via udp broadcasting)
 set mdns for web app
 initialise default configurations on first start
 Abstract device code networking into seperate classes for NRF24, HTTP and other protocols
 redo device code, ported micropython to circuitpython and now the code is messy and structurally questionable
-- On windows docker, have to ensure host networking is allowed in settings
+On windows docker, have to ensure host networking is allowed in settings (not needed with caddy)
+append 3 random letters to server_name before starting services on the first time services run and ensure this remains consistent between service restarts
+get electron adminApp to manage docker installation and also manage the start and stopping of the relevant containers
+consider hybrid approach in terms of getting phone clients updated state of system (push notifications + websockets when app in use)
+
+
+devices:
+    -sensor: doorSensor, line 96: if fail to send state should do udp broadcast routine again
