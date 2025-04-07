@@ -7,7 +7,7 @@ services:
       - "${REDIS_PORT:-6379}:6379"
       - "${REDIS_UI_PORT:-8001}:8001"
     volumes:
-      - redis_data:/data
+      - ./redis/data:/data
     deploy:
       replicas: 1
     restart: always 
@@ -30,7 +30,7 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - postgres_data:/home/postgres/pgdata/data
+      - ./postgres/data:/home/postgres/pgdata/data
     deploy:
       replicas: 1
     restart: always
@@ -211,10 +211,6 @@ networks:
     internal: true
 
 volumes:
-  redis_data:
-    driver: local
-  postgres_data:
-    driver: local
   caddy_data:
     driver: local
 
