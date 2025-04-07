@@ -1,9 +1,11 @@
 import Docker from 'dockerode'
 import compose from 'docker-compose'
 import path from 'path'
-import { readFile } from 'fs/promises'
+import { readFile, mkdir, writeFile } from 'fs/promises'
 import yaml from 'js-yaml'
 import { EventEmitter } from 'events'
+import { app } from 'electron'
+
 
 export interface ServiceStatus {
   name: string
@@ -22,12 +24,87 @@ export class DockerService extends EventEmitter {
   constructor() {
     super()
     this.docker = new Docker()
-    // This is going to cause me a headache at some point
-    //  as we havent defined where the docker-compose.yml
-    //  file is going to live once the adminApp downloads
-    //  the file from the server.
-    this.composePath = path.join(process.cwd()) 
-    this.loadServiceNames()
+    this.composePath = path.join(app.getPath('appData'), 'docker')
+    
+    // Initialize the service
+    this.initialize()
+  }
+
+  private async initialize(): Promise<void> {
+    try {
+      // Ensure the directory exists
+      await mkdir(this.composePath, { recursive: true })
+      
+      // Pull the necessary images from Docker Hub
+      const images = [
+        'your-backend-image:latest',
+        'your-caddy-image:latest',
+        'your-advertisement-service-image:latest',
+        'postgres:latest',
+        'redis:latest',
+        'your-event-service-image:latest',
+        'your-wireguard-image:latest'
+      ]
+
+      for (const image of images) {
+        await this.pullImage(image)
+      }
+
+      // Create and save the docker-compose.yml file
+      const composeContent = `version: '3'
+services:
+  backend:
+    image: your-backend-image
+    ports:
+      - "8080:8080"
+  caddy:
+    image: your-caddy-image
+    ports:
+      - "443:443"
+  advertisementService:
+    image: your-advertisement-service-image
+  postgres:
+    image: postgres:latest
+    environment:
+      POSTGRES_PASSWORD: example
+  redis:
+    image: redis:latest
+  eventService:
+    image: your-event-service-image
+  wireguardService:
+    image: your-wireguard-image`
+      
+      await writeFile(
+        path.join(this.composePath, 'docker-compose.yml'),
+        composeContent,
+        'utf8'
+      )
+
+      // Load the service names
+      await this.loadServiceNames()
+    } catch (error) {
+      console.error('Error initializing Docker service:', error)
+      throw error
+    }
+  }
+
+  private async pullImage(image: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.docker.pull(image, (err: Error, stream: any) => {
+        if (err) {
+          reject(err)
+          return
+        }
+
+        this.docker.modem.followProgress(stream, (error: Error | null) => {
+          if (error) {
+            reject(error)
+          } else {
+            resolve()
+          }
+        })
+      })
+    })
   }
 
   /**
