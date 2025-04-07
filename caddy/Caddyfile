@@ -37,7 +37,7 @@
 
     # API and WebSocket routes
     handle_path /api/* {
-        reverse_proxy backend:{$SERVER_PORT:8080} {
+        reverse_proxy localhost:{$SERVER_PORT:8080} {
             header_up Host {host}
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}
@@ -51,7 +51,7 @@
 
     # WebSocket routes
     handle_path /ws/* {
-        reverse_proxy backend:{$SERVER_PORT:8080} {
+        reverse_proxy localhost:{$SERVER_PORT:8080} {
             header_up Host {host}
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}
@@ -81,7 +81,7 @@
 
     # Everything else goes to the web app
     handle {
-        reverse_proxy web:3000 {
+        reverse_proxy localhost:3000 {
             header_up Host {host}
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}
