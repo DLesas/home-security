@@ -19,7 +19,7 @@ COPY --chown=node:node . .
 COPY --chown=node:node db /home/node/db
 
 # Build the TypeScript code
-RUN npm run build
+#RUN npm run build
 
 # Handled in docker-compose.yml, for Documentation purposes. Expose ports
 #EXPOSE 8080
