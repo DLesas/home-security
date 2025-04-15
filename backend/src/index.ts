@@ -58,6 +58,11 @@ app.use(express.json());
 app.use(cors(corsOptions));
 app.use(loggingMiddleware);
 
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 // Routes
 app.use("/api/v1/sensors", sensorRoutes);
 app.use("/api/v1/buildings", buildingRoutes);
