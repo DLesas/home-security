@@ -1,19 +1,22 @@
 # advertisementService/Dockerfile
-FROM node:lts-alpine
+FROM node:22.14-alpine
 
 WORKDIR /app
 
 # Copy shared files with correct path
-COPY backend/src/db ./shared/db
-COPY backend/src/redis ./shared/redis
-COPY backend/src/events ./shared/events
 
 # Copy advertisement service files
 COPY advertisementService/package*.json ./
 RUN npm install
 
+COPY advertisementService/scripts ./scripts
 COPY advertisementService/src ./src
+COPY backend/src/db ./src/shared/db
+COPY backend/src/redis ./src/shared/redis
+COPY backend/src/events ./src/shared/events
 COPY advertisementService/tsconfig.json ./
+
+RUN npm run build
 
 # Port Documentation:
 # This service uses the following ports (configured in docker-compose.yml):
@@ -23,7 +26,5 @@ COPY advertisementService/tsconfig.json ./
 # EXPOSE ${UDP_BROADCAST_PORT:-41234}/udp
 # EXPOSE ${CLIENT_TCP_PORT:-31337}
 # EXPOSE ${BONJOUR_PORT:-4000}
-
-RUN npm run build
 
 CMD ["npm", "start"]
