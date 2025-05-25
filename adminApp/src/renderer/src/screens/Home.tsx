@@ -1,14 +1,6 @@
 import { Button } from '@nextui-org/button'
 import { useEffect, useState } from 'react'
-
-interface USBDevice {
-  vendorId: string
-  productId: string
-  manufacturer: string
-  deviceName: string
-  devicePath?: string
-  serialNumber?: string
-}
+import { USBDevice } from '../../../main/usb'
 
 export default function Main() {
   const [devices, setDevices] = useState<USBDevice[]>([])
@@ -16,7 +8,9 @@ export default function Main() {
 
   useEffect(() => {
     // Initial fetch of USB devices
-    window.usb.getUsbDevices().then(setDevices)
+    console.log('Fetching USB devices')
+    console.log(window)
+    window.usb.getUsbDevices().then((devices) => setDevices(devices))
 
     // Set up listener for device updates
     const handleDevicesUpdated = (updatedDevices: USBDevice[]) => {

@@ -10,6 +10,10 @@ import { checkDockerInstallation } from '../lib/docker'
 import { getPlatformInfo, getCpuInfo } from '../lib/systemInfo'
 import { DockerService } from '../lib/docker/dockerService'
 import { setupDockerHandlers } from './docker'
+import { fileURLToPath } from 'url'
+import fs from 'fs'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 let mainWindow: BrowserWindow | null = null
 const usbMonitor = new USBDeviceMonitor()
@@ -31,6 +35,18 @@ function createWindow(): void {
       webSecurity: false
     }
   })
+
+ 
+  const preloadPath = path.join(__dirname, '../preload/index.js')
+  fs.access(preloadPath, fs.constants.R_OK, (err) => {
+    if (err) {
+      console.error('Preload script is not readable:', preloadPath)
+    } else {
+      console.log('Preload script is readable:', preloadPath)
+    }
+  })
+
+  console.log(join(__dirname, '../preload/index.js'))
 
   registerRoute({
     id: 'main',

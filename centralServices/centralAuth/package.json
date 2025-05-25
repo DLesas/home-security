@@ -1,0 +1,30 @@
+{
+	"name": "backend",
+	"version": "1.0.0",
+	"description": "",
+	"main": "index.js",
+	"type": "module",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1",
+		"start": "npx tsx src/index",
+		"build": "tsc",
+		"generate": "drizzle-kit generate",
+		"studio": "drizzle-kit studio"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"dependencies": {
+		"@hono/node-server": "^1.14.1",
+		"better-auth": "^1.2.7",
+		"better-fetch": "^1.1.2",
+		"dotenv": "^16.5.0",
+		"drizzle-orm": "^0.42.0",
+		"expo-passkey": "^0.1.0-beta.20",
+		"hono": "^4.7.7",
+		"zod": "^3.24.3"
+	},
+	"devDependencies": {
+		"@types/express": "^5.0.1"
+	}
+}

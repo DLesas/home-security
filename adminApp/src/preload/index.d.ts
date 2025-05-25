@@ -1,13 +1,6 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import { ElectronHandler } from '../main/preload'
-
-type USBDevice = {
-  vendorId: number
-  productId: number
-  manufacturer: string
-  product: string
-  path: string
-}
+import { USBDevice } from '../main/usb'
 
 type API = {
   onWifiNetworksChanged: (callback: (networks: any[]) => void) => void

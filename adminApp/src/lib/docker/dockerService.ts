@@ -27,7 +27,7 @@ export class DockerService extends EventEmitter {
     this.composePath = path.join(app.getPath('appData'), 'docker')
     
     // Initialize the service
-    this.initialize()
+    //this.initialize()
   }
 
   private async initialize(): Promise<void> {
