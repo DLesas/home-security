@@ -2,8 +2,9 @@
 
 # dependencies
 
-*/node_modules
+**/node_modules
 */.pnp
+**/data/
 
 .pnp.js
 .yarn/install-state.gz
@@ -58,3 +59,4 @@ swe-worker-*
 # YOLO models
 videoProcessing/yoloModels/**
 _archive/backend_python/models/**
+
