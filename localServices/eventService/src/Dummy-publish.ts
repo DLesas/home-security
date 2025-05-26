@@ -1,6 +1,6 @@
 import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
-import { logError } from "@shared/db/db";
+import { logError } from "./shared/db/db";
 
 export const numbers = [
   { name: "Vi", number: "000000000000", email: "vi@example.com" },

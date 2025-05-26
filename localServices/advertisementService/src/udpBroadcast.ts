@@ -1,7 +1,5 @@
 import dgram from "dgram";
 import net from "net";
-import { db } from "./shared/db/db";
-import { errorLogsTable } from "./shared/db/schema/errorLogs";
 import { doorSensorRepository, type doorSensor } from "./shared/redis/doorSensors";
 import { raiseEvent } from "./shared/events/notify";
 import { logError } from "./shared/db/db";
