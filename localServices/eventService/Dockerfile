@@ -9,6 +9,8 @@ RUN npm install
 COPY eventService/scripts ./scripts
 COPY eventService/src ./src
 
+RUN mkdir -p ./src/shared/db ./src/shared/redis ./src/shared/events
+
 COPY backend/src/db ./src/shared/db/
 COPY backend/src/redis ./src/shared/redis/
 COPY backend/src/events ./src/shared/events/

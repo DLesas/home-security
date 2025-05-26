@@ -12,6 +12,7 @@ RUN npm install
 COPY advertisementService/scripts ./scripts/
 COPY advertisementService/src ./src/
 
+RUN mkdir -p ./src/shared/db ./src/shared/redis ./src/shared/events
 
 COPY backend/src/db ./src/shared/db/
 COPY backend/src/redis ./src/shared/redis/
