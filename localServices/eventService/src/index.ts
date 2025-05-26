@@ -12,11 +12,11 @@ async function main() {
       for (const person of numbers) {
         await sendSMS(person.number, event.data.message, event.data.title);
       }
-    } else if (event.data.type === "warning") {
-      for (const person of numbers) {
-        await sendEmailSES(person.email, event.data.title, event.data.message);
-      }
-    }
+    } // else if (event.data.type === "warning") {
+    //   for (const person of numbers) {
+    //     await sendEmailSES(person.email, event.data.title, event.data.message);
+    //   }
+    // }
   });
 
   consumer.on("error", async (error) => {
