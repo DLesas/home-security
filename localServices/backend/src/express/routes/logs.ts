@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { desc, asc, eq, and, gte, lte, like, count } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../../db/db";
@@ -9,7 +9,10 @@ import {
   sensorLogTable,
   alarmLogTable,
   sensorUpdateTable,
+  doorSensorTable,
+  alarmTable,
 } from "../../db/schema/index";
+import { raiseError } from "src/events/notify";
 
 const router = Router();
 
@@ -33,8 +36,6 @@ const baseQuerySchema = z.object({
   startDate: z.string().datetime().optional(),
   /** End date filter (ISO string) */
   endDate: z.string().datetime().optional(),
-  /** Search term for text fields */
-  search: z.string().min(1).optional(),
 });
 
 /**
@@ -71,8 +72,8 @@ const accessLogsQuerySchema = baseQuerySchema.extend({
  * Sensor logs query schema
  */
 const sensorLogsQuerySchema = baseQuerySchema.extend({
-  /** Filter by sensor ID */
-  sensorId: z.string().min(1).optional(),
+  /** Filter by sensor name */
+  sensorName: z.string().min(1).optional(),
   /** Filter by log type */
   type: z.string().min(1).optional(),
 });
@@ -81,8 +82,8 @@ const sensorLogsQuerySchema = baseQuerySchema.extend({
  * Alarm logs query schema
  */
 const alarmLogsQuerySchema = baseQuerySchema.extend({
-  /** Filter by alarm ID */
-  alarmId: z.string().min(1).optional(),
+  /** Filter by alarm name */
+  alarmName: z.string().min(1).optional(),
   /** Filter by log type */
   type: z.string().min(1).optional(),
 });
@@ -91,8 +92,8 @@ const alarmLogsQuerySchema = baseQuerySchema.extend({
  * Sensor updates query schema
  */
 const sensorUpdatesQuerySchema = baseQuerySchema.extend({
-  /** Filter by sensor ID */
-  sensorId: z.string().min(1).optional(),
+  /** Filter by sensor name */
+  sensorName: z.string().min(1).optional(),
   /** Filter by sensor state */
   state: z.enum(["open", "closed", "unknown"]).optional(),
   /** Minimum temperature filter */
@@ -126,36 +127,61 @@ function validateQuery<T extends z.ZodSchema>(schema: T) {
   return (req: Request, res: Response, next: Function) => {
     try {
       const validated = schema.parse(req.query);
-      req.query = validated as any;
+      req.query = validated;
       next();
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          success: false,
-          error: "Invalid query parameters",
-          details: error.errors.map((err) => ({
-            field: err.path.join("."),
-            message: err.message,
-            code: err.code,
-          })),
-        });
+        const err = raiseError(
+          400,
+          `Invalid query parameters: ${error.errors
+            .map((err) => ({
+              field: err.path.join("."),
+              message: err.message,
+              code: err.code,
+            }))
+            .join(", ")}`
+        );
+        next(err);
+      } else {
+        const err = raiseError(400, `Invalid query parameters: ${error}`);
+        next(err);
       }
-      next(error);
     }
   };
 }
 
 /**
- * Processes validated query parameters for database operations
- * @param query - Validated query object
+ * Processed query result with proper typing
+ */
+type ProcessedQuery = {
+  page: number;
+  limit: number;
+  sort: typeof asc | typeof desc;
+  offset: number;
+  dateFilters: {
+    startDate?: Date;
+    endDate?: Date;
+  };
+  otherFilters: any; // Using 'any' for practical type safety - validated by Zod middleware
+};
+
+/**
+ * Type-safe query processor that works with validated Zod schemas
+ *
+ * This function provides runtime type safety through Zod validation middleware.
+ * While we use 'any' for TypeScript compatibility with Express, the actual
+ * runtime types are guaranteed to be correct by the validation middleware.
+ *
+ * @param query - Validated query object (guaranteed to match schema after middleware)
  * @returns Processed parameters for database queries
  */
-function processValidatedQuery(query: any) {
-  const { page, limit, sort, startDate, endDate, search, ...filters } = query;
+function processValidatedQuery(query: any): ProcessedQuery {
+  const { page, limit, sort, startDate, endDate, ...filters } = query;
+
   const offset = (page - 1) * limit;
   const sortFn = sort === "asc" ? asc : desc;
 
-  const dateFilters: any = {};
+  const dateFilters: { startDate?: Date; endDate?: Date } = {};
   if (startDate) dateFilters.startDate = new Date(startDate);
   if (endDate) dateFilters.endDate = new Date(endDate);
 
@@ -164,7 +190,6 @@ function processValidatedQuery(query: any) {
     limit,
     sort: sortFn,
     offset,
-    search,
     dateFilters,
     otherFilters: filters,
   };
@@ -184,9 +209,9 @@ function processValidatedQuery(query: any) {
 router.get(
   "/errors",
   validateQuery(errorLogsQuerySchema),
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { page, limit, sort, offset, search, dateFilters, otherFilters } =
+      const { page, limit, sort, offset, dateFilters, otherFilters } =
         processValidatedQuery(req.query);
 
       // Build where conditions
@@ -200,10 +225,6 @@ router.get(
 
       if (dateFilters.endDate) {
         whereConditions.push(lte(errorLogTable.dateTime, dateFilters.endDate));
-      }
-
-      if (search) {
-        whereConditions.push(like(errorLogTable.endpoint, `%${search}%`));
       }
 
       if (otherFilters.level) {
@@ -241,18 +262,13 @@ router.get(
         filters: {
           startDate: dateFilters.startDate?.toISOString(),
           endDate: dateFilters.endDate?.toISOString(),
-          search,
           ...otherFilters,
         },
       });
     } catch (error) {
       console.error("Error fetching error logs:", error);
-      res.status(500).json({
-        success: false,
-        data: [],
-        pagination: { page: 1, limit: 50, total: 0, totalPages: 0 },
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      const err = raiseError(500, `Error fetching error logs: ${error}`);
+      next(err);
     }
   }
 );
@@ -271,9 +287,9 @@ router.get(
 router.get(
   "/events",
   validateQuery(eventLogsQuerySchema),
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { page, limit, sort, offset, search, dateFilters, otherFilters } =
+      const { page, limit, sort, offset, dateFilters, otherFilters } =
         processValidatedQuery(req.query);
 
       // Build where conditions
@@ -287,10 +303,6 @@ router.get(
 
       if (dateFilters.endDate) {
         whereConditions.push(lte(eventLogTable.dateTime, dateFilters.endDate));
-      }
-
-      if (search) {
-        whereConditions.push(like(eventLogTable.message, `%${search}%`));
       }
 
       if (otherFilters.type) {
@@ -334,18 +346,13 @@ router.get(
         filters: {
           startDate: dateFilters.startDate?.toISOString(),
           endDate: dateFilters.endDate?.toISOString(),
-          search,
           ...otherFilters,
         },
       });
     } catch (error) {
       console.error("Error fetching event logs:", error);
-      res.status(500).json({
-        success: false,
-        data: [],
-        pagination: { page: 1, limit: 50, total: 0, totalPages: 0 },
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      const err = raiseError(500, `Error fetching event logs: ${error}`);
+      next(err);
     }
   }
 );
@@ -364,9 +371,9 @@ router.get(
 router.get(
   "/access",
   validateQuery(accessLogsQuerySchema),
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { page, limit, sort, offset, search, dateFilters, otherFilters } =
+      const { page, limit, sort, offset, dateFilters, otherFilters } =
         processValidatedQuery(req.query);
 
       // Build where conditions
@@ -382,10 +389,6 @@ router.get(
         whereConditions.push(
           lte(generalLogTable.dateTime, dateFilters.endDate)
         );
-      }
-
-      if (search) {
-        whereConditions.push(like(generalLogTable.endpoint, `%${search}%`));
       }
 
       if (otherFilters.action) {
@@ -435,18 +438,13 @@ router.get(
         filters: {
           startDate: dateFilters.startDate?.toISOString(),
           endDate: dateFilters.endDate?.toISOString(),
-          search,
           ...otherFilters,
         },
       });
     } catch (error) {
       console.error("Error fetching access logs:", error);
-      res.status(500).json({
-        success: false,
-        data: [],
-        pagination: { page: 1, limit: 50, total: 0, totalPages: 0 },
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      const err = raiseError(500, `Error fetching access logs: ${error}`);
+      next(err);
     }
   }
 );
@@ -465,9 +463,9 @@ router.get(
 router.get(
   "/sensors",
   validateQuery(sensorLogsQuerySchema),
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { page, limit, sort, offset, search, dateFilters, otherFilters } =
+      const { page, limit, sort, offset, dateFilters, otherFilters } =
         processValidatedQuery(req.query);
 
       // Build where conditions
@@ -483,32 +481,45 @@ router.get(
         whereConditions.push(lte(sensorLogTable.dateTime, dateFilters.endDate));
       }
 
-      if (search) {
-        whereConditions.push(like(sensorLogTable.errorMessage, `%${search}%`));
-      }
-
-      if (otherFilters.sensorId) {
-        whereConditions.push(
-          eq(sensorLogTable.sensorId, otherFilters.sensorId)
-        );
+      if (otherFilters.sensorName) {
+        whereConditions.push(eq(doorSensorTable.name, otherFilters.sensorName));
       }
 
       if (otherFilters.type) {
         whereConditions.push(eq(sensorLogTable.type, otherFilters.type));
       }
 
-      // Get total count
+      // Get total count with join
       const [totalResult] = await db
         .select({ count: count() })
         .from(sensorLogTable)
+        .leftJoin(
+          doorSensorTable,
+          eq(sensorLogTable.sensorId, doorSensorTable.id)
+        )
         .where(
           whereConditions.length > 0 ? and(...whereConditions) : undefined
         );
 
-      // Get paginated data
+      // Get paginated data with join
       const data = await db
-        .select()
+        .select({
+          id: sensorLogTable.id,
+          sensorId: sensorLogTable.sensorId,
+          sensorName: doorSensorTable.name,
+          dateTime: sensorLogTable.dateTime,
+          class: sensorLogTable.class,
+          function: sensorLogTable.function,
+          errorMessage: sensorLogTable.errorMessage,
+          hash: sensorLogTable.hash,
+          type: sensorLogTable.type,
+          count: sensorLogTable.count,
+        })
         .from(sensorLogTable)
+        .leftJoin(
+          doorSensorTable,
+          eq(sensorLogTable.sensorId, doorSensorTable.id)
+        )
         .where(whereConditions.length > 0 ? and(...whereConditions) : undefined)
         .orderBy(sort(sensorLogTable.dateTime))
         .limit(limit)
@@ -528,18 +539,13 @@ router.get(
         filters: {
           startDate: dateFilters.startDate?.toISOString(),
           endDate: dateFilters.endDate?.toISOString(),
-          search,
           ...otherFilters,
         },
       });
     } catch (error) {
       console.error("Error fetching sensor logs:", error);
-      res.status(500).json({
-        success: false,
-        data: [],
-        pagination: { page: 1, limit: 50, total: 0, totalPages: 0 },
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      const err = raiseError(500, `Error fetching sensor logs: ${error}`);
+      next(err);
     }
   }
 );
@@ -558,9 +564,9 @@ router.get(
 router.get(
   "/alarms",
   validateQuery(alarmLogsQuerySchema),
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { page, limit, sort, offset, search, dateFilters, otherFilters } =
+      const { page, limit, sort, offset, dateFilters, otherFilters } =
         processValidatedQuery(req.query);
 
       // Build where conditions
@@ -576,30 +582,39 @@ router.get(
         whereConditions.push(lte(alarmLogTable.dateTime, dateFilters.endDate));
       }
 
-      if (search) {
-        whereConditions.push(like(alarmLogTable.errorMessage, `%${search}%`));
-      }
-
-      if (otherFilters.alarmId) {
-        whereConditions.push(eq(alarmLogTable.alarmId, otherFilters.alarmId));
+      if (otherFilters.alarmName) {
+        whereConditions.push(eq(alarmTable.name, otherFilters.alarmName));
       }
 
       if (otherFilters.type) {
         whereConditions.push(eq(alarmLogTable.type, otherFilters.type));
       }
 
-      // Get total count
+      // Get total count with join
       const [totalResult] = await db
         .select({ count: count() })
         .from(alarmLogTable)
+        .leftJoin(alarmTable, eq(alarmLogTable.alarmId, alarmTable.id))
         .where(
           whereConditions.length > 0 ? and(...whereConditions) : undefined
         );
 
-      // Get paginated data
+      // Get paginated data with join
       const data = await db
-        .select()
+        .select({
+          id: alarmLogTable.id,
+          alarmId: alarmLogTable.alarmId,
+          alarmName: alarmTable.name,
+          dateTime: alarmLogTable.dateTime,
+          class: alarmLogTable.class,
+          function: alarmLogTable.function,
+          errorMessage: alarmLogTable.errorMessage,
+          hash: alarmLogTable.hash,
+          type: alarmLogTable.type,
+          count: alarmLogTable.count,
+        })
         .from(alarmLogTable)
+        .leftJoin(alarmTable, eq(alarmLogTable.alarmId, alarmTable.id))
         .where(whereConditions.length > 0 ? and(...whereConditions) : undefined)
         .orderBy(sort(alarmLogTable.dateTime))
         .limit(limit)
@@ -619,18 +634,13 @@ router.get(
         filters: {
           startDate: dateFilters.startDate?.toISOString(),
           endDate: dateFilters.endDate?.toISOString(),
-          search,
           ...otherFilters,
         },
       });
     } catch (error) {
       console.error("Error fetching alarm logs:", error);
-      res.status(500).json({
-        success: false,
-        data: [],
-        pagination: { page: 1, limit: 50, total: 0, totalPages: 0 },
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      const err = raiseError(500, `Error fetching alarm logs: ${error}`);
+      next(err);
     }
   }
 );
@@ -649,9 +659,9 @@ router.get(
 router.get(
   "/sensor-updates",
   validateQuery(sensorUpdatesQuerySchema),
-  async (req: Request, res: Response) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { page, limit, sort, offset, search, dateFilters, otherFilters } =
+      const { page, limit, sort, offset, dateFilters, otherFilters } =
         processValidatedQuery(req.query);
 
       // Build where conditions
@@ -669,14 +679,8 @@ router.get(
         );
       }
 
-      if (search) {
-        whereConditions.push(like(sensorUpdateTable.sensorId, `%${search}%`));
-      }
-
-      if (otherFilters.sensorId) {
-        whereConditions.push(
-          eq(sensorUpdateTable.sensorId, otherFilters.sensorId)
-        );
+      if (otherFilters.sensorName) {
+        whereConditions.push(eq(doorSensorTable.name, otherFilters.sensorName));
       }
 
       if (otherFilters.state) {
@@ -713,18 +717,35 @@ router.get(
         );
       }
 
-      // Get total count
+      // Get total count with join
       const [totalResult] = await db
         .select({ count: count() })
         .from(sensorUpdateTable)
+        .leftJoin(
+          doorSensorTable,
+          eq(sensorUpdateTable.sensorId, doorSensorTable.id)
+        )
         .where(
           whereConditions.length > 0 ? and(...whereConditions) : undefined
         );
 
-      // Get paginated data
+      // Get paginated data with join
       const data = await db
-        .select()
+        .select({
+          id: sensorUpdateTable.id,
+          sensorId: sensorUpdateTable.sensorId,
+          sensorName: doorSensorTable.name,
+          state: sensorUpdateTable.state,
+          temperature: sensorUpdateTable.temperature,
+          voltage: sensorUpdateTable.voltage,
+          frequency: sensorUpdateTable.frequency,
+          dateTime: sensorUpdateTable.dateTime,
+        })
         .from(sensorUpdateTable)
+        .leftJoin(
+          doorSensorTable,
+          eq(sensorUpdateTable.sensorId, doorSensorTable.id)
+        )
         .where(whereConditions.length > 0 ? and(...whereConditions) : undefined)
         .orderBy(sort(sensorUpdateTable.dateTime))
         .limit(limit)
@@ -744,18 +765,13 @@ router.get(
         filters: {
           startDate: dateFilters.startDate?.toISOString(),
           endDate: dateFilters.endDate?.toISOString(),
-          search,
           ...otherFilters,
         },
       });
     } catch (error) {
       console.error("Error fetching sensor updates:", error);
-      res.status(500).json({
-        success: false,
-        data: [],
-        pagination: { page: 1, limit: 50, total: 0, totalPages: 0 },
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      const err = raiseError(500, `Error fetching sensor updates: ${error}`);
+      next(err);
     }
   }
 );
@@ -770,87 +786,88 @@ router.get(
  * @example
  * GET /api/v1/logs/summary
  */
-router.get("/summary", async (req: Request, res: Response) => {
-  try {
-    const now = new Date();
-    const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+router.get(
+  "/summary",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const now = new Date();
+      const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    // Get counts for different log types
-    const [errorCount] = await db
-      .select({ count: count() })
-      .from(errorLogTable);
-    const [eventCount] = await db
-      .select({ count: count() })
-      .from(eventLogTable);
-    const [accessCount] = await db
-      .select({ count: count() })
-      .from(generalLogTable);
-    const [sensorCount] = await db
-      .select({ count: count() })
-      .from(sensorLogTable);
-    const [alarmCount] = await db
-      .select({ count: count() })
-      .from(alarmLogTable);
-    const [sensorUpdateCount] = await db
-      .select({ count: count() })
-      .from(sensorUpdateTable);
+      // Get counts for different log types
+      const [errorCount] = await db
+        .select({ count: count() })
+        .from(errorLogTable);
+      const [eventCount] = await db
+        .select({ count: count() })
+        .from(eventLogTable);
+      const [accessCount] = await db
+        .select({ count: count() })
+        .from(generalLogTable);
+      const [sensorCount] = await db
+        .select({ count: count() })
+        .from(sensorLogTable);
+      const [alarmCount] = await db
+        .select({ count: count() })
+        .from(alarmLogTable);
+      const [sensorUpdateCount] = await db
+        .select({ count: count() })
+        .from(sensorUpdateTable);
 
-    // Get recent activity (last 24 hours)
-    const [recentErrors] = await db
-      .select({ count: count() })
-      .from(errorLogTable)
-      .where(gte(errorLogTable.dateTime, last24Hours));
+      // Get recent activity (last 24 hours)
+      const [recentErrors] = await db
+        .select({ count: count() })
+        .from(errorLogTable)
+        .where(gte(errorLogTable.dateTime, last24Hours));
 
-    const [recentEvents] = await db
-      .select({ count: count() })
-      .from(eventLogTable)
-      .where(gte(eventLogTable.dateTime, last24Hours));
+      const [recentEvents] = await db
+        .select({ count: count() })
+        .from(eventLogTable)
+        .where(gte(eventLogTable.dateTime, last24Hours));
 
-    const [recentSensorUpdates] = await db
-      .select({ count: count() })
-      .from(sensorUpdateTable)
-      .where(gte(sensorUpdateTable.dateTime, last24Hours));
+      const [recentSensorUpdates] = await db
+        .select({ count: count() })
+        .from(sensorUpdateTable)
+        .where(gte(sensorUpdateTable.dateTime, last24Hours));
 
-    // Get critical events from last week
-    const criticalEvents = await db
-      .select()
-      .from(eventLogTable)
-      .where(
-        and(
-          eq(eventLogTable.type, "critical"),
-          gte(eventLogTable.dateTime, lastWeek)
+      // Get critical events from last week
+      const criticalEvents = await db
+        .select()
+        .from(eventLogTable)
+        .where(
+          and(
+            eq(eventLogTable.type, "critical"),
+            gte(eventLogTable.dateTime, lastWeek)
+          )
         )
-      )
-      .orderBy(desc(eventLogTable.dateTime))
-      .limit(10);
+        .orderBy(desc(eventLogTable.dateTime))
+        .limit(10);
 
-    res.json({
-      success: true,
-      summary: {
-        totalCounts: {
-          errors: errorCount.count,
-          events: eventCount.count,
-          access: accessCount.count,
-          sensors: sensorCount.count,
-          alarms: alarmCount.count,
-          sensorUpdates: sensorUpdateCount.count,
+      res.json({
+        success: true,
+        summary: {
+          totalCounts: {
+            errors: errorCount.count,
+            events: eventCount.count,
+            access: accessCount.count,
+            sensors: sensorCount.count,
+            alarms: alarmCount.count,
+            sensorUpdates: sensorUpdateCount.count,
+          },
+          recentActivity: {
+            errorsLast24h: recentErrors.count,
+            eventsLast24h: recentEvents.count,
+            sensorUpdatesLast24h: recentSensorUpdates.count,
+          },
+          criticalEventsLastWeek: criticalEvents,
         },
-        recentActivity: {
-          errorsLast24h: recentErrors.count,
-          eventsLast24h: recentEvents.count,
-          sensorUpdatesLast24h: recentSensorUpdates.count,
-        },
-        criticalEventsLastWeek: criticalEvents,
-      },
-    });
-  } catch (error) {
-    console.error("Error fetching log summary:", error);
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
+      });
+    } catch (error) {
+      console.error("Error fetching log summary:", error);
+      const err = raiseError(500, `Error fetching log summary: ${error}`);
+      next(err);
+    }
   }
-});
+);
 
 export default router;
