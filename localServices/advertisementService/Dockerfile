@@ -9,13 +9,13 @@ WORKDIR /app
 COPY advertisementService/package*.json ./
 RUN npm install
 
-COPY advertisementService/scripts ./scripts
-COPY advertisementService/src ./src
+COPY advertisementService/scripts ./scripts/
+COPY advertisementService/src ./src/
 
 
-COPY backend/src/db ./src/shared/db
-COPY backend/src/redis ./src/shared/redis
-COPY backend/src/events ./src/shared/events
+COPY backend/src/db ./src/shared/db/
+COPY backend/src/redis ./src/shared/redis/
+COPY backend/src/events ./src/shared/events/
 COPY advertisementService/tsconfig.json ./
 
 RUN npm run build
