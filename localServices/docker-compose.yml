@@ -47,7 +47,7 @@ services:
       - backend
 
   web:
-    profiles: ["full"]
+    profiles: ["core"]
     build:
       context: ./webapp
     ports:
