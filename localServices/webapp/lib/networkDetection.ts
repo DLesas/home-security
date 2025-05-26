@@ -6,10 +6,11 @@ interface ServerEndpoint {
 
 const ENDPOINTS: ServerEndpoint[] = [
   { name: 'Local Network', url: 'http://192.168.5.157:8080', priority: 1 },
-  { name: 'local', url: 'http://localhost:8080', priority: 2 },
-  { name: 'test 2', url: 'http://192.168.0.16:8080', priority: 3 },
-  { name: 'Test Network', url: 'http://192.168.96.1:8080', priority: 4 },
-  { name: 'VPN', url: 'http://100.77.41.71:8080', priority: 5 },
+  { name: 'Local Network', url: 'http://192.168.0.116:8080', priority: 2 },
+  { name: 'local', url: 'http://localhost:8080', priority: 3 },
+  { name: 'test 2', url: 'http://192.168.0.16:8080', priority: 4 },
+  { name: 'Test Network', url: 'http://192.168.96.1:8080', priority: 5 },
+  { name: 'VPN', url: 'http://100.77.41.71:8080', priority: 6 },
 ]
 
 const TIMEOUT_MS = 3000 // 3 second timeout per endpoint
