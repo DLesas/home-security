@@ -4,8 +4,9 @@ import { sendSMS, numbers, sendEmailSES } from "./Dummy-publish";
 
 async function main() {
   const consumer = new EventConsumer();
-
+ 
   // Set up event handlers
+  console.log("Event service started");
   consumer.on("event", async (event: FormattedEvent) => {
     if (event.data.type === "critical") {
       for (const person of numbers) {

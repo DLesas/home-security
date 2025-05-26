@@ -103,7 +103,7 @@ services:
       - backend
 
   event-system:
-    profiles: ["full"]
+    profiles: ["core"]
     build:
       context: .
       dockerfile: ./eventService/Dockerfile

@@ -5,7 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/fix-imports.js",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts"
   },
@@ -23,6 +23,7 @@
     "@aws-sdk/client-sns": "^3.812.0",
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.40.0",
+    "glob": "^11.0.2",
     "pg": "^8.14.0",
     "postgres": "^3.4.5",
     "redis": "^4.7.0",

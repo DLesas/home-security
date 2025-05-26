@@ -3,16 +3,15 @@ FROM node:lts-alpine
 
 WORKDIR /app
 
-# Copy shared files with correct path
-COPY backend/src/db ./shared/db
-COPY backend/src/redis ./shared/redis
-COPY backend/src/events ./shared/events
-
-# Copy advertisement service files
 COPY eventService/package*.json ./
 RUN npm install
 
+COPY eventService/scripts ./scripts
 COPY eventService/src ./src
+
+COPY backend/src/db ./src/shared/db
+COPY backend/src/redis ./src/shared/redis
+COPY backend/src/events ./src/shared/events
 COPY eventService/tsconfig.json ./
 
 # Port Documentation:
