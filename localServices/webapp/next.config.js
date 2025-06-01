@@ -14,6 +14,6 @@ const nextConfig = {
   output: 'standalone',
 }
 
-module.exports = nextConfig //withPWA(nextConfig)
+module.exports = withPWA(nextConfig)
 
 //module.exports = nextConfig
