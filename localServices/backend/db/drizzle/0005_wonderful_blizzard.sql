@@ -1,0 +1,1 @@
+ALTER TABLE "eventLogs" ADD COLUMN "system" varchar(255) NOT NULL;
