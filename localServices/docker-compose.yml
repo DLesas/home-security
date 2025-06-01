@@ -26,7 +26,7 @@ services:
     build:
       context: ./postgres
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
     ports:
@@ -38,7 +38,7 @@ services:
     restart: always
     user: root
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${POSTGRES_DB}"]
       interval: 10s
       retries: 5
       start_period: 30s
@@ -59,7 +59,7 @@ services:
       context: ./backend
     environment:
       - DOCKER_ENV=true
-      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
@@ -109,7 +109,7 @@ services:
       context: .
       dockerfile: ./eventService/Dockerfile
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_HOST=postgres
@@ -131,7 +131,7 @@ services:
       context: .
       dockerfile: ./advertisementService/Dockerfile
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_HOST=localhost
@@ -177,7 +177,7 @@ services:
   #   build:
   #     context: ./video_processing
   #   environment:
-  #     - POSTGRES_USER=${POSTGRES_USER}
+  #     - POSTGRES_USER=postgres
   #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
   #     - POSTGRES_DB=${POSTGRES_DB}
   #     - POSTGRES_HOST=postgres
