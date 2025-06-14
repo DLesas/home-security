@@ -13,6 +13,8 @@ _A comprehensive, scalable IoT security solution with real-time monitoring and n
 A production-ready, enterprise-grade home security system designed for non-technical users, featuring distributed microservices architecture, real-time monitoring, and cross-platform mobile applications.
 All achieved locally without heavy dependency on cloud infra (apart from push notifications and remote access where a centralised service needs to be made).
 
+
+
 ## System Architecture
 
 ### Core Components
@@ -50,6 +52,8 @@ graph TB
 - **Mobile Client**: React Native app with remote connectivity via WireGuard VPN
 - **IoT Devices**: CircuitPython-based sensors, alarms and cameras with local network discovery
 
+
+
 ## Project Status
 
 **Note: This is an active development project and is no where near finished**
@@ -68,6 +72,8 @@ graph TB
 - **WireGuard VPN Service** - Not yet implemented
 - **Integration Testing** - Cross-service communication and deployment
 - **Python Video Processing Backend** - implemented a dummy version but not done efficiently
+
+
 
 ## Technical Highlights
 
@@ -109,6 +115,8 @@ graph TB
 - **GPU acceleration** with CUDA support and memory optimization
 - **Performance monitoring** with detailed metrics and logging
 
+
+
 ## Key Features
 
 ### Security & Monitoring
@@ -134,6 +142,8 @@ graph TB
 - System health monitoring
 - Configuration management
 - Log aggregation and analysis
+
+
 
 ## Technology Stack
 
@@ -180,6 +190,8 @@ graph TB
 - Network Communication
 ```
 
+
+
 ## Performance & Scalability
 
 - **Sub-second response times** for sensor events
@@ -197,6 +209,7 @@ graph TB
 - **Input validation** and sanitization throughout
 
 
+
 ## Business Value
 
 ### For End Users
@@ -211,6 +224,9 @@ graph TB
 - **Cross-platform compatibility** (iOS, Android, Windows, macOS, Linux)
 - **Real-time data processing** with sub-second latency
 - **AI-powered surveillance** with modern computer vision techniques
+
+
+
 
 ## Getting Started
 
