@@ -82,11 +82,7 @@ class DoorSensor:
         data = {"status": self.state, "temperature": self.temperature, "voltage": self.voltage, "frequency": self.frequency}
         data = json.dumps(data)
         url = f"{self.Networking.server_protocol}://{self.Networking.server_ip}:{self.Networking.server_port}/api/v{self.Networking.api_version}/{self.Networking.deviceType}s/update"
-        headers = {
-            "User-Agent": self.Networking.user_agent,
-            "Content-Type": "application/json",
-        }
-        response = self.deviceWifi.requests.post(url, headers=headers, data=data)
+        response = self.deviceWifi.requests.post(url, headers=self.Networking.headers, data=data)
         if response.status_code == 200:
             print(f"Successfully sent door state: {self.state}")
         else:

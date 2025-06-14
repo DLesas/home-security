@@ -23,7 +23,7 @@ def main_light_sleep():
     timeclock = TimeClock(logger, led, DeviceWifi)
     timeclock.set_time_ntp()
     udp = Udp(DeviceWifi, logger, led, env["server_udp_port"], env["server_service_name"], env["server_password"], env["tcp_timeout"], env["tcp_port"])
-    networking = Networking(DeviceWifi, Device, logger, led, udp, env["max_networking_attempts"], env["networking_blinks"], env["server_ip"], env["server_port"], env["server_ssl"], env["api_version"], env["deviceType"], env["user_agent"])
+    networking = Networking(DeviceWifi, Device, logger, led, udp, env["max_networking_attempts"], env["networking_blinks"], env["server_ip"], env["server_port"], env["server_ssl"], env["api_version"], env["deviceType"], env["user_agent"], env["id"])
     networking.find_server()
     networking.handshake_with_server()
     doorSensor = DoorSensor(logger, led, Device, DeviceWifi, networking, env["door_switch_pin"], env["time_to_sleep_s"])

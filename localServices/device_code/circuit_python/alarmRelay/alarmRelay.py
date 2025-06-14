@@ -45,10 +45,7 @@ class alarmRelay:
         self.frequency = None
         self.register_routes()
         self.port = int(port)
-        self.server.headers = {
-            "User-Agent": self.Networking.user_agent,
-            "Content-Type": "application/json",
-        }
+        self.headers = self.Networking.headers
 
     def change_relay_state(self, state: bool):
         switch = DigitalInOut(self.relay)
@@ -72,8 +69,7 @@ class alarmRelay:
         data = {"state": self.state, "temperature": self.temperature, "voltage": self.voltage, "frequency": self.frequency}
         data = json.dumps(data)
         url = f"{self.Networking.server_protocol}://{self.Networking.server_ip}:{self.Networking.server_port}/api/v{self.Networking.api_version}/{self.Networking.deviceType}s/update"
-        headers = self.server.headers
-        response = self.deviceWifi.requests.post(url, headers=headers, data=data)
+        response = self.deviceWifi.requests.post(url, headers=self.headers, data=data)
         if response.status_code == 200:
             print(f"Successfully sent alarm state: {self.state}")
         else:

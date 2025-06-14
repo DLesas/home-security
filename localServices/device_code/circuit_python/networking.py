@@ -22,6 +22,7 @@ class Networking:
         api_version,
         deviceType,
         user_agent,
+        id,
     ):
         """
         Initializes the Networking class with the given parameters.
@@ -40,6 +41,7 @@ class Networking:
             user_agent (str): The user agent to use for the handshake.
             max_attempts (int, optional): Maximum number of connection attempts. Defaults to 50.
             blink_frequency (int, optional): Frequency of the LED blink during connection attempts. Defaults to 2.
+            id (str): The id of the device.
         """
         self.deviceWifi = deviceWifi
         self.Device = microDevice
@@ -54,7 +56,18 @@ class Networking:
         self.api_version = api_version
         self.deviceType = deviceType
         self.user_agent = user_agent
+        self.id = id
         self.log_dir = "logs"  # Add log directory for send_logs method
+        
+                # Standard headers that include device identification
+        self.headers = {
+            "User-Agent": self.user_agent,
+            "Content-Type": "application/json",
+            "X-Device-ID": str(self.id),  # Custom header for device identification
+            "X-Device-Type": self.deviceType,        # Custom header for device type
+            "X-Device-MAC": self.deviceWifi.mac,     # Custom header for MAC address
+            "X-Device-IP": str(self.deviceWifi.ip),  # Custom header for device IP address
+        }
 
 
         
@@ -92,12 +105,8 @@ class Networking:
                 
                 data = {"macAddress": self.deviceWifi.mac}
                 data = json.dumps(data)
-                headers = {
-                    "User-Agent": self.user_agent,
-                    "Content-Type": "application/json",
-                }
                 response = self.deviceWifi.requests.post(
-                    handshake_endpoint, headers=headers, data=data
+                    handshake_endpoint, headers=self.headers, data=data
                 )
                 if response.status_code == 200:
                     print("Handshake complete")
@@ -172,10 +181,6 @@ class Networking:
                         records.append(record)
                 data = records
                 data = json.dumps(data)
-                headers = {
-                    "User-Agent": self.user_agent,
-                    "Content-Type": "application/json",
-                }   
                 endpoint = (
                     f"{self.server_protocol}://"
                     + f"{self.server_ip}:{str(self.server_port)}/"
@@ -183,7 +188,7 @@ class Networking:
                     + f"v{str(self.api_version)}/"
                     + f"{self.deviceType}s/"
                     + f"logs")
-                response = self.deviceWifi.requests.post(endpoint, headers=headers, data=data)
+                response = self.deviceWifi.requests.post(endpoint, headers=self.headers, data=data)
                 if response.status_code == 200:
                     print(f"Log data sent successfully to {endpoint}")
                     self.Logger.truncate_log_file(file_path, 0)
