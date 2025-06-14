@@ -81,7 +81,7 @@ def send_mail(body: str, subject: str):
         newMail.To = "REDACTED"
     else:
         newMail.To = "REDACTED"
-    # mail.To = "***REMOVED_EMAIL***"
+    # mail.To = "dlesas@hotmail.com"
     newMail.Subject = subject
     newMail.Body = body
     newMail.Send()

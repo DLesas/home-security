@@ -85,10 +85,10 @@ relays = [
     },
 ]
 
-# ssid = "***REMOVED_SSID***"
-# password = "***REMOVED_PASSWORD***"
-ssid = "***REMOVED_SSID***"
-password = "***REMOVED_PASSWORD***"
+# ssid = "Millfarm-House-LongRange"
+# password = "hARMLTPd7caeHf"
+ssid = "BT-P8A5PT"
+password = "hARMLTPd7caeHf"
 
 
 def find_device(mac_address, devices):

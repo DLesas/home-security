@@ -10,9 +10,9 @@ import gc
 
 switch = machine.Pin(22, machine.Pin.IN, machine.Pin.PULL_UP)
 
-ssid = "***REMOVED_SSID***"
-# ssid = "***REMOVED_SSID***"
-password = '***REMOVED_PASSWORD***'
+ssid = "BT-P8A5PT"
+# ssid = "Millfarm-House-LongRange"
+password = 'hARMLTPd7caeHf'
 
 server_endpoint = 'http://192.168.0.116:5000/log'
 
