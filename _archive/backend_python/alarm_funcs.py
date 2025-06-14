@@ -78,9 +78,9 @@ def send_mail(body: str, subject: str):
     outlook = win32.Dispatch("outlook.application")
     newMail = outlook.CreateItem(0)
     if test:
-        newMail.To = "***REMOVED_EMAIL***"
+        newMail.To = "REDACTED"
     else:
-        newMail.To = "***REMOVED_EMAIL***; ***REMOVED_EMAIL***; ***REMOVED_EMAIL***; ***REMOVED_EMAIL***"
+        newMail.To = "REDACTED"
     # mail.To = "***REMOVED_EMAIL***"
     newMail.Subject = subject
     newMail.Body = body
@@ -89,12 +89,10 @@ def send_mail(body: str, subject: str):
 
 def send_SMS(body: str):
     phones = [
-        "***REMOVED***",
-        "***REMOVED***",
-        "***REMOVED***",
-        "***REMOVED*** ",
+        "REDACTED",
+        "REDACTED",
     ]
-    testPhone = "***REMOVED***"
+    testPhone = "REDACTED"
     if test:
         pass
         # try:

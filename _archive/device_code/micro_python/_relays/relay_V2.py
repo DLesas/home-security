@@ -8,10 +8,10 @@ import json
 
 relay = machine.Pin(22, machine.Pin.OUT)
 
-# ssid = "***REMOVED_SSID***"
-# password = '***REMOVED_PASSWORD***'
-ssid = "***REMOVED_SSID***"
-password = '***REMOVED_PASSWORD***'
+# ssid = "[Redacted]"
+# password = "[Redacted]"
+ssid = "[Redacted]"
+password = "[Redacted]"
 
 async def connect():
     print('Connecting to network...')

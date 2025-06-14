@@ -34,9 +34,9 @@ import pythoncom
 email_queue = queue.Queue()
 
 
-VAPID_PUBLIC = "BGaYMfU2J2yBlWchiwx_W4Jn6b-TwJisl8C-6z23y5qFSN_E2riZKjdbBhZs08PgfGYZeewCICCinGG4bscvzU4"
-VAPID_PRIVATE = "WGibkvRHns3AH3qIfGHCpWOgVmFtb2jUFOlUBn5JnVc"
-VAPID_CLAIMS = {"sub": "mailto:***REMOVED_EMAIL***"}
+VAPID_PUBLIC = "REDACTED"
+VAPID_PRIVATE = "REDACTED"
+VAPID_CLAIMS = {"sub": "mailto:REDACTED"}
 
 subscriptions = []
 
