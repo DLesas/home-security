@@ -1,4 +1,4 @@
-# 🏠 Home Security System
+# Home Security System
 
 _A comprehensive, scalable IoT security solution with real-time monitoring and notifications_
 
