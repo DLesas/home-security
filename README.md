@@ -10,7 +10,8 @@ _A comprehensive, scalable IoT security solution with real-time monitoring and n
 
 ## Project Overview
 
-A production-ready, enterprise-grade home security system designed for non-technical users, featuring distributed microservices architecture, real-time monitoring, and cross-platform mobile applications. This project demonstrates advanced system design, IoT integration, and full-stack development capabilities.
+A production-ready, enterprise-grade home security system designed for non-technical users, featuring distributed microservices architecture, real-time monitoring, and cross-platform mobile applications.
+All achieved locally without heavy dependency on cloud infra (apart from push notifications and remote access where a centralised service needs to be made).
 
 ## System Architecture
 
