@@ -50,6 +50,25 @@ graph TB
 - **Mobile Client**: React Native app with remote connectivity via WireGuard VPN
 - **IoT Devices**: CircuitPython-based sensors, alarms and cameras with local network discovery
 
+## Project Status
+
+**Note: This is an active development project and is no where near finished**
+
+### Completed Components
+
+- **Node.js Backend API** - Full TypeScript implementation with Express.js
+- **PostgreSQL Database** - Complete schema with Drizzle ORM
+- **Redis Integration** - Caching and pub/sub messaging
+- **CircuitPython IoT Devices** - Sensor and alarm microcontrollers
+
+### In Development
+
+- **Frontend Applications** - React Native mobile app and Electron admin interface need significant work
+- **Admin Application** - Requires complete overhaul for better UX
+- **WireGuard VPN Service** - Not yet implemented
+- **Integration Testing** - Cross-service communication and deployment
+- **Python Video Processing Backend** - implemented a dummy version but not done efficiently
+
 ## Technical Highlights
 
 ### Backend & Infrastructure
@@ -104,11 +123,9 @@ graph TB
 
 ### User Experience
 
-- Intuitive mobile interface for non-technical users
 - Remote monitoring capabilities
 - Real-time status updates
 - Historical event logging
-- Multi-user support
 
 ### System Administration
 
@@ -179,24 +196,6 @@ graph TB
 - **HTTPS/WSS encryption** for all communications
 - **Input validation** and sanitization throughout
 
-## Project Status
-
-**Note: This is an active development project and is no where near finished**
-
-### Completed Components
-
-- **Node.js Backend API** - Full TypeScript implementation with Express.js
-- **PostgreSQL Database** - Complete schema with Drizzle ORM
-- **Redis Integration** - Caching and pub/sub messaging
-- **CircuitPython IoT Devices** - Sensor and alarm microcontrollers
-
-### In Development
-
-- **Frontend Applications** - React Native mobile app and Electron admin interface need significant work
-- **Admin Application** - Requires complete overhaul for better UX
-- **WireGuard VPN Service** - Not yet implemented
-- **Integration Testing** - Cross-service communication and deployment
-- **Python Video Processing Backend** - implemented a dummy version but not done efficiently
 
 ## Business Value
 
@@ -214,6 +213,8 @@ graph TB
 - **AI-powered surveillance** with modern computer vision techniques
 
 ## Getting Started
+
+Not recommended as it is not finished but
 
 ### Quick Start
 
