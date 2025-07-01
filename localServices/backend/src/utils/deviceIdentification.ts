@@ -17,10 +17,10 @@ export interface DeviceInfo {
  * Requires X-Device-ID and X-Device-Type headers to be present
  */
 export async function identifyDevice(req: Request): Promise<DeviceInfo | null> {
-  const deviceId = req.headers["x-device-id"] as string;
-  const deviceType = req.headers["x-device-type"] as string;
-  const deviceMac = req.headers["x-device-mac"] as string;
-  const deviceIp = req.headers["x-device-ip"] as string;
+  const deviceId = req.headers["X-Device-ID"] as string;
+  const deviceType = req.headers["X-Device-Type"] as string;
+  const deviceMac = req.headers["X-Device-MAC"] as string;
+  const deviceIp = req.headers["X-Device-IP"] as string;
 
   // Require device headers for identification
   if (!deviceId || !deviceType) {
