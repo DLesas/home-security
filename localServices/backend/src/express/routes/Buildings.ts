@@ -55,14 +55,12 @@ router.post("/new", async (req, res, next) => {
     })
     .returning();
   await emitNewData();
-  await raiseEvent(
-    {
-      type: "info",
-      message: `New building ${newBuilding.name} added with id ${newBuilding.id}`,
-      system: "backend:buildings",
-      title: `Building Added: ${newBuilding.name}`,
-    }
-  );
+  await raiseEvent({
+    type: "info",
+    message: `New building ${newBuilding.name} added with id ${newBuilding.id}`,
+    system: "backend:buildings",
+    title: `Building Added: ${newBuilding.name}`,
+  });
   await writePostgresCheckpoint();
   res.status(201).json({ status: "success", data: newBuilding });
 });
@@ -97,14 +95,12 @@ router.post("/:buildingName/arm", async (req, res, next) => {
   }
   await changeSensorStatus(sensors, true);
   await emitNewData();
-  await raiseEvent(
-    {
-      type: "warning",
-      message: `All sensors in building ${buildingName} armed`,
-      system: "backend:buildings",
-      title: `Building Armed: ${buildingName}`,
-    }
-  );
+  await raiseEvent({
+    type: "warning",
+    message: `All sensors in building ${buildingName} armed`,
+    system: "backend:buildings",
+    title: `Building Armed: ${buildingName}`,
+  });
   res.status(200).json({
     status: "success",
     message: `All sensors in building ${buildingName} armed`,
@@ -149,14 +145,12 @@ router.post("/:buildingName/disarm", async (req, res, next) => {
     await changeSensorStatus(sensors, false);
   }
   await emitNewData();
-  await raiseEvent(
-    {
-      type: "warning",
-      message: `All sensors in building ${buildingName} disarmed`,
-      system: "backend:buildings",
-      title: `Building Disarmed: ${buildingName}`,
-    }
-  );
+  await raiseEvent({
+    type: "warning",
+    message: `All sensors in building ${buildingName} disarmed`,
+    system: "backend:buildings",
+    title: `Building Disarmed: ${buildingName}`,
+  });
   res.status(200).json({
     status: "success",
     message: `All sensors in building ${buildingName} disarmed`,

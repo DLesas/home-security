@@ -9,10 +9,11 @@ import { alarmsTable } from "../../db/schema/alarms";
 import { type Alarm, alarmRepository } from "../../redis/alarms";
 import { EntityId } from "redis-om";
 import { raiseError } from "../../events/notify";
-import { getIpAddress, makeID, normalizeIpAddress } from "../../utils";
+import { makeID } from "../../utils";
 import { alarmLogsTable } from "../../db/schema/alarmLogs";
 import { alarmUpdatesTable } from "../../db/schema/alarmUpdates";
 import { writeRedisCheckpoint } from "../../redis/index";
+import { identifyDevice } from "../../utils/deviceIdentification";
 
 const router = express.Router();
 
@@ -92,13 +93,11 @@ router.post("/new", async (req, res, next) => {
     lastUpdated: new Date(),
   } as Alarm);
   await emitNewData();
-  await raiseEvent(
-    {
-      type: "info",
-      message: `New alarm ${newAlarm.name} in ${building} with id ${newAlarm.id} added`,
-      system: "backend:alarms",
-    }
-  );
+  await raiseEvent({
+    type: "info",
+    message: `New alarm ${newAlarm.name} in ${building} with id ${newAlarm.id} added`,
+    system: "backend:alarms",
+  });
   await writePostgresCheckpoint();
   await writeRedisCheckpoint();
   res.status(201).json({ status: "success", data: data });
@@ -130,13 +129,11 @@ router.delete("/:alarmId", async (req, res, next) => {
     .where(eq(alarmsTable.id, alarmId));
   await alarmRepository.remove(entityId);
   await emitNewData();
-  await raiseEvent(
-    {
-      type: "warning",
-      message: `Alarm ${alarm.name} in ${alarm.building} with id ${alarm.id} deleted`,
-      system: "backend:alarms",
-    }
-  );
+  await raiseEvent({
+    type: "warning",
+    message: `Alarm ${alarm.name} in ${alarm.building} with id ${alarm.id} deleted`,
+    system: "backend:alarms",
+  });
   await writePostgresCheckpoint();
   await writeRedisCheckpoint();
   res.status(200).json({ status: "success", message: "Alarm deleted" });
@@ -178,20 +175,30 @@ router.post("/logs", async (req, res, next) => {
     next(raiseError(400, JSON.stringify(result.error.errors)));
     return;
   }
-  const ipAddress = normalizeIpAddress(getIpAddress(req));
-  if (!ipAddress) {
-    next(raiseError(400, "ip Address is required"));
+
+  // Try to identify device using headers first, then fallback to IP
+  const deviceInfo = await identifyDevice(req);
+  if (!deviceInfo || deviceInfo.type !== "alarm") {
+    next(
+      raiseError(
+        404,
+        "Alarm not recognized - ensure device headers are set correctly"
+      )
+    );
     return;
   }
+
   const alarm = (await alarmRepository
     .search()
-    .where("ipAddress")
-    .eq(ipAddress)
+    .where("externalID")
+    .eq(deviceInfo.id)
     .returnFirst()) as Alarm | null;
+
   if (!alarm) {
-    next(raiseError(404, "Sensor not recognized"));
+    next(raiseError(404, "Alarm not found in database"));
     return;
   }
+
   await db.insert(alarmLogsTable).values(
     result.data.map((item) => ({
       alarmId: alarm.externalID,
@@ -204,13 +211,12 @@ router.post("/logs", async (req, res, next) => {
       count: item.Count,
     }))
   );
-  await raiseEvent(
-    {
-      type: "info",
-      message: `Logs received from alarm ${alarm.name} in ${alarm.building}`,
-      system: "backend:alarms",
-    }
-  );
+
+  await raiseEvent({
+    type: "info",
+    message: `Logs received from alarm ${alarm.name} in ${alarm.building} (identified by: ${deviceInfo.identificationMethod})`,
+    system: "backend:alarms",
+  });
   res.json({ status: "success", message: "Logs received" });
 });
 
@@ -240,37 +246,49 @@ router.post("/:alarmId/handshake", async (req, res, next) => {
     return;
   }
   const { macAddress } = result.data;
-  const ipAddress = normalizeIpAddress(getIpAddress(req));
+
+  // Try to identify device using headers first, then fallback to URL param
+  const deviceInfo = await identifyDevice(req);
+  const targetAlarmId = deviceInfo?.id || alarmId;
+  const deviceIp = deviceInfo?.ipAddress;
+
   const alarm = (await alarmRepository
     .search()
     .where("externalID")
-    .eq(alarmId)
+    .eq(targetAlarmId)
     .returnFirst()) as Alarm | null;
+
   if (!alarm) {
+    console.log(`Alarm not found with ID: ${targetAlarmId}`);
+    console.log(
+      "Available alarms:",
+      await alarmRepository.search().returnAll()
+    );
     next(raiseError(404, "Alarm not found"));
     return;
   }
-  if (!alarm.ipAddress || alarm.ipAddress !== ipAddress) {
-    await alarmRepository.save({
-      ...alarm,
-      macAddress,
-      ipAddress: ipAddress,
-      lastUpdated: new Date(),
-    } as Alarm);
-    await emitNewData();
-    await raiseEvent(
-      {
-        type: "info",
-        message: `Recieved first handshake from Alarm ${alarm.name} in ${alarm.building} with ip: ${alarm.ipAddress} , and mac: ${macAddress}`,
-        system: "backend:alarms",
-      }
-    );
-  }
-  res
-    .status(200)
-    .json({ status: "success", message: "Alarm handshake successful" });
+
+
+  await emitNewData();
+  const identificationMethod =
+    deviceInfo?.identificationMethod || "url_param";
+  await raiseEvent({
+    type: "info",
+    message: `Received handshake from alarm ${alarm.name} in ${alarm.building} (identified by: ${identificationMethod}) with ip: ${deviceIp}, mac: ${macAddress}`,
+    system: "backend:alarms",
+  });
+  res.status(200).json({ status: "success", message: "Alarm handshake successful" });
 });
 
+/**
+ * @route POST /update
+ * @description Updates the status and temperature of an alarm
+ * @param {express.Request} req - The request object
+ * @param {express.Response} res - The response object
+ * @returns {void}
+ * @body {string} status - The status of the alarm (on, off)
+ * @body {number} temperature - The temperature reading of the alarm (-100 to 120)
+ */
 router.post("/update", async (req, res, next) => {
   const validationSchema = z.object({
     status: z.enum(["on", "off"], {
@@ -302,20 +320,30 @@ router.post("/update", async (req, res, next) => {
     next(raiseError(400, JSON.stringify(result.error.errors)));
     return;
   }
-  const ipAddress = normalizeIpAddress(getIpAddress(req));
-  if (!ipAddress) {
-    next(raiseError(400, "ip Address is required"));
+
+  // Try to identify device using headers first, then fallback to IP
+  const deviceInfo = await identifyDevice(req);
+  if (!deviceInfo || deviceInfo.type !== "alarm") {
+    next(
+      raiseError(
+        404,
+        "Alarm not recognized - ensure device headers are set correctly"
+      )
+    );
     return;
   }
+
   const alarm = (await alarmRepository
     .search()
-    .where("ipAddress")
-    .eq(ipAddress)
+    .where("externalID")
+    .eq(deviceInfo.id)
     .returnFirst()) as Alarm | null;
+
   if (!alarm) {
-    next(raiseError(404, "Alarm not recognized"));
+    next(raiseError(404, "Alarm not found in database"));
     return;
   }
+
   const { status, temperature, voltage, frequency } = result.data;
   await alarmRepository.save({
     ...alarm,
@@ -326,13 +354,21 @@ router.post("/update", async (req, res, next) => {
     lastUpdated: new Date(),
   });
   await emitNewData();
-  db.insert(alarmUpdatesTable).values({
+
+  await db.insert(alarmUpdatesTable).values({
     alarmId: alarm.externalID,
     state: status,
     temperature: temperature.toString(),
     voltage: voltage ? voltage.toString() : null,
     frequency: frequency,
   });
+
+  await raiseEvent({
+    type: "info",
+    message: `Alarm ${alarm.name} in ${alarm.building} (identified by: ${deviceInfo.identificationMethod}) updated with state: ${status}, temperature: ${temperature}, voltage: ${voltage}, frequency: ${frequency}`,
+    system: "backend:alarms",
+  });
+
   res.json({ status: "success", message: "update acknowledged" });
 });
 

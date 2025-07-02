@@ -10,9 +10,10 @@ import { raiseEvent } from "../../events/notify";
 import { emitNewData } from "../socketHandler";
 import { EntityId } from "redis-om";
 import { raiseError } from "../../events/notify";
-import { getIpAddress, makeID, normalizeIpAddress } from "../../utils";
+import { makeID } from "../../utils";
 import { sensorLogsTable } from "../../db/schema/sensorLogs";
 import { writeRedisCheckpoint } from "../../redis/index";
+import { identifyDevice } from "../../utils/deviceIdentification";
 
 const router = express.Router();
 
@@ -36,41 +37,57 @@ router.post("/:sensorId/handshake", async (req, res, next) => {
       .max(255, "macAddress must be less than 255 characters"),
   });
   const { error, data } = validationSchema.safeParse(req.body);
-  const ipAddress = normalizeIpAddress(getIpAddress(req));
   if (error) {
     next(raiseError(400, JSON.stringify(error.errors)));
     return;
   }
   const { macAddress } = data;
-  // console.log(await doorSensorRepository.search().returnAll())
+
+  // Try to identify device using headers first, then fallback to URL param
+  const deviceInfo = await identifyDevice(req);
+  const targetSensorId = deviceInfo?.id || sensorId;
+  const deviceIp = deviceInfo?.ipAddress;
+
   const sensor = (await doorSensorRepository
     .search()
     .where("externalID")
-    .eq(sensorId)
+    .eq(targetSensorId)
     .returnFirst()) as doorSensor | null;
+
   if (!sensor) {
-    console.log(await doorSensorRepository.search().returnAll());
+    console.log(`Sensor not found with ID: ${targetSensorId}`);
+    console.log(
+      "Available sensors:",
+      await doorSensorRepository.search().returnAll()
+    );
     next(raiseError(404, "Sensor not recognized"));
     return;
   }
-  if (!sensor.ipAddress || sensor.ipAddress !== ipAddress) {
+
+  // Update sensor info if IP or MAC has changed
+  if (
+    !sensor.ipAddress ||
+    sensor.ipAddress !== deviceIp ||
+    !sensor.macAddress ||
+    sensor.macAddress !== macAddress
+  ) {
     await doorSensorRepository.save({
       ...sensor,
       macAddress,
-      ipAddress: ipAddress,
+      ipAddress: deviceIp,
       lastUpdated: new Date(),
     } as doorSensor);
     await emitNewData();
-    await raiseEvent(
-      {
-        type: "info",
-        message: `Recieved first handshake from sensor ${sensor!.name} in ${
-          sensor!.building
-        } with ip: ${ipAddress} , and mac: ${macAddress}`,
-        system: "backend:sensors",
-      }
-    );
+
+    const identificationMethod =
+      deviceInfo?.identificationMethod || "url_param";
+    await raiseEvent({
+      type: "info",
+      message: `Received handshake from sensor ${sensor.name} in ${sensor.building} (identified by: ${identificationMethod}) with ip: ${deviceIp}, mac: ${macAddress}`,
+      system: "backend:sensors",
+    });
   }
+
   res
     .status(200)
     .json({ status: "success", message: "Sensor handshake successful" });
@@ -117,20 +134,30 @@ router.post("/update", async (req, res, next) => {
     next(raiseError(400, JSON.stringify(result.error.errors)));
     return;
   }
-  const ipAddress = normalizeIpAddress(getIpAddress(req));
-  if (!ipAddress) {
-    next(raiseError(400, "ip Address is required"));
+
+  // Try to identify device using headers first, then fallback to IP
+  const deviceInfo = await identifyDevice(req);
+  if (!deviceInfo || deviceInfo.type !== "sensor") {
+    next(
+      raiseError(
+        404,
+        "Sensor not recognized - ensure device headers are set correctly"
+      )
+    );
     return;
   }
+
   const sensor = (await doorSensorRepository
     .search()
-    .where("ipAddress")
-    .eq(ipAddress)
+    .where("externalID")
+    .eq(deviceInfo.id)
     .returnFirst()) as doorSensor | null;
+
   if (!sensor) {
-    next(raiseError(404, "Sensor not recognized"));
+    next(raiseError(404, "Sensor not found in database"));
     return;
   }
+
   const { status, temperature, voltage, frequency } = result.data;
   try {
     await DoorSensorUpdate({
@@ -144,14 +171,13 @@ router.post("/update", async (req, res, next) => {
     next(err);
     return;
   }
+
   await emitNewData();
-  await raiseEvent(
-    {
-      type: "info",
-      message: `Sensor ${sensor.name} in ${sensor.building} with id ${sensor.externalID} and ip address ${sensor.ipAddress} updated with state: ${status}, temperature: ${temperature}, voltage: ${voltage}, frequency: ${frequency}`,
-      system: "backend:sensors",
-    }
-  );
+  await raiseEvent({
+    type: "info",
+    message: `Sensor ${sensor.name} in ${sensor.building} (identified by: ${deviceInfo.identificationMethod}) updated with state: ${status}, temperature: ${temperature}, voltage: ${voltage}, frequency: ${frequency}`,
+    system: "backend:sensors",
+  });
   res.status(200).json({ status: "success", message: "update acknowledged" });
 });
 
@@ -191,20 +217,30 @@ router.post("/logs", async (req, res, next) => {
     next(raiseError(400, JSON.stringify(result.error.errors)));
     return;
   }
-  const ipAddress = normalizeIpAddress(getIpAddress(req));
-  if (!ipAddress) {
-    next(raiseError(400, "ip Address is required"));
+
+  // Try to identify device using headers first, then fallback to IP
+  const deviceInfo = await identifyDevice(req);
+  if (!deviceInfo || deviceInfo.type !== "sensor") {
+    next(
+      raiseError(
+        404,
+        "Sensor not recognized - ensure device headers are set correctly"
+      )
+    );
     return;
   }
+
   const sensor = (await doorSensorRepository
     .search()
-    .where("ipAddress")
-    .eq(ipAddress)
+    .where("externalID")
+    .eq(deviceInfo.id)
     .returnFirst()) as doorSensor | null;
+
   if (!sensor) {
-    next(raiseError(404, "Sensor not recognized"));
+    next(raiseError(404, "Sensor not found in database"));
     return;
   }
+
   await db.insert(sensorLogsTable).values(
     result.data.map((item) => ({
       sensorId: sensor.externalID,
@@ -217,13 +253,12 @@ router.post("/logs", async (req, res, next) => {
       count: item.Count,
     }))
   );
-  await raiseEvent(
-    {
-      type: "info",
-      message: `Logs received from sensor ${sensor.name} in ${sensor.building} with id ${sensor.externalID} and ip address ${sensor.ipAddress}`,
-      system: "backend:sensors",
-    }
-  );
+
+  await raiseEvent({
+    type: "info",
+    message: `Logs received from sensor ${sensor.name} in ${sensor.building} (identified by: ${deviceInfo.identificationMethod})`,
+    system: "backend:sensors",
+  });
   res.status(200).json({ status: "success", message: "Logs received" });
 });
 
@@ -304,14 +339,12 @@ router.post("/new", async (req, res, next) => {
     expectedSecondsUpdated,
     lastUpdated: new Date(),
   } as doorSensor);
-  await raiseEvent(
-    {
-      type: "info",
-      message: `New sensor ${newSensor.name} in ${building} with id ${newSensor.id} added`,
-      system: "backend:sensors",
-      title: `Sensor Added: ${newSensor.name} in ${building}`,
-    }
-  );
+  await raiseEvent({
+    type: "info",
+    message: `New sensor ${newSensor.name} in ${building} with id ${newSensor.id} added`,
+    system: "backend:sensors",
+    title: `Sensor Added: ${newSensor.name} in ${building}`,
+  });
   await writePostgresCheckpoint();
   await writeRedisCheckpoint();
   await emitNewData();
@@ -343,14 +376,12 @@ router.delete("/:sensorId", async (req, res, next) => {
     .set({ deleted: true })
     .where(eq(sensorsTable.id, sensorId));
   await doorSensorRepository.remove(entityId);
-  await raiseEvent(
-    {
-      type: "warning",
-      message: `Sensor ${sensor.name} in ${sensor.building} deleted`,
-      system: "backend:sensors",
-      title: `Sensor Deleted: ${sensor.name} in ${sensor.building}`,
-    }
-  );
+  await raiseEvent({
+    type: "warning",
+    message: `Sensor ${sensor.name} in ${sensor.building} deleted`,
+    system: "backend:sensors",
+    title: `Sensor Deleted: ${sensor.name} in ${sensor.building}`,
+  });
   await emitNewData();
   await writePostgresCheckpoint();
   await writeRedisCheckpoint();
@@ -383,14 +414,12 @@ router.post("/:sensorId/arm", async (req, res, next) => {
   }
   await changeSensorStatus([sensor], true);
   await emitNewData();
-  await raiseEvent(
-    {
-      type: "warning",
-      message: `Sensor ${sensor.name} in ${sensor.building} armed`,
-      system: "backend:sensors",
-      title: `Sensor Armed: ${sensor.name} in ${sensor.building}`,
-    }
-  );
+  await raiseEvent({
+    type: "warning",
+    message: `Sensor ${sensor.name} in ${sensor.building} armed`,
+    system: "backend:sensors",
+    title: `Sensor Armed: ${sensor.name} in ${sensor.building}`,
+  });
   res.json({ status: "success", message: "Sensor armed" });
 });
 
@@ -415,14 +444,12 @@ router.post("/:sensorId/disarm", async (req, res, next) => {
   }
   await changeSensorStatus([sensor], false);
   await emitNewData();
-  await raiseEvent(
-    {
-      type: "warning",
-      message: `Sensor ${sensor.name} in ${sensor.building} disarmed`,
-      system: "backend:sensors",
-      title: `Sensor Disarmed: ${sensor.name} in ${sensor.building}`,
-    }
-  );
+  await raiseEvent({
+    type: "warning",
+    message: `Sensor ${sensor.name} in ${sensor.building} disarmed`,
+    system: "backend:sensors",
+    title: `Sensor Disarmed: ${sensor.name} in ${sensor.building}`,
+  });
   res.json({ status: "success", message: "Sensor disarmed" });
 });
 
