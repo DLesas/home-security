@@ -172,6 +172,7 @@ const NewAlarmComponent: React.FC = () => {
         body: JSON.stringify({ name, building, expectedSecondsUpdated, port }),
       })
       const data = await res.json()
+      console.log(data)
       if (!res.ok) {
         setError(data?.message || 'Failed to create alarm')
       } else {
@@ -180,8 +181,6 @@ const NewAlarmComponent: React.FC = () => {
         setBuilding('')
         setExpectedSecondsUpdated(0)
         setPort(0)
-        const data = await res.json()
-        console.log(data)
       }
     } catch (e: any) {
       setError(e.message || 'Unknown error')
