@@ -72,6 +72,7 @@ const NewSensorComponent: React.FC = () => {
   const [buildingName, setBuildingName] = useState('')
   const [expectedSecondsUpdated, setExpectedSecondsUpdated] =
     useState<number>(0)
+  const [responseData, setResponseData] = useState<any>(null)
 
   const makeNewSensor = () => {
     fetch(`${url}/api/v1/sensors/new`, {
@@ -88,6 +89,7 @@ const NewSensorComponent: React.FC = () => {
       .then((res) => res.json())
       .then((data) => {
         console.log(data)
+        setResponseData(data)
       })
   }
 
@@ -110,6 +112,11 @@ const NewSensorComponent: React.FC = () => {
         onChange={(e) => setExpectedSecondsUpdated(parseInt(e.target.value))}
       />
       <Button onClick={makeNewSensor}>Create</Button>
+      {responseData && (
+        <pre className="mt-2 rounded-lg bg-gray-100 p-2 text-sm dark:bg-gray-800">
+          {JSON.stringify(responseData, null, 2)}
+        </pre>
+      )}
     </div>
   )
 }
@@ -117,6 +124,7 @@ const NewSensorComponent: React.FC = () => {
 const NewBuildingComponent: React.FC = () => {
   const { url } = useSocket()
   const [buildingName, setBuildingName] = useState('')
+  const [responseData, setResponseData] = useState<any>(null)
 
   const makeNewBuilding = () => {
     fetch(`${url}/api/v1/buildings/new`, {
@@ -129,6 +137,7 @@ const NewBuildingComponent: React.FC = () => {
       .then((res) => res.json())
       .then((data) => {
         console.log(data)
+        setResponseData(data)
       })
   }
 
@@ -140,6 +149,11 @@ const NewBuildingComponent: React.FC = () => {
         onChange={(e) => setBuildingName(e.target.value)}
       />
       <Button onClick={makeNewBuilding}>Create</Button>
+      {responseData && (
+        <pre className="mt-2 rounded-lg bg-gray-100 p-2 text-sm dark:bg-gray-800">
+          {JSON.stringify(responseData, null, 2)}
+        </pre>
+      )}
     </div>
   )
 }
@@ -155,6 +169,7 @@ const NewAlarmComponent: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [responseData, setResponseData] = useState<any>(null)
 
   // Get building list from socket data logs keys
   const buildingList = data && data.logs ? Object.keys(data.logs) : []
@@ -163,6 +178,7 @@ const NewAlarmComponent: React.FC = () => {
     setLoading(true)
     setError(null)
     setSuccess(null)
+    setResponseData(null)
     try {
       const res = await fetch(`${url}/api/v1/alarms/new`, {
         method: 'POST',
@@ -172,6 +188,8 @@ const NewAlarmComponent: React.FC = () => {
         body: JSON.stringify({ name, building, expectedSecondsUpdated, port }),
       })
       const data = await res.json()
+      setResponseData(data)
+      console.log(data)
       if (!res.ok) {
         setError(data?.message || 'Failed to create alarm')
       } else {
@@ -180,8 +198,6 @@ const NewAlarmComponent: React.FC = () => {
         setBuilding('')
         setExpectedSecondsUpdated(0)
         setPort(0)
-        const data = await res.json()
-        console.log(data)
       }
     } catch (e: any) {
       setError(e.message || 'Unknown error')
@@ -233,6 +249,11 @@ const NewAlarmComponent: React.FC = () => {
       </Button>
       {error && <div className="mt-1 text-sm text-red-500">{error}</div>}
       {success && <div className="mt-1 text-sm text-green-500">{success}</div>}
+      {responseData && (
+        <pre className="mt-2 rounded-lg bg-gray-100 p-2 text-sm dark:bg-gray-800">
+          {JSON.stringify(responseData, null, 2)}
+        </pre>
+      )}
     </div>
   )
 }
