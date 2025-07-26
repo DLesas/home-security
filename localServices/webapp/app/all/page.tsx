@@ -12,13 +12,15 @@ import {
   TableHeader,
   TableRow,
 } from '@nextui-org/table'
+import { useSocket } from '../socketInitializer'
 
 const AllDevicesPage = () => {
   const { sensors, alarms } = useSocketData()
+  const { url } = useSocket()
 
   const handleRemoveSensor = async (sensorId: string) => {
     try {
-      const response = await fetch(`/api/v1/sensors/${sensorId}`, {
+      const response = await fetch(`${url}/api/v1/sensors/${sensorId}`, {
         method: 'DELETE',
       })
       if (!response.ok) {
@@ -33,7 +35,7 @@ const AllDevicesPage = () => {
 
   const handleRemoveAlarm = async (alarmId: string) => {
     try {
-      const response = await fetch(`/api/v1/alarms/${alarmId}`, {
+      const response = await fetch(`${url}/api/v1/alarms/${alarmId}`, {
         method: 'DELETE',
       })
       if (!response.ok) {
