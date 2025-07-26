@@ -25,11 +25,11 @@ def main():
     timeclock = TimeClock(logger, led, DeviceWifi)
     timeclock.set_time_ntp()
     udp = Udp(DeviceWifi, logger, led, env["server_udp_port"], env["server_service_name"], env["server_password"], env["tcp_timeout"], env["tcp_port"])
-    networking = Networking(DeviceWifi, Device, logger, led, udp, env["max_networking_attempts"], env["networking_blinks"], env["server_ip"], env["server_port"], env["server_ssl"], env["api_version"], env["deviceType"], env["user_agent"])
+    networking = Networking(DeviceWifi, Device, logger, led, udp, env["max_networking_attempts"], env["networking_blinks"], env["server_ip"], env["server_port"], env["server_ssl"], env["api_version"], env["deviceType"], env["user_agent"], env["id"])
     networking.find_server()
-    networking.handshake_with_server()
     alarm_relay = alarmRelay(logger, led, Device, DeviceWifi, networking, env["relay_pin"], env["port"])
     server = alarm_relay.start_server()
+    networking.handshake_with_server()
     start = time.time()
     ping_interval_s = int(env["ping_interval_s"])
     while True:

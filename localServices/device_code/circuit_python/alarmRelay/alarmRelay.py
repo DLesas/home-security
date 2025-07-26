@@ -78,7 +78,7 @@ class alarmRelay:
             response.close()
 
     def register_routes(self):
-        @self.server.route("/on", method="POST")    
+        @self.server.route("/on", "POST")    
         def alarm_on(request: Request):
             """
             Turn the alarm on.
@@ -91,7 +91,7 @@ class alarmRelay:
             data = {"state": self.state, "temperature": self.temperature, "voltage": self.voltage, "frequency": self.frequency}
             return JSONResponse(data)
 
-        @self.server.route("/off", method="POST")
+        @self.server.route("/off", "POST")
         def alarm_off(request: Request):
             """
             Turn the alarm off.
