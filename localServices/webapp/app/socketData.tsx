@@ -10,37 +10,34 @@ import React, {
 import { useSocket } from './socketInitializer' // Assuming you have a custom hook to get the socket instance
 import { useRouter } from 'next/navigation'
 
-
 interface Alarm {
-	name: string;
-	externalID: string;
-	playing: boolean;
-	building: string;
-	ipAddress?: string;
-	macAddress?: string;
-	temperature?: number;
-	voltage?: number;
-	frequency?: number;
-	expectedSecondsUpdated: number;
-	lastUpdated: Date;
+  name: string
+  externalID: string
+  playing: boolean
+  building: string
+  ipAddress?: string
+  macAddress?: string
+  temperature?: number
+  voltage?: number
+  frequency?: number
+  expectedSecondsUpdated: number
+  lastUpdated: Date
 }
 
 interface doorSensor {
-  name: string;
-  externalID: string;
-  building: string;
-  armed: boolean;
-  state: "open" | "closed" | "unknown";
-  ipAddress?: string;
-  macAddress?: string;
-  temperature?: number;
-  voltage?: number;
-  frequency?: number;
-  expectedSecondsUpdated: number;
-  lastUpdated: Date;
+  name: string
+  externalID: string
+  building: string
+  armed: boolean
+  state: 'open' | 'closed' | 'unknown'
+  ipAddress?: string
+  macAddress?: string
+  temperature?: number
+  voltage?: number
+  frequency?: number
+  expectedSecondsUpdated: number
+  lastUpdated: Date
 }
-
-
 
 // {
 //   "building": "Shed",
@@ -83,10 +80,10 @@ interface DoorValues {
 // Define the DoorEntries type with an index signature
 type DoorEntries = {
   [sensorName: string]: {
-    status: string;
-    armed: boolean;
-  };
-};
+    status: string
+    armed: boolean
+  }
+}
 
 // Initialize logs with the correct type
 
@@ -108,18 +105,21 @@ type Data = Example
 
 function formatData(sensors: doorSensor[], alarms: Alarm[]): Data {
   const logs: {
-    [building: string]: DoorEntries;
-  } = {};
+    [building: string]: DoorEntries
+  } = {}
   for (const sensor of sensors) {
     if (!logs[sensor.building]) {
       logs[sensor.building] = {}
     }
-    logs[sensor.building][sensor.name] = {status: sensor.state, armed: sensor.armed}
+    logs[sensor.building][sensor.name] = {
+      status: sensor.state,
+      armed: sensor.armed,
+    }
   }
   return {
-    alarm: alarms.some(alarm => alarm.playing),
+    alarm: alarms.some((alarm) => alarm.playing),
     logs: logs,
-    issues: []
+    issues: [],
   }
 }
 
@@ -127,12 +127,16 @@ interface SocketDataContextProps {
   data: Data
   schedules: schedule[] | []
   isConnected: boolean
+  sensors: doorSensor[]
+  alarms: Alarm[]
 }
 
 const SocketDataContext = createContext<SocketDataContextProps>({
   data: {} as Data,
   schedules: [],
   isConnected: false,
+  sensors: [],
+  alarms: [],
 })
 
 export const useSocketData = (): SocketDataContextProps =>
@@ -142,6 +146,8 @@ export const SocketDataProvider: React.FC<SocketDataProps> = ({ children }) => {
   const [data, setData] = useState<Data>({} as Data)
   const [schedules, setSchedules] = useState([])
   const [isConnected, setIsConnected] = useState<boolean>(false)
+  const [sensors, setSensors] = useState<doorSensor[]>([])
+  const [alarms, setAlarms] = useState<Alarm[]>([])
   const { socket } = useSocket() // Assuming you have a custom hook to get the socket instance
   const router = useRouter()
 
@@ -157,9 +163,11 @@ export const SocketDataProvider: React.FC<SocketDataProps> = ({ children }) => {
       router.push('/')
     }
 
-    function onData(value: {sensors: doorSensor[], alarms: Alarm[]}) {
+    function onData(value: { sensors: doorSensor[]; alarms: Alarm[] }) {
       const formattedData = formatData(value.sensors, value.alarms)
       setData(formattedData)
+      setSensors(value.sensors)
+      setAlarms(value.alarms)
       console.log(formattedData)
     }
 
@@ -186,7 +194,9 @@ export const SocketDataProvider: React.FC<SocketDataProps> = ({ children }) => {
   }, [socket])
 
   return (
-    <SocketDataContext.Provider value={{ data, schedules, isConnected }}>
+    <SocketDataContext.Provider
+      value={{ data, schedules, isConnected, sensors, alarms }}
+    >
       {children}
     </SocketDataContext.Provider>
   )
