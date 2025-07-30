@@ -178,7 +178,7 @@ router.post("/update", async (req, res, next) => {
     message: `Sensor ${sensor.name} in ${sensor.building} (identified by: ${deviceInfo.identificationMethod}) updated with state: ${status}, temperature: ${temperature}, voltage: ${voltage}, frequency: ${frequency}`,
     system: "backend:sensors",
   });
-  res.status(200).json({ status: "success", message: "update acknowledged" });
+  res.status(200).json({ status: "success", armed: sensor.armed, message: "update acknowledged" });
 });
 
 /**
