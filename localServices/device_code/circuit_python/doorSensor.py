@@ -23,7 +23,7 @@ class DoorSensor:
         LocalAlarm: LocalAlarm,
         PersistentState: PersistentState,
         door_switch_pin: str,
-        max_time_to_sleep_s: int = 120,
+        max_ping_interval_s: int = 120,
         should_deep_sleep: bool = False,
     ):
         self.Logger = Logger
@@ -34,25 +34,30 @@ class DoorSensor:
         self.LocalAlarm = LocalAlarm
         self.PersistentState = PersistentState
         self.switch_pin = getattr(board, door_switch_pin)
-        self.max_time_to_sleep_s = int(max_time_to_sleep_s)
+        self.max_ping_interval_s = int(max_ping_interval_s)
         self.state = None
         self.temperature = None
         self.voltage = None
         self.frequency = None
         self.should_deep_sleep = should_deep_sleep
-        # Create a persistent DigitalInOut object for the switch
-        self.switch = DigitalInOut(self.switch_pin)
-        self.switch.direction = Direction.INPUT
-        self.switch.pull = Pull.UP
+        # Store the pin reference for creating DigitalInOut objects when needed
+        self.switch = getattr(board, door_switch_pin)
 
     def read_switch(self):
-        new_state = "open" if self.switch.value else "closed"
+        switch = DigitalInOut(self.switch)
+        switch.direction = Direction.INPUT
+        switch.pull = Pull.UP
+        
+        new_state = "open" if switch.value else "closed"
 
         # If the door is now closed and the local alarm was sounding, stop it.
         if new_state == "closed" and self.LocalAlarm.is_sounding:
             self.LocalAlarm.stop()
         
         self.state = new_state
+        
+        # Deinit the switch to free up the pin for alarm use
+        switch.deinit()
         
     def read_all_stats(self):
         self.temperature = self.Device.read_temperature()
@@ -67,7 +72,7 @@ class DoorSensor:
         # Base alarms for pin changes and max sleep time
         pin_alarm_rising = alarm.pin.PinAlarm(pin=self.switch_pin, value=True, edge=True)
         pin_alarm_falling = alarm.pin.PinAlarm(pin=self.switch_pin, value=False, edge=True, pull=True)
-        timeout_alarm = alarm.time.TimeAlarm(monotonic_time=time.monotonic() + self.max_time_to_sleep_s)
+        timeout_alarm = alarm.time.TimeAlarm(monotonic_time=time.monotonic() + self.max_ping_interval_s)
         
         alarms_to_wait_for = [pin_alarm_rising, pin_alarm_falling, timeout_alarm]
         
@@ -84,7 +89,7 @@ class DoorSensor:
         # Base alarms for pin changes and max sleep time
         pin_alarm_rising = alarm.pin.PinAlarm(pin=self.switch_pin, value=True, edge=True)
         pin_alarm_falling = alarm.pin.PinAlarm(pin=self.switch_pin, value=False, edge=True, pull=True)
-        timeout_alarm = alarm.time.TimeAlarm(monotonic_time=time.monotonic() + self.max_time_to_sleep_s)
+        timeout_alarm = alarm.time.TimeAlarm(monotonic_time=time.monotonic() + self.max_ping_interval_s)
 
         alarms_to_wait_for = [pin_alarm_rising, pin_alarm_falling, timeout_alarm]
 
