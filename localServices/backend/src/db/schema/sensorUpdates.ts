@@ -10,7 +10,7 @@ export const sensorUpdatesTable = pgTable("sensorUpdates", {
 		.notNull()
 		.references(() => sensorsTable.id, { onDelete: "cascade" }),
 	state: doorSensorStateEnum("state").notNull(),
-	temperature: numeric("temperature", { precision: 5, scale: 2 }).notNull(),
+	temperature: numeric("temperature", { precision: 5, scale: 2 }),
 	voltage: numeric("voltage", { precision: 5, scale: 2 }),
 	frequency: integer("frequency"),
 	dateTime: timestamp("dateTime", { withTimezone: true }).defaultNow(),

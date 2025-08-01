@@ -36,6 +36,13 @@
       "when": 1748781762904,
       "tag": "0005_wonderful_blizzard",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1754048791352,
+      "tag": "0006_keen_revanche",
+      "breakpoints": true
     }
   ]
 }
