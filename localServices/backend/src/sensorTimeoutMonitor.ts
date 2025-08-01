@@ -1,5 +1,7 @@
 import { doorSensorRepository, type doorSensor } from "./redis/doorSensors";
 import { raiseEvent } from "./events/notify";
+import { sensorUpdatesTable } from "./db/schema/sensorUpdates";
+import { db } from "./db/db";
 
 /**
  * This is a singleton class that is used to monitor the timeout status of all sensors.
@@ -219,7 +221,13 @@ export class SensorTimeoutMonitor {
           // Update sensor state to unknown
           sensor.state = "unknown";
           await doorSensorRepository.save(sensor);
-
+          db.insert(sensorUpdatesTable).values({
+            sensorId: sensor.externalID,
+            state: "unknown",
+            temperature: undefined,
+            voltage: undefined,
+            frequency: undefined,
+          });
           // Raise warning event
           await raiseEvent({
             type: "warning",
