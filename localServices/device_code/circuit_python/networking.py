@@ -203,7 +203,7 @@ class Networking:
                     self.Logger.log_issue("Error", self.__class__.__name__, func_name, f"Failed to send log data. Status code: {response.status_code}, response: {response.text}")
             except Exception as e:
                 self.Logger.truncate_log_file(file_path)
-                self.log_issue("error", self.__class__.__name__, func_name, str(e))
+                self.Logger.log_issue("error", self.__class__.__name__, func_name, str(e))
             finally:
                 if "response" in locals():
                     response.close()
