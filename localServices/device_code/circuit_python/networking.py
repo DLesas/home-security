@@ -59,7 +59,11 @@ class Networking:
         self.id = id
         self.log_dir = "logs"  # Add log directory for send_logs method
         
-        self.mac_address_str = ":".join(f"{b:02x}" for b in self.deviceWifi.mac)
+        # Handle MAC address - it might be None if WiFi isn't connected yet
+        if self.deviceWifi.mac is not None:
+            self.mac_address_str = ":".join(f"{b:02x}" for b in self.deviceWifi.mac)
+        else:
+            self.mac_address_str = "00:00:00:00:00:00"  # Default placeholder
                 
         # Standard headers that include device identification
         self.headers = {
@@ -79,6 +83,14 @@ class Networking:
             self.server_ip = res["ip"]
             #self.server_port = int(res["port"])
             #print(f"Server found: {self.server_ip} % {self.server_port}")
+    
+    def update_mac_address(self):
+        """Update the MAC address after WiFi connection is established."""
+        if self.deviceWifi.mac is not None:
+            self.mac_address_str = ":".join(f"{b:02x}" for b in self.deviceWifi.mac)
+            # Update the header with the new MAC address
+            self.headers["X-Device-MAC"] = self.mac_address_str
+            self.headers["X-Device-IP"] = str(self.deviceWifi.ip)
 
 
     @require_connection
