@@ -114,23 +114,10 @@ export async function changeSensorStatus(
   }
   const res = await Promise.all(savePromises);
   const checkPromises = [];
-  const raisePromises = [];
   // This is necessary to trigger the alarms based on a change
   // in armed status (e.g. door open and user changes status to armed)
   for (const sensor of sensors) {
     checkPromises.push(checkSensorState(sensor, sensor.state));
-    // TODO: raise events in batches
-    // Not needed as events are raised directly
-    // in the express routes that use this func
-    // raisePromises.push(
-    //   raiseEvent({
-    //     type: "info",
-    //     message: `Sensor at ${sensor.name} in ${sensor.building} was ${
-    //       sensor.armed ? "armed" : "disarmed"
-    //     }`,
-    //     system: "backend:sensors:funcs",
-    //   })
-    // );
   }
   await Promise.all(checkPromises);
   // not necessary to await raise events promises as they
