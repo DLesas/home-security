@@ -1,3 +1,4 @@
+from persistentState import PersistentState
 from microDevice import microDevice
 from led import Led
 from logging import Logger
@@ -23,6 +24,7 @@ class DeviceManager:
         self.config = Config(config_path)
         self.device = microDevice()
         self.led = Led()
+        self.persistent_state = PersistentState()
         self.logger = Logger(self.device)
 
         # Networking components that depend on the core components

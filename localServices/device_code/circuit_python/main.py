@@ -4,9 +4,9 @@ import time
 import alarm
 import os
 from microcontroller import reset
-from doorSensor.doorSensor import DoorSensor
+from doorSensor import DoorSensor
 from localAlarm import LocalAlarm
-from alarmRelay.alarmRelay import alarmRelay
+from alarmRelay import alarmRelay
 from adafruit_httpserver import REQUEST_HANDLED_RESPONSE_SENT
 
 
@@ -19,20 +19,17 @@ def main():
     based on the DEVICE_MODULE setting in config.env.
     """
 
-    persistent_state = PersistentState()    
+    manager = DeviceManager()
+     
     # On boot, check if we're recovering from a fatal error.
-    if persistent_state.has_state("fatal_error"):
-        error_timestamp = float(persistent_state.get_state("fatal_error"))
+    if manager.persistent_state.has_state("fatal_error"):
+        error_timestamp = float(manager.persistent_state.get_state("fatal_error"))
         print(f"Woke up from a fatal error recovery sleep. Removing flag and continuing boot. Error timestamp: {error_timestamp}")
-        persistent_state.remove_state("fatal_error")
+        manager.persistent_state.remove_persistent_state("fatal_error")
         # We don't need to reset() here, because waking from deep sleep is already a reset.
         # We can now proceed with the normal boot process.
-
-    manager = None
     try:
-        manager = DeviceManager()
         manager.bootstrap()
-
         device_module = manager.config.device_module
 
         # ======================================================================
@@ -44,7 +41,7 @@ def main():
             door_sensor = DoorSensor(
                 manager.logger, manager.led, manager.device, manager.device_wifi, 
                 manager.networking, local_alarm, manager.config.door_switch_pin, 
-                manager.config.time_to_sleep_s
+                manager.config.time_to_sleep_s, manager.persistent_state
             )
 
             while True:
