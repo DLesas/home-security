@@ -2,19 +2,52 @@ import { doorSensorRepository, type doorSensor } from "./redis/doorSensors";
 import { raiseEvent } from "./events/notify";
 
 /**
- * Monitor sensor timeouts and mark sensors as "unknown" if they haven't
- * checked in within their expectedSecondsUpdated timeframe.
+ * This is a singleton class that is used to monitor the timeout status of all sensors.
+ * 
+ * This class creates individual intervals for each sensor based on their
+ * `expectedSecondsUpdated` value. Each interval continuously monitors the
+ * sensor's `lastUpdated` timestamp and marks the sensor as "unknown" if
+ * it hasn't reported within the expected timeframe.
+ * 
+ *
+ * @example
+ * ```typescript
+ * // Start monitoring all sensors
+ * await sensorTimeoutMonitor.start();
+ *
+ * // Recreate intervals when sensors are added/removed
+ * await sensorTimeoutMonitor.recreateAllIntervals();
+ *
+ * // Check if monitor is running
+ * if (sensorTimeoutMonitor.isRunning()) {
+ *   console.log(`Monitoring ${sensorTimeoutMonitor.getActiveIntervalCount()} sensors`);
+ * }
+ * ```
  */
 export class SensorTimeoutMonitor {
+  /** Array of active interval IDs for cleanup purposes */
   private intervalIds: NodeJS.Timeout[] = [];
+  /** Flag indicating whether the monitor is currently running */
   private isRunningFlag: boolean = false;
 
   constructor() {
+    // No initialization needed - monitor starts in stopped state
   }
 
   /**
-   * Start the timeout monitoring service
-   * Creates individual intervals for each sensor based on their expectedSecondsUpdated
+   * Start the timeout monitoring service.
+   *
+   * Creates individual intervals for each sensor based on their `expectedSecondsUpdated`
+   * value. Each interval will continuously check the sensor's timeout status.
+   *
+   * @throws {Error} If there's an error fetching sensors from Redis
+   * @returns {Promise<void>} Resolves when the monitor has started successfully
+   *
+   * @example
+   * ```typescript
+   * await sensorTimeoutMonitor.start();
+   * console.log("Sensor timeout monitoring started");
+   * ```
    */
   async start(): Promise<void> {
     if (this.isRunningFlag) {
@@ -30,8 +63,18 @@ export class SensorTimeoutMonitor {
   }
 
   /**
-   * Stop the timeout monitoring service
-   * Clears all interval timers and cleans up resources
+   * Stop the timeout monitoring service.
+   *
+   * Clears all interval timers and cleans up resources. This method is
+   * safe to call multiple times - subsequent calls will be ignored.
+   *
+   * @returns {void}
+   *
+   * @example
+   * ```typescript
+   * sensorTimeoutMonitor.stop();
+   * console.log("Sensor timeout monitoring stopped");
+   * ```
    */
   stop(): void {
     if (!this.isRunningFlag) {
@@ -47,13 +90,25 @@ export class SensorTimeoutMonitor {
     });
     this.intervalIds = [];
     this.isRunningFlag = false;
-
     console.log("SensorTimeoutMonitor stopped");
   }
 
   /**
-   * Recreate all sensor intervals
-   * Clears existing intervals and creates new ones for all sensors
+   * Recreate all sensor intervals.
+   *
+   * Clears existing intervals and creates new ones for all sensors.
+   * This is useful when sensors are added or removed from the system,
+   * ensuring the monitor stays in sync with the current sensor list.
+   *
+   * @throws {Error} If there's an error fetching sensors from Redis
+   * @returns {Promise<void>} Resolves when all intervals have been recreated
+   *
+   * @example
+   * ```typescript
+   * // After adding/removing sensors
+   * await sensorTimeoutMonitor.recreateAllIntervals();
+   * console.log("Sensor intervals recreated");
+   * ```
    */
   async recreateAllIntervals(): Promise<void> {
     console.log("Recreating all sensor intervals...");
@@ -66,13 +121,21 @@ export class SensorTimeoutMonitor {
   }
 
   /**
-   * Create individual intervals for all sensors
-   * Each sensor gets its own interval based on its expectedSecondsUpdated value
+   * Create individual intervals for all sensors.
+   *
+   * Fetches all sensors from Redis and creates an individual interval
+   * for each sensor based on its `expectedSecondsUpdated` value.
+   *
+   * @private
+   * @throws {Error} If there's an error fetching sensors from Redis
+   * @returns {Promise<void>} Resolves when all intervals have been created
    */
   private async createAllSensorIntervals(): Promise<void> {
     try {
       // Fetch all sensors from Redis
-      const sensors = (await doorSensorRepository.search().return.all()) as doorSensor[];
+      const sensors = (await doorSensorRepository
+        .search()
+        .return.all()) as doorSensor[];
 
       // Create an interval for each sensor
       sensors.forEach((sensorData) => {
@@ -105,8 +168,14 @@ export class SensorTimeoutMonitor {
   }
 
   /**
-   * Create an individual interval for a specific sensor
-   * The interval runs every expectedSecondsUpdated seconds and checks the sensor's lastUpdated
+   * Create an individual interval for a specific sensor.
+   *
+   * The interval runs every `expectedSecondsUpdated` seconds and checks
+   * the sensor's `lastUpdated` timestamp to determine if it has timed out.
+   *
+   * @private
+   * @param {doorSensor} sensor - The sensor to monitor
+   * @returns {void}
    */
   private createSensorInterval(sensor: doorSensor): void {
     const intervalMs = sensor.expectedSecondsUpdated * 1000; // Convert seconds to milliseconds
@@ -118,8 +187,15 @@ export class SensorTimeoutMonitor {
   }
 
   /**
-   * Check if a specific sensor has timed out
-   * Compares current time vs lastUpdated and marks as unknown if timed out
+   * Check if a specific sensor has timed out.
+   *
+   * Compares the current time against the sensor's `lastUpdated` timestamp
+   * and marks the sensor as "unknown" if it has exceeded its `expectedSecondsUpdated`
+   * threshold. Also handles recovery detection when sensors come back online.
+   *
+   * @private
+   * @param {doorSensor} sensor - The sensor to check for timeout
+   * @returns {Promise<void>} Resolves when the timeout check is complete
    */
   private async checkSensorTimeout(sensor: doorSensor): Promise<void> {
     try {
@@ -147,9 +223,9 @@ export class SensorTimeoutMonitor {
           // Raise warning event
           await raiseEvent({
             type: "warning",
-            message: `Sensor ${
-              sensor.name
-            } in ${sensor.building} marked as unknown due to timeout (${timeSinceLastUpdate.toFixed(
+            message: `Sensor ${sensor.name} in ${
+              sensor.building
+            } marked as unknown due to timeout (${timeSinceLastUpdate.toFixed(
               0
             )}s since last update)`,
             system: "backend:sensorTimeoutMonitor",
@@ -178,29 +254,72 @@ export class SensorTimeoutMonitor {
   }
 
   /**
-   * Get monitoring status
-   * Returns whether the monitor is currently running
+   * Get the current monitoring status.
+   *
+   * @returns {boolean} `true` if the monitor is currently running, `false` otherwise
+   *
+   * @example
+   * ```typescript
+   * if (sensorTimeoutMonitor.isRunning()) {
+   *   console.log("Monitor is active");
+   * } else {
+   *   console.log("Monitor is stopped");
+   * }
+   * ```
    */
   isRunning(): boolean {
     return this.isRunningFlag;
   }
 
   /**
-   * Get the number of active intervals
-   * Returns the current number of sensor intervals being monitored
+   * Get the number of active intervals.
+   *
+   * @returns {number} The current number of sensor intervals being monitored
+   *
+   * @example
+   * ```typescript
+   * const activeCount = sensorTimeoutMonitor.getActiveIntervalCount();
+   * console.log(`Monitoring ${activeCount} sensors`);
+   * ```
    */
   getActiveIntervalCount(): number {
     return this.intervalIds.length;
   }
 
   /**
-   * Get all active interval IDs
-   * Returns array of all current interval IDs (for debugging/testing)
+   * Get all active interval IDs.
+   *
+   * Returns a copy of the interval IDs array for debugging/testing purposes.
+   * The returned array is a copy to prevent external modification.
+   *
+   * @returns {NodeJS.Timeout[]} Array of all current interval IDs
+   *
+   * @example
+   * ```typescript
+   * const intervalIds = sensorTimeoutMonitor.getIntervalIds();
+   * console.log(`Active intervals: ${intervalIds.length}`);
+   * ```
    */
   getIntervalIds(): NodeJS.Timeout[] {
     return [...this.intervalIds]; // Return copy to prevent external modification
   }
 }
 
-// Export a singleton instance for use across the application
+/**
+ * Singleton instance of the SensorTimeoutMonitor for use across the application.
+ *
+ * This instance is shared across all modules that need to interact with
+ * the sensor timeout monitoring system.
+ *
+ * @example
+ * ```typescript
+ * import { sensorTimeoutMonitor } from './sensorTimeoutMonitor';
+ *
+ * // Start monitoring
+ * await sensorTimeoutMonitor.start();
+ *
+ * // Use in routes
+ * await sensorTimeoutMonitor.recreateAllIntervals();
+ * ```
+ */
 export const sensorTimeoutMonitor = new SensorTimeoutMonitor();
