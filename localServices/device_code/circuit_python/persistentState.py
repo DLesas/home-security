@@ -2,27 +2,31 @@ import json
 import os
 
 class PersistentState:
-    def __init__(self, filename="/persistentState/state.json"):
+    def __init__(self, filename="persistentState/state.json", device=None):
         """
         Initialize the PersistentState class.
         
         Args:
             filename (str): The JSON file to store persistent state
+            device: The microDevice instance to check for read-only mode
         """
         self.filename = filename
+        self.device = device
         self.state = {}
         self._ensure_directory_exists()
         self._load_state()
     
     def _ensure_directory_exists(self):
         """Ensure the directory for the persistent state file exists."""
-        directory = os.path.dirname(self.filename)
-        if directory:  # Only create if there's actually a directory path
-            try:
-                os.makedirs(directory, exist_ok=True)
-                print(f"Ensured directory exists: {directory}")
-            except OSError as e:
-                print(f"Warning: Could not create directory {directory}: {e}")
+        if self.device and self.device.read_only:
+            print("Filesystem is read-only, skipping directory creation")
+            return
+            
+        try:
+            os.mkdir("persistentState")
+        except OSError as e:
+            print('failed to make dir in persistentState: ',e)
+            pass
     
     def _load_state(self):
         """Load state from JSON file into the local dictionary."""
@@ -41,6 +45,9 @@ class PersistentState:
     
     def _save_state(self):
         """Save the current state dictionary to the JSON file."""
+        if self.device and self.device.read_only:
+            print("Filesystem is read-only, cannot save state")
+            return     
         try:
             with open(self.filename, 'w') as f:
                 json.dump(self.state, f)
@@ -57,8 +64,11 @@ class PersistentState:
             value: The value to store (must be JSON serializable)
         """
         self.state[key] = value
-        self._save_state()
-        print(f"Added/updated persistent state: {key}")
+        if self.device and self.device.read_only:
+            print(f"Updated persistent state in memory (read-only): {key} = {value}")
+        else:
+            self._save_state()
+            print(f"Added/updated persistent state: {key} = {value}")
     
     def remove_persistent_state(self, key):
         """
@@ -74,14 +84,20 @@ class PersistentState:
             raise KeyError(f"Persistent state key '{key}' not found")
         
         del self.state[key]
-        self._save_state()
-        print(f"Removed persistent state: {key}")
+        if self.device and self.device.read_only:
+            print(f"Removed persistent state from memory (read-only): {key}")
+        else:
+            self._save_state()
+            print(f"Removed persistent state: {key}")
     
     def remove_all_persistent_states(self):
         """Remove all persistent state data."""
         self.state = {}
-        self._save_state()
-        print("Removed all persistent states")
+        if self.device and self.device.read_only:
+            print("Removed all persistent states from memory (read-only)")
+        else:
+            self._save_state()
+            print("Removed all persistent states")
     
     def get_state(self, key, default=None):
         """
