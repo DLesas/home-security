@@ -40,10 +40,10 @@ def main():
             
             door_sensor = DoorSensor(
                 manager.logger, manager.led, manager.device, manager.device_wifi, 
-                manager.networking, local_alarm, manager.config.door_switch_pin, 
-                manager.config.time_to_sleep_s, manager.config.should_deep_sleep, manager.persistent_state
+                manager.networking, local_alarm, manager.persistent_state, manager.config.door_switch_pin, 
+                manager.config.ping_interval_s, manager.config.should_deep_sleep
             )
-
+            manager.led.blink(5, delay=1)
             while True:
                 woke_by = alarm.wake_alarm
                 if isinstance(woke_by, alarm.time.TimeAlarm) and local_alarm.is_sounding:
@@ -106,15 +106,18 @@ def main():
             manager.led.turn_on_led()
             
             # Create a flag file to signal a fatal error on the next boot
-            persistent_state.add_persistent_state("fatal_error", time.monotonic())
+            manager.persistent_state.add_persistent_state("fatal_error", time.monotonic())
 
             # Create a wakeup alarm for the reboot delay
             reboot_alarm = alarm.time.TimeAlarm(monotonic_time=time.monotonic() + manager.config.fatal_error_reboot_delay_s)
             
-            # Go to deep sleep. On wakeup, the code will restart from the top,
-            # find the flag file, log the recovery, and proceed normally.
-            print(f"Entering deep sleep for {manager.config.fatal_error_reboot_delay_s} seconds before attempting recovery...")
-            alarm.exit_and_deep_sleep_until_alarms(reboot_alarm)
+            # Choose sleep mode based on should_deep_sleep setting
+            if manager.config.should_deep_sleep:
+                print(f"Entering deep sleep for {manager.config.fatal_error_reboot_delay_s} seconds before attempting recovery...")
+                alarm.exit_and_deep_sleep_until_alarms(reboot_alarm)
+            else:
+                print(f"Entering light sleep for {manager.config.fatal_error_reboot_delay_s} seconds before attempting recovery...")
+                alarm.light_sleep_until_alarms(reboot_alarm)
 
         # Fallback loop in case manager failed to initialize
         while True:
