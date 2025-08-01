@@ -1,100 +1,206 @@
-// TODO: Import sensor repository and event notification system
-// import { doorSensorRepository, type doorSensor } from "./redis/doorSensors";
-// import { raiseEvent } from "./events/notify";
+import { doorSensorRepository, type doorSensor } from "./redis/doorSensors";
+import { raiseEvent } from "./events/notify";
 
 /**
  * Monitor sensor timeouts and mark sensors as "unknown" if they haven't
  * checked in within their expectedSecondsUpdated timeframe.
  */
 export class SensorTimeoutMonitor {
-  private intervalId: NodeJS.Timeout | null = null;
-  private checkIntervalMs: number;
+  private intervalIds: NodeJS.Timeout[] = [];
+  private isRunningFlag: boolean = false;
 
-  constructor(checkIntervalMs: number = 60000) {
-    // TODO: Initialize check interval (default 1 minute)
-    this.checkIntervalMs = checkIntervalMs;
+  constructor() {
   }
 
   /**
    * Start the timeout monitoring service
-   * Should set up interval timer to check sensor timeouts periodically
+   * Creates individual intervals for each sensor based on their expectedSecondsUpdated
    */
-  start(): void {
-    // TODO: Check if already running, log warning if so
-    // TODO: Log startup message
-    // TODO: Run initial check immediately
-    // TODO: Set up interval timer to call checkSensorTimeouts()
-    console.log("TODO: Start sensor timeout monitoring");
+  async start(): Promise<void> {
+    if (this.isRunningFlag) {
+      console.warn("SensorTimeoutMonitor is already running");
+      return;
+    }
+    console.log("Starting sensor timeout monitoring...");
+    this.isRunningFlag = true;
+    await this.createAllSensorIntervals();
+    console.log(
+      `SensorTimeoutMonitor started with ${this.intervalIds.length} sensor intervals`
+    );
   }
 
   /**
    * Stop the timeout monitoring service
-   * Should clear the interval timer and clean up resources
+   * Clears all interval timers and cleans up resources
    */
   stop(): void {
-    // TODO: Clear interval timer if running
-    // TODO: Reset intervalId to null
-    // TODO: Log stop message
-    console.log("TODO: Stop sensor timeout monitoring");
+    if (!this.isRunningFlag) {
+      console.warn("SensorTimeoutMonitor is not running");
+      return;
+    }
+
+    console.log("Stopping sensor timeout monitoring...");
+
+    // Clear all interval timers
+    this.intervalIds.forEach((intervalId) => {
+      clearInterval(intervalId);
+    });
+    this.intervalIds = [];
+    this.isRunningFlag = false;
+
+    console.log("SensorTimeoutMonitor stopped");
   }
 
   /**
-   * Check all sensors for timeouts and update their state if needed
-   * Should fetch all sensors and check each one for timeout condition
+   * Recreate all sensor intervals
+   * Clears existing intervals and creates new ones for all sensors
    */
-  private async checkSensorTimeouts(): Promise<void> {
+  async recreateAllIntervals(): Promise<void> {
+    console.log("Recreating all sensor intervals...");
+    this.intervalIds.forEach((intervalId) => {
+      clearInterval(intervalId);
+    });
+    this.intervalIds = [];
+    await this.createAllSensorIntervals();
+    console.log(`Recreated ${this.intervalIds.length} sensor intervals`);
+  }
+
+  /**
+   * Create individual intervals for all sensors
+   * Each sensor gets its own interval based on its expectedSecondsUpdated value
+   */
+  private async createAllSensorIntervals(): Promise<void> {
     try {
-      // TODO: Fetch all sensors from Redis repository
-      // TODO: Get current timestamp
-      // TODO: Create array of promises to check each sensor
-      // TODO: Process all sensors in parallel using Promise.all()
-      console.log("TODO: Check all sensor timeouts");
+      // Fetch all sensors from Redis
+      const sensors = (await doorSensorRepository.search().return.all()) as doorSensor[];
+
+      // Create an interval for each sensor
+      sensors.forEach((sensorData) => {
+        // Convert Redis data to doorSensor type
+        const sensor: doorSensor = {
+          name: sensorData.name,
+          externalID: sensorData.externalID,
+          building: sensorData.building,
+          armed: sensorData.armed,
+          state: sensorData.state,
+          ipAddress: sensorData.ipAddress,
+          macAddress: sensorData.macAddress,
+          temperature: sensorData.temperature,
+          voltage: sensorData.voltage,
+          frequency: sensorData.frequency,
+          expectedSecondsUpdated: sensorData.expectedSecondsUpdated,
+          lastUpdated: new Date(sensorData.lastUpdated),
+        };
+
+        this.createSensorInterval(sensor);
+      });
     } catch (error) {
-      // TODO: Log error and raise system event notification
-      console.error("TODO: Handle sensor timeout check error:", error);
+      console.error("Error creating sensor intervals:", error);
+      await raiseEvent({
+        type: "critical",
+        message: `Failed to create sensor intervals: ${error}`,
+        system: "backend:sensorTimeoutMonitor",
+      });
     }
   }
 
   /**
-   * Check a single sensor for timeout
-   * Should compare last update time vs expected update interval
-   * Mark sensor as "unknown" if timed out, or recover if back online
+   * Create an individual interval for a specific sensor
+   * The interval runs every expectedSecondsUpdated seconds and checks the sensor's lastUpdated
    */
-  private async checkSensorTimeout(
-    sensor: any, // TODO: Use proper doorSensor type
-    now: Date
-  ): Promise<void> {
+  private createSensorInterval(sensor: doorSensor): void {
+    const intervalMs = sensor.expectedSecondsUpdated * 1000; // Convert seconds to milliseconds
+
+    const intervalId = setInterval(async () => {
+      await this.checkSensorTimeout(sensor);
+    }, intervalMs);
+    this.intervalIds.push(intervalId);
+  }
+
+  /**
+   * Check if a specific sensor has timed out
+   * Compares current time vs lastUpdated and marks as unknown if timed out
+   */
+  private async checkSensorTimeout(sensor: doorSensor): Promise<void> {
     try {
-      // TODO: Validate sensor has required fields (lastUpdated, expectedSecondsUpdated)
-      // TODO: Calculate time since last update in seconds
-      // TODO: Compare against timeout threshold
-      // TODO: If timed out and not already "unknown": mark as unknown, save to repo, raise warning event
-      // TODO: If recovered from "unknown" state: raise info event about recovery
-      console.log("TODO: Check individual sensor timeout");
+      // Get current timestamp
+      const now = new Date();
+
+      // Calculate time since last update in seconds
+      const timeSinceLastUpdate =
+        (now.getTime() - sensor.lastUpdated.getTime()) / 1000;
+
+      // Check if sensor has timed out
+      if (timeSinceLastUpdate > sensor.expectedSecondsUpdated) {
+        // Sensor has timed out - mark as unknown
+        if (sensor.state !== "unknown") {
+          console.log(
+            `Sensor ${
+              sensor.externalID
+            } timed out (${timeSinceLastUpdate.toFixed(0)}s since last update)`
+          );
+
+          // Update sensor state to unknown
+          sensor.state = "unknown";
+          await doorSensorRepository.save(sensor);
+
+          // Raise warning event
+          await raiseEvent({
+            type: "warning",
+            message: `Sensor ${
+              sensor.name
+            } in ${sensor.building} marked as unknown due to timeout (${timeSinceLastUpdate.toFixed(
+              0
+            )}s since last update)`,
+            system: "backend:sensorTimeoutMonitor",
+          });
+        }
+      } else {
+        // Sensor is still active - log recovery if it was previously unknown
+        if (sensor.state === "unknown") {
+          console.log(
+            `Sensor ${sensor.name} in ${sensor.building} recovered from unknown state`
+          );
+          await raiseEvent({
+            type: "info",
+            message: `Sensor ${sensor.name} in ${sensor.building} recovered from unknown state`,
+            system: "backend:sensorTimeoutMonitor",
+          });
+        }
+      }
     } catch (error) {
-      // TODO: Log individual sensor check error
-      console.error("TODO: Handle individual sensor timeout error:", error);
+      console.error(
+        `Error checking timeout for sensor ${sensor.externalID}:`,
+        error
+      );
+      // TODO: Handle error, maybe an error log drain
     }
   }
 
   /**
    * Get monitoring status
-   * Should return whether the monitor is currently running
+   * Returns whether the monitor is currently running
    */
   isRunning(): boolean {
-    // TODO: Return true if intervalId is not null
-    return false; // Placeholder
+    return this.isRunningFlag;
   }
 
   /**
-   * Get check interval in milliseconds
-   * Should return the current check interval setting
+   * Get the number of active intervals
+   * Returns the current number of sensor intervals being monitored
    */
-  getCheckInterval(): number {
-    // TODO: Return the configured check interval
-    return this.checkIntervalMs;
+  getActiveIntervalCount(): number {
+    return this.intervalIds.length;
+  }
+
+  /**
+   * Get all active interval IDs
+   * Returns array of all current interval IDs (for debugging/testing)
+   */
+  getIntervalIds(): NodeJS.Timeout[] {
+    return [...this.intervalIds]; // Return copy to prevent external modification
   }
 }
 
-// TODO: Export a singleton instance for use across the application
-// export const sensorTimeoutMonitor = new SensorTimeoutMonitor();
+// Export a singleton instance for use across the application
+export const sensorTimeoutMonitor = new SensorTimeoutMonitor();
