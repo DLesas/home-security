@@ -87,7 +87,7 @@ Hash: {hashTxt}
                                 f.write(new_line.encode())
                         else:
                             new_line = f"{date_time},{type},{class_name},{function_name},{error_message},{hashTxt},1\n"
-                            f.write(new_line)
+                            f.write(new_line.encode())
                 else:
                     with open(file_path, "w") as f:
                         f.write("Timestamp,Type,Class,Function,Error_Message,Hash,Count\n")

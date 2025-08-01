@@ -20,6 +20,7 @@ import { createConfigIndex, setDefaultConfig } from "./redis/config";
 import { createAlarmIndex } from "./redis/alarms";
 import { setSensorStatusUnknown } from "./sensorFuncs";
 import { SocketEventSubscriber } from "./express/socketEventSubscriber";
+import { sensorTimeoutMonitor } from "./sensorTimeoutMonitor";
 // import { startBonjourService } from "./express/advertisement/Bonjour";
 // import { startUdpListener } from "./express/advertisement/udpBroadcast";
 
@@ -80,6 +81,9 @@ server.listen(port, async () => {
   // Start the Socket Event Subscriber
   await socketEventSubscriber.start();
 
+  // Start the Sensor Timeout Monitor (using the singleton instance)
+  await sensorTimeoutMonitor.start();
+
   //const cleanupBonjour = startBonjourService();
   // const cleanupUdpBroadcast = startUdpListener();
 
@@ -88,6 +92,9 @@ server.listen(port, async () => {
 
     // Stop the Socket Event Subscriber
     await socketEventSubscriber.stop();
+
+    // Stop the Sensor Timeout Monitor
+    sensorTimeoutMonitor.stop();
 
     //cleanupBonjour();
     //cleanupUdpBroadcast();

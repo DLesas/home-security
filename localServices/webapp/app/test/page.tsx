@@ -6,6 +6,7 @@ import { Button } from '@nextui-org/button'
 import { Input } from '@nextui-org/input'
 import { Select, SelectItem } from '@nextui-org/select'
 import { useSocketData } from '../socketData'
+import { useBuildingsQuery } from '@/hooks/useBuildingsQuery'
 
 // Building
 // router.post("/new", async (req, res) => {
@@ -160,7 +161,7 @@ const NewBuildingComponent: React.FC = () => {
 
 const NewAlarmComponent: React.FC = () => {
   const { url } = useSocket()
-  const { data } = useSocketData()
+  const { data: buildings, isLoading: isLoadingBuildings } = useBuildingsQuery()
   const [name, setName] = useState('')
   const [building, setBuilding] = useState('')
   const [expectedSecondsUpdated, setExpectedSecondsUpdated] =
@@ -172,7 +173,7 @@ const NewAlarmComponent: React.FC = () => {
   const [responseData, setResponseData] = useState<any>(null)
 
   // Get building list from socket data logs keys
-  const buildingList = data && data.logs ? Object.keys(data.logs) : []
+  const buildingList = buildings ? buildings.map((b) => b.name) : []
 
   const makeNewAlarm = async () => {
     setLoading(true)
@@ -220,9 +221,10 @@ const NewAlarmComponent: React.FC = () => {
         selectedKeys={building ? [building] : []}
         onChange={(e) => setBuilding(e.target.value)}
         isRequired
+        isLoading={isLoadingBuildings}
       >
         {buildingList.map((b) => (
-          <SelectItem key={b} value={b}>
+          <SelectItem key={b!} value={b || ''}>
             {b}
           </SelectItem>
         ))}

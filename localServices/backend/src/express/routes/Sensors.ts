@@ -14,6 +14,7 @@ import { makeID } from "../../utils";
 import { sensorLogsTable } from "../../db/schema/sensorLogs";
 import { writeRedisCheckpoint } from "../../redis/index";
 import { identifyDevice } from "../../utils/deviceIdentification";
+import { sensorTimeoutMonitor } from "../../sensorTimeoutMonitor";
 
 const router = express.Router();
 
@@ -178,7 +179,11 @@ router.post("/update", async (req, res, next) => {
     message: `Sensor ${sensor.name} in ${sensor.building} (identified by: ${deviceInfo.identificationMethod}) updated with state: ${status}, temperature: ${temperature}, voltage: ${voltage}, frequency: ${frequency}`,
     system: "backend:sensors",
   });
-  res.status(200).json({ status: "success", message: "update acknowledged" });
+  res.status(200).json({
+    status: "success",
+    armed: sensor.armed,
+    message: "update acknowledged",
+  });
 });
 
 /**
@@ -348,6 +353,11 @@ router.post("/new", async (req, res, next) => {
   await writePostgresCheckpoint();
   await writeRedisCheckpoint();
   await emitNewData();
+  // It should always be running when these routes exist, but just to be safe
+  if (sensorTimeoutMonitor.isRunning()) {
+    await sensorTimeoutMonitor.recreateAllIntervals();
+  }
+
   res.status(201).json({ status: "success", data: data });
 });
 
@@ -385,6 +395,11 @@ router.delete("/:sensorId", async (req, res, next) => {
   await emitNewData();
   await writePostgresCheckpoint();
   await writeRedisCheckpoint();
+  // It should always be running when these routes exist, but just to be safe
+  if (sensorTimeoutMonitor.isRunning()) {
+    await sensorTimeoutMonitor.recreateAllIntervals();
+  }
+
   res.status(200).json({
     status: "success",
     message: `Sensor ${sensor.name} in ${sensor.building} deleted`,

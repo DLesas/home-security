@@ -20,7 +20,7 @@ class Networking:
         server_port,
         server_ssl,
         api_version,
-        deviceType,
+        device_module,
         user_agent,
         id,
     ):
@@ -54,18 +54,20 @@ class Networking:
         self.server_port = int(server_port)
         self.server_protocol = 'https' if bool(int(server_ssl)) else 'http'
         self.api_version = api_version
-        self.deviceType = deviceType
+        self.device_module = device_module
         self.user_agent = user_agent
         self.id = id
         self.log_dir = "logs"  # Add log directory for send_logs method
         
-                # Standard headers that include device identification
+        self.mac_address_str = ":".join(f"{b:02x}" for b in self.deviceWifi.mac)
+                
+        # Standard headers that include device identification
         self.headers = {
             "User-Agent": self.user_agent,
             "Content-Type": "application/json",
             "X-Device-ID": str(self.id),  # Custom header for device identification
-            "X-Device-Type": self.deviceType,        # Custom header for device type
-            "X-Device-MAC": self.deviceWifi.mac,     # Custom header for MAC address
+            "X-Device-Type": self.device_module,        # Custom header for device type
+            "X-Device-MAC": self.mac_address_str,     # Custom header for MAC address
             "X-Device-IP": str(self.deviceWifi.ip),  # Custom header for device IP address
         }
 
@@ -89,8 +91,9 @@ class Networking:
         It retries the handshake up to the class's maximum number of attempts. If the handshake fails after
         the maximum attempts, the device is set to a fatal error state.
         """
-        handshake_endpoint = f"{self.server_protocol}://" + f"{self.server_ip}:{str(self.server_port)}/" + "api/" + f"v{str(self.api_version)}/" + f"{self.deviceType}s/" + str(self.deviceWifi.ID) + "/handshake"
+        handshake_endpoint = f"{self.server_protocol}://" + f"{self.server_ip}:{str(self.server_port)}/" + "api/" + f"v{str(self.api_version)}/" + f"{self.device_module}s/" + str(self.id) + "/handshake"
         print("Handshaking with server...")
+        print(handshake_endpoint)
         attempt = 0
         success = False
         self.Led.blink(self.blinks)
@@ -102,12 +105,15 @@ class Networking:
             try:
                 # CircuitPython: Collect garbage before network operations
                 self.Device.collect_garbage()
-                
-                data = {"macAddress": self.deviceWifi.mac}
+                print('protocol:', self.server_protocol)
+                data = {"macAddress": self.mac_address_str}
                 data = json.dumps(data)
+                print('made json', data)
+                print('headers', self.headers)
                 response = self.deviceWifi.requests.post(
                     handshake_endpoint, headers=self.headers, data=data
                 )
+                print('sent ')
                 if response.status_code == 200:
                     print("Handshake complete")
                     self.Logger.log_issue(
@@ -186,7 +192,7 @@ class Networking:
                     + f"{self.server_ip}:{str(self.server_port)}/"
                     + "api/"
                     + f"v{str(self.api_version)}/"
-                    + f"{self.deviceType}s/"
+                    + f"{self.device_module}s/"
                     + f"logs")
                 response = self.deviceWifi.requests.post(endpoint, headers=self.headers, data=data)
                 if response.status_code == 200:
@@ -197,7 +203,7 @@ class Networking:
                     self.Logger.log_issue("Error", self.__class__.__name__, func_name, f"Failed to send log data. Status code: {response.status_code}, response: {response.text}")
             except Exception as e:
                 self.Logger.truncate_log_file(file_path)
-                self.log_issue("error", self.__class__.__name__, func_name, str(e))
+                self.Logger.log_issue("error", self.__class__.__name__, func_name, str(e))
             finally:
                 if "response" in locals():
                     response.close()

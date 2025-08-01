@@ -157,4 +157,13 @@ router.post("/:buildingName/disarm", async (req, res, next) => {
   });
 });
 
+router.get("/", async (req, res, next) => {
+  try {
+    const buildings = await db.select().from(buildingTable);
+    res.status(200).json({ status: "success", data: buildings });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

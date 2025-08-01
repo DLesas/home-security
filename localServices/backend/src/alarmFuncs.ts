@@ -24,13 +24,19 @@ export async function changeAlarmState(
     const element = alarms[index];
     if (element.ipAddress && element.port) {
       const ipaddr = `http://${element.ipAddress}:${element.port}`;
-      const promise: Promise<Boolean> = fetch(
-        state === "on" ? `${ipaddr}/on` : `${ipaddr}/off}`
-      ).then(async (response) => {
-        const alarmResponse = (await response.json()) as AlarmResponse;
-        const saved = await saveAlarmState(element, alarmResponse);
-        return saved;
-      });
+      const url = state === "on" ? `${ipaddr}/on` : `${ipaddr}/off`;
+      const promise: Promise<Boolean> = fetch(url, { method: "POST" }).then(
+        async (response) => {
+          if (!response.ok) {
+            throw new Error(
+              `Failed to trigger alarm ${element.name}. Status: ${response.status}`
+            );
+          }
+          const alarmResponse = (await response.json()) as AlarmResponse;
+          const saved = await saveAlarmState(element, alarmResponse);
+          return saved;
+        }
+      );
       triggerPromises.push(promise);
     }
   }

@@ -82,7 +82,6 @@ class Udp:
                         return server_info
                     else:
                         print(f"Received from server: {server_message}")
-                        print(self.Logger)
                         self.Logger.log_issue(
                             "Warning",
                             self.__class__.__name__,

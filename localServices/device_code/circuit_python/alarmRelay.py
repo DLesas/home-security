@@ -39,6 +39,11 @@ class alarmRelay:
         self.relay = getattr(board, relay_pin)
         self.pool = socketpool.SocketPool(wifi.radio)
         self.server = Server(self.pool, debug=debug)
+        
+        # Create a persistent DigitalInOut object for the relay
+        self.switch = DigitalInOut(self.relay)
+        self.switch.direction = Direction.OUTPUT
+        
         self.state = "off"
         self.temperature = None
         self.voltage = None
@@ -48,15 +53,12 @@ class alarmRelay:
         self.headers = self.Networking.headers
 
     def change_relay_state(self, state: bool):
-        switch = DigitalInOut(self.relay)
-        switch.direction = Direction.OUTPUT
-        switch.value = bool(state)
+        self.switch.value = bool(state)
         self.state = "on" if state else "off"
         if state:
             self.Led.turn_on_led()
         else:
             self.Led.turn_off_led()
-        switch.deinit()
 
     def read_all_stats(self):
         self.temperature = self.Device.read_temperature()
@@ -68,7 +70,7 @@ class alarmRelay:
         self.read_all_stats()
         data = {"state": self.state, "temperature": self.temperature, "voltage": self.voltage, "frequency": self.frequency}
         data = json.dumps(data)
-        url = f"{self.Networking.server_protocol}://{self.Networking.server_ip}:{self.Networking.server_port}/api/v{self.Networking.api_version}/{self.Networking.deviceType}s/update"
+        url = f"{self.Networking.server_protocol}://{self.Networking.server_ip}:{self.Networking.server_port}/api/v{self.Networking.api_version}/{self.Networking.device_module}s/update"
         response = self.deviceWifi.requests.post(url, headers=self.headers, data=data)
         if response.status_code == 200:
             print(f"Successfully sent alarm state: {self.state}")
@@ -78,7 +80,7 @@ class alarmRelay:
             response.close()
 
     def register_routes(self):
-        @self.server.route("/on", method="POST")    
+        @self.server.route("/on", "POST")    
         def alarm_on(request: Request):
             """
             Turn the alarm on.
@@ -89,9 +91,9 @@ class alarmRelay:
             self.read_all_stats()
             self.Logger.log_issue("Info", self.__class__.__name__, "alarm_on", f"Alarm turned on at {time.monotonic()} by {ip} with {user_agent}")
             data = {"state": self.state, "temperature": self.temperature, "voltage": self.voltage, "frequency": self.frequency}
-            return JSONResponse(data)
+            return JSONResponse(request, data)
 
-        @self.server.route("/off", method="POST")
+        @self.server.route("/off", "POST")
         def alarm_off(request: Request):
             """
             Turn the alarm off.
@@ -102,7 +104,7 @@ class alarmRelay:
             self.read_all_stats()
             self.Logger.log_issue("Info", self.__class__.__name__, "alarm_off", f"Alarm turned off at {time.monotonic()} by {ip} with {user_agent}")
             data = {"state": self.state, "temperature": self.temperature, "voltage": self.voltage, "frequency": self.frequency}
-            return JSONResponse(data)
+            return JSONResponse(request, data)
         
     def start_server(self):
         self.server.start(str(wifi.radio.ipv4_address), self.port)
