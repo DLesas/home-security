@@ -52,6 +52,7 @@ class Config:
         self.buzzer_pin = env.get("buzzer_pin")
         self.time_to_sleep_s = int(env.get("time_to_sleep_s", 300))
         self.local_alarm_timeout_s = int(env.get("local_alarm_timeout_s", 60))
+        self.should_deep_sleep = bool(int(env.get("should_deep_sleep", 0)))
 
         # Alarm Relay Specific
         self.relay_pin = env.get("relay_pin")

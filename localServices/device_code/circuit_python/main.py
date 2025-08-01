@@ -41,7 +41,7 @@ def main():
             door_sensor = DoorSensor(
                 manager.logger, manager.led, manager.device, manager.device_wifi, 
                 manager.networking, local_alarm, manager.config.door_switch_pin, 
-                manager.config.time_to_sleep_s, manager.persistent_state
+                manager.config.time_to_sleep_s, manager.config.should_deep_sleep, manager.persistent_state
             )
 
             while True:

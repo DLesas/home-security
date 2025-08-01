@@ -24,6 +24,7 @@ class DoorSensor:
         PersistentState: PersistentState,
         door_switch_pin: str,
         max_time_to_sleep_s: int = 120,
+        should_deep_sleep: bool = False,
     ):
         self.Logger = Logger
         self.Led = Led
@@ -38,7 +39,7 @@ class DoorSensor:
         self.temperature = None
         self.voltage = None
         self.frequency = None
-
+        self.should_deep_sleep = should_deep_sleep
         # Create a persistent DigitalInOut object for the switch
         self.switch = DigitalInOut(self.switch_pin)
         self.switch.direction = Direction.INPUT
@@ -104,9 +105,12 @@ class DoorSensor:
         if armed:
             print("System ARMED - using light sleep for fast response")
             self.light_sleep()
-        else:
+        elif not armed and self.should_deep_sleep:
             print("System DISARMED - using deep sleep for power saving")
             self.deep_sleep()
+        else:
+            print("System DISARMED - using light sleep for fast response")
+            self.light_sleep()
 
     def send_data(self):
         if self.state is None or self.temperature is None:
