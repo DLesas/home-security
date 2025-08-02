@@ -10,10 +10,10 @@ import select
 #switch = machine.Pin(22, machine.Pin.IN, machine.Pin.PULL_UP)
 relay = machine.Pin(22, machine.Pin.OUT)
 
-#ssid = "[Redacted]"
-#password = "[Redacted]"
-ssid = "[Redacted]"
-password = "[Redacted]"
+#ssid = "MillFarm_House_Yard"
+#password = "Matraville56!"
+ssid = "BT-P8A5PT"
+password = 'hARMLTPd7caeHf'
 
 def find_device(mac_address, devices):
     for device in devices:

@@ -8,10 +8,10 @@ import json
 
 switch = machine.Pin(22, machine.Pin.IN, machine.Pin.PULL_UP) # Watchdog timer set to 8 seconds
 
-# ssid = "[Redacted]"
-# password = "[Redacted]"
-ssid = "[Redacted]"
-password = "[Redacted]"
+# ssid = "BT-P8A5PT"
+# password = "hARMLTPd7caeHf"
+ssid = "Millfarm-House-LongRange"
+password = 'hARMLTPd7caeHf'
 
 async def connect():
     print("Connecting to network...")

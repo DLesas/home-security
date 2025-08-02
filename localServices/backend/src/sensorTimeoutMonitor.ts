@@ -29,7 +29,7 @@ import { emitNewData } from "./express/socketHandler";
  */
 export class SensorTimeoutMonitor {
   /** Array of active interval IDs for cleanup purposes */
-  private intervalIds: NodeJS.Timeout[] = [];
+  private intervalIds: ReturnType<typeof setInterval>[] = [];
   /** Flag indicating whether the monitor is currently running */
   private isRunningFlag: boolean = false;
 
@@ -303,7 +303,7 @@ export class SensorTimeoutMonitor {
    * Returns a copy of the interval IDs array for debugging/testing purposes.
    * The returned array is a copy to prevent external modification.
    *
-   * @returns {NodeJS.Timeout[]} Array of all current interval IDs
+   * @returns {ReturnType<typeof setInterval>[]} Array of all current interval IDs
    *
    * @example
    * ```typescript
@@ -311,7 +311,7 @@ export class SensorTimeoutMonitor {
    * console.log(`Active intervals: ${intervalIds.length}`);
    * ```
    */
-  getIntervalIds(): NodeJS.Timeout[] {
+  getIntervalIds(): ReturnType<typeof setInterval>[] {
     return [...this.intervalIds]; // Return copy to prevent external modification
   }
 }

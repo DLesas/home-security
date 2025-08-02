@@ -78,9 +78,9 @@ def send_mail(body: str, subject: str):
     outlook = win32.Dispatch("outlook.application")
     newMail = outlook.CreateItem(0)
     if test:
-        newMail.To = "REDACTED"
+        newMail.To = "dlesas@hotmail.com"
     else:
-        newMail.To = "REDACTED"
+        newMail.To = "dlesas@hotmail.com; deborah@leabeater.co.uk; david.leabeater57@icloud.com; victoria.leabeater@gmail.com"
     # mail.To = "dlesas@hotmail.com"
     newMail.Subject = subject
     newMail.Body = body
@@ -89,10 +89,12 @@ def send_mail(body: str, subject: str):
 
 def send_SMS(body: str):
     phones = [
-        "REDACTED",
-        "REDACTED",
+        "+447810570861",
+        "+447825514688",
+        "+447771594191",
+        "+447854972536",
     ]
-    testPhone = "REDACTED"
+    testPhone = "+447810570861"
     if test:
         pass
         # try:
