@@ -46,8 +46,27 @@ def main():
             manager.led.blink(5, delay=1)
             while True:
                 woke_by = alarm.wake_alarm
-                if isinstance(woke_by, alarm.time.TimeAlarm) and local_alarm.is_sounding:
-                    local_alarm.stop()
+                
+                # Check which alarm woke up the Pico
+                if woke_by is None:
+                    print("Woke up from normal boot (no alarm)")
+                elif isinstance(woke_by, alarm.pin.PinAlarm):
+                    if woke_by.pin == door_sensor.switch_pin:
+                        if woke_by.value:
+                            print(f"Woke up from DOOR OPEN alarm (pin {woke_by.pin} went HIGH)")
+                        else:
+                            print(f"Woke up from DOOR CLOSE alarm (pin {woke_by.pin} went LOW)")
+                    else:
+                        print(f"Woke up from unknown pin alarm: {woke_by.pin}")
+                elif isinstance(woke_by, alarm.time.TimeAlarm):
+                    # Check if this was an alarm timeout or ping timeout
+                    if local_alarm.is_sounding:
+                        print("Woke up from ALARM TIMEOUT - stopping local alarm")
+                        local_alarm.stop()
+                    else:
+                        print(f"Woke up from PING TIMEOUT after {manager.config.ping_interval_s}s")
+                else:
+                    print(f"Woke up from unknown alarm type: {type(woke_by)}")
 
                 manager.device_wifi.check_connection()
                 door_sensor.read_all_stats()
