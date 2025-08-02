@@ -106,11 +106,15 @@ Hash: {hashTxt}
         
     def check_log_files(self):
         if not self.Device.read_only:
-            for file in os.listdir(self.log_dir):
-                file_dir = f"{self.log_dir}/{file}"
-                size = self.Device.get_file_size(file_dir)
-                if size > self.max_log_file_size or size == -1:
-                    return True
+            try:
+                for file in os.listdir(self.log_dir):
+                    file_dir = f"{self.log_dir}/{file}"
+                    size = self.Device.get_file_size(file_dir)
+                    if size > self.max_log_file_size or size == -1:
+                        return True
+            except OSError:
+                # Directory doesn't exist, no logs to check
+                pass
         return False
         
     def truncate_log_file(self, path: str, rows_to_keep: int = 1000):

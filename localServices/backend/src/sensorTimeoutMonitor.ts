@@ -2,6 +2,7 @@ import { doorSensorRepository, type doorSensor } from "./redis/doorSensors";
 import { raiseEvent } from "./events/notify";
 import { sensorUpdatesTable } from "./db/schema/sensorUpdates";
 import { db } from "./db/db";
+import { emitNewData } from "./express/socketHandler";
 
 /**
  * This is a singleton class that is used to monitor the timeout status of all sensors.
@@ -238,6 +239,7 @@ export class SensorTimeoutMonitor {
             )}s since last update)`,
             system: "backend:sensorTimeoutMonitor",
           });
+          await emitNewData();
         }
       } else {
         // Sensor is still active - log recovery if it was previously unknown
@@ -250,6 +252,7 @@ export class SensorTimeoutMonitor {
             message: `Sensor ${sensor.name} in ${sensor.building} recovered from unknown state`,
             system: "backend:sensorTimeoutMonitor",
           });
+          await emitNewData();
         }
       }
     } catch (error) {

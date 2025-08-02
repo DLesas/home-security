@@ -23,7 +23,7 @@ class DoorSensor:
         LocalAlarm: LocalAlarm,
         PersistentState: PersistentState,
         door_switch_pin: str,
-        max_time_to_sleep_s: int = 120,
+        max_ping_interval_s: int = 120,
         should_deep_sleep: bool = False,
     ):
         self.Logger = Logger
@@ -34,25 +34,30 @@ class DoorSensor:
         self.LocalAlarm = LocalAlarm
         self.PersistentState = PersistentState
         self.switch_pin = getattr(board, door_switch_pin)
-        self.max_time_to_sleep_s = int(max_time_to_sleep_s)
+        self.max_ping_interval_s = int(max_ping_interval_s)
         self.state = None
         self.temperature = None
         self.voltage = None
         self.frequency = None
         self.should_deep_sleep = should_deep_sleep
-        # Create a persistent DigitalInOut object for the switch
-        self.switch = DigitalInOut(self.switch_pin)
-        self.switch.direction = Direction.INPUT
-        self.switch.pull = Pull.UP
+        # Store the pin reference for creating DigitalInOut objects when needed
+        self.switch = getattr(board, door_switch_pin)
 
     def read_switch(self):
-        new_state = "open" if self.switch.value else "closed"
+        switch = DigitalInOut(self.switch)
+        switch.direction = Direction.INPUT
+        switch.pull = Pull.UP
+        
+        new_state = "open" if switch.value else "closed"
 
         # If the door is now closed and the local alarm was sounding, stop it.
         if new_state == "closed" and self.LocalAlarm.is_sounding:
             self.LocalAlarm.stop()
         
         self.state = new_state
+        
+        # Deinit the switch to free up the pin for alarm use
+        switch.deinit()
         
     def read_all_stats(self):
         self.temperature = self.Device.read_temperature()
@@ -64,34 +69,50 @@ class DoorSensor:
     def deep_sleep(self):
         print(f"Entering deep sleep mode...")
         
-        # Base alarms for pin changes and max sleep time
-        pin_alarm_rising = alarm.pin.PinAlarm(pin=self.switch_pin, value=True, edge=True)
-        pin_alarm_falling = alarm.pin.PinAlarm(pin=self.switch_pin, value=False, edge=True, pull=True)
-        timeout_alarm = alarm.time.TimeAlarm(monotonic_time=time.monotonic() + self.max_time_to_sleep_s)
+        alarms_to_wait_for = []
         
-        alarms_to_wait_for = [pin_alarm_rising, pin_alarm_falling, timeout_alarm]
+        # Add door alarms
+        door_open_alarm = alarm.pin.PinAlarm(pin=self.switch_pin, value=True, edge=True)
+        door_close_alarm = alarm.pin.PinAlarm(pin=self.switch_pin, value=False, edge=True, pull=True)
+        alarms_to_wait_for.extend([door_open_alarm, door_close_alarm])
         
-        # Add the local alarm timeout if it's currently active
-        local_alarm_timeout = self.LocalAlarm.get_timeout_alarm()
-        if local_alarm_timeout:
-            alarms_to_wait_for.append(local_alarm_timeout)
+        # Choose timeout based on alarm state
+        if self.LocalAlarm.is_sounding:
+            # If alarm is active, use alarm timeout (shorter)
+            local_alarm_timeout = self.LocalAlarm.get_timeout_alarm()
+            if local_alarm_timeout:
+                alarms_to_wait_for.append(local_alarm_timeout)
+                print("Alarm is active - using alarm timeout instead of ping timeout")
+        else:
+            # If alarm is not active, use ping timeout (longer)
+            timeout_alarm = alarm.time.TimeAlarm(monotonic_time=time.monotonic() + self.max_ping_interval_s)
+            alarms_to_wait_for.append(timeout_alarm)
+            print(f"Alarm is not active - using ping timeout ({self.max_ping_interval_s}s)")
 
         alarm.exit_and_deep_sleep_until_alarms(*alarms_to_wait_for)
         
     def light_sleep(self):
         print(f"Entering light sleep mode...")
 
-        # Base alarms for pin changes and max sleep time
-        pin_alarm_rising = alarm.pin.PinAlarm(pin=self.switch_pin, value=True, edge=True)
-        pin_alarm_falling = alarm.pin.PinAlarm(pin=self.switch_pin, value=False, edge=True, pull=True)
-        timeout_alarm = alarm.time.TimeAlarm(monotonic_time=time.monotonic() + self.max_time_to_sleep_s)
+        alarms_to_wait_for = []
 
-        alarms_to_wait_for = [pin_alarm_rising, pin_alarm_falling, timeout_alarm]
+        # Add door alarms
+        door_open_alarm = alarm.pin.PinAlarm(pin=self.switch_pin, value=True, edge=True)
+        door_close_alarm = alarm.pin.PinAlarm(pin=self.switch_pin, value=False, edge=True, pull=True)
+        alarms_to_wait_for.extend([door_open_alarm, door_close_alarm])
 
-        # Add the local alarm timeout if it's currently active
-        local_alarm_timeout = self.LocalAlarm.get_timeout_alarm()
-        if local_alarm_timeout:
-            alarms_to_wait_for.append(local_alarm_timeout)
+        # Choose timeout based on alarm state
+        if self.LocalAlarm.is_sounding:
+            # If alarm is active, use alarm timeout (shorter)
+            local_alarm_timeout = self.LocalAlarm.get_timeout_alarm()
+            if local_alarm_timeout:
+                alarms_to_wait_for.append(local_alarm_timeout)
+                print("Alarm is active - using alarm timeout instead of ping timeout")
+        else:
+            # If alarm is not active, use ping timeout (longer)
+            timeout_alarm = alarm.time.TimeAlarm(monotonic_time=time.monotonic() + self.max_ping_interval_s)
+            alarms_to_wait_for.append(timeout_alarm)
+            print(f"Alarm is not active - using ping timeout ({self.max_ping_interval_s}s)")
 
         alarm.light_sleep_until_alarms(*alarms_to_wait_for)
 
@@ -103,13 +124,13 @@ class DoorSensor:
         armed = self.PersistentState.get_state("armed")
         
         if armed:
-            print("System ARMED - using light sleep for fast response")
+            print(f"System ARMED - using light sleep for fast response until next ping {self.max_ping_interval_s}s or door state changes")
             self.light_sleep()
         elif not armed and self.should_deep_sleep:
-            print("System DISARMED - using deep sleep for power saving")
+            print(f"System DISARMED - using deep sleep for power saving until next ping {self.max_ping_interval_s}s or door state changes")
             self.deep_sleep()
         else:
-            print("System DISARMED - using light sleep for fast response")
+            print(f"System DISARMED - using light sleep for fast response until next ping {self.max_ping_interval_s}s or door state changes")
             self.light_sleep()
 
     def send_data(self):

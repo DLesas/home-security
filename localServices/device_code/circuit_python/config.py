@@ -50,13 +50,12 @@ class Config:
         # Door Sensor Specific
         self.door_switch_pin = env.get("door_switch_pin")
         self.buzzer_pin = env.get("buzzer_pin")
-        self.time_to_sleep_s = int(env.get("time_to_sleep_s", 300))
+        self.ping_interval_s = int(env.get("ping_interval_s", 300))
         self.local_alarm_timeout_s = int(env.get("local_alarm_timeout_s", 60))
         self.should_deep_sleep = bool(int(env.get("should_deep_sleep", 0)))
 
         # Alarm Relay Specific
         self.relay_pin = env.get("relay_pin")
-        self.ping_interval_s = int(env.get("ping_interval_s", 1800))
         self.server_listen_port = int(env.get("port", 8000))
 
         if not self.ssid or not self.password or not self.id or not self.device_module:

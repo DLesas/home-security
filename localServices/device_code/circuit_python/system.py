@@ -24,7 +24,7 @@ class DeviceManager:
         self.config = Config(config_path)
         self.device = microDevice()
         self.led = Led()
-        self.persistent_state = PersistentState()
+        self.persistent_state = PersistentState(device=self.device)
         self.logger = Logger(self.device)
 
         # Networking components that depend on the core components
@@ -57,7 +57,9 @@ class DeviceManager:
         """
         print("--- Bootstrapping Network ---")
         self.device_wifi.connect()
+        self.networking.update_mac_address()  # Update MAC address after WiFi connection
         self.time_clock.set_time_ntp()
         self.networking.find_server()
         self.networking.handshake_with_server()
-        print("--- Bootstrap Complete ---") 
+        print("--- Bootstrap Complete ---")
+        self.led.blink(10, delay=0.5)

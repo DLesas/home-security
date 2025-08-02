@@ -27,3 +27,10 @@ if (!process.env.DOCKER_ENV) {
 console.log("POSTGRES_USER:", process.env.POSTGRES_USER);
 console.log("POSTGRES_HOST:", process.env.POSTGRES_HOST);
 console.log("POSTGRES_DB:", process.env.POSTGRES_DB);
+
+// Alarm cooldown configuration
+export const ALARM_COOLDOWN_SECONDS = parseInt(
+  process.env.ALARM_COOLDOWN_SECONDS || "30",
+  10
+);
+console.log("ALARM_COOLDOWN_SECONDS:", ALARM_COOLDOWN_SECONDS);

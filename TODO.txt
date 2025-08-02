@@ -1,4 +1,3 @@
-force system to static IP address (addressed via udp broadcasting)
 initialise default configurations on first start
 Abstract device code networking into seperate classes for NRF24, HTTP and other protocols
 redo device code, ported micropython to circuitpython and now the code is messy and structurally questionable (somewhat done might need a review)
@@ -10,3 +9,5 @@ consider hybrid approach in terms of getting phone clients updated state of syst
 
 devices:
     -sensor: doorSensor, line 96: if fail to send state should do udp broadcast routine again
+    -alarm Relay: should ping backend server on a regular basis
+ 
