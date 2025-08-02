@@ -31,10 +31,6 @@ export async function identifyDevice(req: Request): Promise<DeviceInfo | null> {
     return null;
   }
 
-  console.log(
-    `Identifying device by header: ID=${deviceId}, Type=${deviceType}, MAC=${deviceMac}, IP=${deviceIp}`
-  );
-
   if (deviceType === "sensor") {
     const sensor = (await doorSensorRepository
       .search()
@@ -58,6 +54,10 @@ export async function identifyDevice(req: Request): Promise<DeviceInfo | null> {
           lastUpdated: new Date(),
         } as doorSensor);
       }
+
+      console.log(
+        `Device identified via device_header: ${sensor.name} (${sensor.building}) - ID=${deviceId}, Type=${deviceType}, MAC=${deviceMac}, IP=${deviceIp}`
+      );
 
       return {
         id: sensor.externalID,
@@ -92,6 +92,10 @@ export async function identifyDevice(req: Request): Promise<DeviceInfo | null> {
           lastUpdated: new Date(),
         } as Alarm);
       }
+
+      console.log(
+        `Device identified via device_header: ${alarm.name} (${alarm.building}) - ID=${deviceId}, Type=${deviceType}, MAC=${deviceMac}, IP=${deviceIp}`
+      );
 
       return {
         id: alarm.externalID,
