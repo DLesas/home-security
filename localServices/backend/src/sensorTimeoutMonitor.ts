@@ -1,35 +1,39 @@
 import { doorSensorRepository, type doorSensor } from "./redis/doorSensors";
+import { alarmRepository, type Alarm } from "./redis/alarms";
 import { raiseEvent } from "./events/notify";
 import { sensorUpdatesTable } from "./db/schema/sensorUpdates";
+import { alarmUpdatesTable } from "./db/schema/alarmUpdates";
 import { db } from "./db/db";
 import { emitNewData } from "./express/socketHandler";
 
 /**
- * This is a singleton class that is used to monitor the timeout status of all sensors.
- * 
- * This class creates individual intervals for each sensor based on their
+ * This is a singleton class that is used to monitor the timeout status of all sensors and alarms.
+ *
+ * This class creates individual intervals for each sensor and alarm based on their
  * `expectedSecondsUpdated` value. Each interval continuously monitors the
- * sensor's `lastUpdated` timestamp and marks the sensor as "unknown" if
+ * device's `lastUpdated` timestamp and marks the device as "unknown" if
  * it hasn't reported within the expected timeframe.
- * 
+ *
  *
  * @example
  * ```typescript
- * // Start monitoring all sensors
+ * // Start monitoring all sensors and alarms
  * await sensorTimeoutMonitor.start();
  *
- * // Recreate intervals when sensors are added/removed
+ * // Recreate intervals when devices are added/removed
  * await sensorTimeoutMonitor.recreateAllIntervals();
  *
  * // Check if monitor is running
  * if (sensorTimeoutMonitor.isRunning()) {
- *   console.log(`Monitoring ${sensorTimeoutMonitor.getActiveIntervalCount()} sensors`);
+ *   console.log(`Monitoring ${sensorTimeoutMonitor.getActiveSensorIntervalCount()} sensors and ${sensorTimeoutMonitor.getActiveAlarmIntervalCount()} alarms`);
  * }
  * ```
  */
 export class SensorTimeoutMonitor {
-  /** Array of active interval IDs for cleanup purposes */
-  private intervalIds: ReturnType<typeof setInterval>[] = [];
+  /** Array of active sensor interval IDs for cleanup purposes */
+  private sensorIntervalIds: ReturnType<typeof setInterval>[] = [];
+  /** Array of active alarm interval IDs for cleanup purposes */
+  private alarmIntervalIds: ReturnType<typeof setInterval>[] = [];
   /** Flag indicating whether the monitor is currently running */
   private isRunningFlag: boolean = false;
 
@@ -40,16 +44,16 @@ export class SensorTimeoutMonitor {
   /**
    * Start the timeout monitoring service.
    *
-   * Creates individual intervals for each sensor based on their `expectedSecondsUpdated`
-   * value. Each interval will continuously check the sensor's timeout status.
+   * Creates individual intervals for each sensor and alarm based on their `expectedSecondsUpdated`
+   * value. Each interval will continuously check the device's timeout status.
    *
-   * @throws {Error} If there's an error fetching sensors from Redis
+   * @throws {Error} If there's an error fetching sensors or alarms from Redis
    * @returns {Promise<void>} Resolves when the monitor has started successfully
    *
    * @example
    * ```typescript
    * await sensorTimeoutMonitor.start();
-   * console.log("Sensor timeout monitoring started");
+   * console.log("Device timeout monitoring started");
    * ```
    */
   async start(): Promise<void> {
@@ -57,11 +61,12 @@ export class SensorTimeoutMonitor {
       console.warn("SensorTimeoutMonitor is already running");
       return;
     }
-    console.log("Starting sensor timeout monitoring...");
+    console.log("Starting device timeout monitoring...");
     this.isRunningFlag = true;
     await this.createAllSensorIntervals();
+    await this.createAllAlarmIntervals();
     console.log(
-      `SensorTimeoutMonitor started with ${this.intervalIds.length} sensor intervals`
+      `SensorTimeoutMonitor started with ${this.sensorIntervalIds.length} sensor intervals and ${this.alarmIntervalIds.length} alarm intervals`
     );
   }
 
@@ -76,7 +81,7 @@ export class SensorTimeoutMonitor {
    * @example
    * ```typescript
    * sensorTimeoutMonitor.stop();
-   * console.log("Sensor timeout monitoring stopped");
+   * console.log("Device timeout monitoring stopped");
    * ```
    */
   stop(): void {
@@ -85,42 +90,61 @@ export class SensorTimeoutMonitor {
       return;
     }
 
-    console.log("Stopping sensor timeout monitoring...");
+    console.log("Stopping device timeout monitoring...");
 
-    // Clear all interval timers
-    this.intervalIds.forEach((intervalId) => {
+    // Clear all sensor interval timers
+    this.sensorIntervalIds.forEach((intervalId) => {
       clearInterval(intervalId);
     });
-    this.intervalIds = [];
+    this.sensorIntervalIds = [];
+
+    // Clear all alarm interval timers
+    this.alarmIntervalIds.forEach((intervalId) => {
+      clearInterval(intervalId);
+    });
+    this.alarmIntervalIds = [];
+
     this.isRunningFlag = false;
     console.log("SensorTimeoutMonitor stopped");
   }
 
   /**
-   * Recreate all sensor intervals.
+   * Recreate all sensor and alarm intervals.
    *
-   * Clears existing intervals and creates new ones for all sensors.
-   * This is useful when sensors are added or removed from the system,
-   * ensuring the monitor stays in sync with the current sensor list.
+   * Clears existing intervals and creates new ones for all sensors and alarms.
+   * This is useful when devices are added or removed from the system,
+   * ensuring the monitor stays in sync with the current device list.
    *
-   * @throws {Error} If there's an error fetching sensors from Redis
+   * @throws {Error} If there's an error fetching sensors or alarms from Redis
    * @returns {Promise<void>} Resolves when all intervals have been recreated
    *
    * @example
    * ```typescript
-   * // After adding/removing sensors
+   * // After adding/removing devices
    * await sensorTimeoutMonitor.recreateAllIntervals();
-   * console.log("Sensor intervals recreated");
+   * console.log("Device intervals recreated");
    * ```
    */
   async recreateAllIntervals(): Promise<void> {
-    console.log("Recreating all sensor intervals...");
-    this.intervalIds.forEach((intervalId) => {
+    console.log("Recreating all device intervals...");
+
+    // Clear sensor intervals
+    this.sensorIntervalIds.forEach((intervalId) => {
       clearInterval(intervalId);
     });
-    this.intervalIds = [];
+    this.sensorIntervalIds = [];
+
+    // Clear alarm intervals
+    this.alarmIntervalIds.forEach((intervalId) => {
+      clearInterval(intervalId);
+    });
+    this.alarmIntervalIds = [];
+
     await this.createAllSensorIntervals();
-    console.log(`Recreated ${this.intervalIds.length} sensor intervals`);
+    await this.createAllAlarmIntervals();
+    console.log(
+      `Recreated ${this.sensorIntervalIds.length} sensor intervals and ${this.alarmIntervalIds.length} alarm intervals`
+    );
   }
 
   /**
@@ -163,8 +187,54 @@ export class SensorTimeoutMonitor {
     } catch (error) {
       console.error("Error creating sensor intervals:", error);
       await raiseEvent({
-        type: "critical",
+        type: "warning",
         message: `Failed to create sensor intervals: ${error}`,
+        system: "backend:sensorTimeoutMonitor",
+      });
+    }
+  }
+
+  /**
+   * Create individual intervals for all alarms.
+   *
+   * Fetches all alarms from Redis and creates an individual interval
+   * for each alarm based on its `expectedSecondsUpdated` value.
+   *
+   * @private
+   * @throws {Error} If there's an error fetching alarms from Redis
+   * @returns {Promise<void>} Resolves when all intervals have been created
+   */
+  private async createAllAlarmIntervals(): Promise<void> {
+    try {
+      // Fetch all alarms from Redis
+      const alarms = (await alarmRepository.search().return.all()) as Alarm[];
+
+      // Create an interval for each alarm
+      alarms.forEach((alarmData) => {
+        // Convert Redis data to Alarm type
+        const alarm: Alarm = {
+          name: alarmData.name,
+          externalID: alarmData.externalID,
+          building: alarmData.building,
+          playing: alarmData.playing,
+          state: alarmData.state,
+          ipAddress: alarmData.ipAddress,
+          port: alarmData.port,
+          macAddress: alarmData.macAddress,
+          temperature: alarmData.temperature,
+          voltage: alarmData.voltage,
+          frequency: alarmData.frequency,
+          expectedSecondsUpdated: alarmData.expectedSecondsUpdated,
+          lastUpdated: new Date(alarmData.lastUpdated),
+        };
+
+        this.createAlarmInterval(alarm);
+      });
+    } catch (error) {
+      console.error("Error creating alarm intervals:", error);
+      await raiseEvent({
+        type: "warning",
+        message: `Failed to create alarm intervals: ${error}`,
         system: "backend:sensorTimeoutMonitor",
       });
     }
@@ -186,7 +256,26 @@ export class SensorTimeoutMonitor {
     const intervalId = setInterval(async () => {
       await this.checkSensorTimeout(sensor);
     }, intervalMs);
-    this.intervalIds.push(intervalId);
+    this.sensorIntervalIds.push(intervalId);
+  }
+
+  /**
+   * Create an individual interval for a specific alarm.
+   *
+   * The interval runs every `expectedSecondsUpdated` seconds and checks
+   * the alarm's `lastUpdated` timestamp to determine if it has timed out.
+   *
+   * @private
+   * @param {Alarm} alarm - The alarm to monitor
+   * @returns {void}
+   */
+  private createAlarmInterval(alarm: Alarm): void {
+    const intervalMs = alarm.expectedSecondsUpdated * 1000; // Convert seconds to milliseconds
+
+    const intervalId = setInterval(async () => {
+      await this.checkAlarmTimeout(alarm);
+    }, intervalMs);
+    this.alarmIntervalIds.push(intervalId);
   }
 
   /**
@@ -265,6 +354,81 @@ export class SensorTimeoutMonitor {
   }
 
   /**
+   * Check if a specific alarm has timed out.
+   *
+   * Compares the current time against the alarm's `lastUpdated` timestamp
+   * and marks the alarm as "unknown" if it has exceeded its `expectedSecondsUpdated`
+   * threshold. Also handles recovery detection when alarms come back online.
+   *
+   * @private
+   * @param {Alarm} alarm - The alarm to check for timeout
+   * @returns {Promise<void>} Resolves when the timeout check is complete
+   */
+  private async checkAlarmTimeout(alarm: Alarm): Promise<void> {
+    try {
+      // Get current timestamp
+      const now = new Date();
+
+      // Calculate time since last update in seconds
+      const timeSinceLastUpdate =
+        (now.getTime() - alarm.lastUpdated.getTime()) / 1000;
+
+      // Check if alarm has timed out
+      if (timeSinceLastUpdate > alarm.expectedSecondsUpdated) {
+        // Alarm has timed out - mark as unknown
+        if (alarm.state !== "unknown") {
+          console.log(
+            `Alarm ${alarm.externalID} timed out (${timeSinceLastUpdate.toFixed(
+              0
+            )}s since last update)`
+          );
+
+          // Update alarm state to unknown
+          alarm.state = "unknown";
+          await alarmRepository.save(alarm);
+          await db.insert(alarmUpdatesTable).values({
+            alarmId: alarm.externalID,
+            state: "unknown",
+            temperature: null,
+            voltage: null,
+            frequency: null,
+          });
+          // Raise warning event
+          await raiseEvent({
+            type: "warning",
+            message: `Alarm ${alarm.name} in ${
+              alarm.building
+            } marked as unknown due to timeout (${timeSinceLastUpdate.toFixed(
+              0
+            )}s since last update)`,
+            system: "backend:sensorTimeoutMonitor",
+          });
+          await emitNewData();
+        }
+      } else {
+        // Alarm is still active - log recovery if it was previously unknown
+        if (alarm.state === "unknown") {
+          console.log(
+            `Alarm ${alarm.name} in ${alarm.building} recovered from unknown state`
+          );
+          await raiseEvent({
+            type: "info",
+            message: `Alarm ${alarm.name} in ${alarm.building} recovered from unknown state`,
+            system: "backend:sensorTimeoutMonitor",
+          });
+          await emitNewData();
+        }
+      }
+    } catch (error) {
+      console.error(
+        `Error checking timeout for alarm ${alarm.externalID}:`,
+        error
+      );
+      // TODO: Handle error, maybe an error log drain
+    }
+  }
+
+  /**
    * Get the current monitoring status.
    *
    * @returns {boolean} `true` if the monitor is currently running, `false` otherwise
@@ -283,24 +447,90 @@ export class SensorTimeoutMonitor {
   }
 
   /**
-   * Get the number of active intervals.
+   * Get the number of active sensor intervals.
    *
    * @returns {number} The current number of sensor intervals being monitored
    *
    * @example
    * ```typescript
-   * const activeCount = sensorTimeoutMonitor.getActiveIntervalCount();
-   * console.log(`Monitoring ${activeCount} sensors`);
+   * const activeSensorCount = sensorTimeoutMonitor.getActiveSensorIntervalCount();
+   * console.log(`Monitoring ${activeSensorCount} sensors`);
    * ```
    */
-  getActiveIntervalCount(): number {
-    return this.intervalIds.length;
+  getActiveSensorIntervalCount(): number {
+    return this.sensorIntervalIds.length;
   }
 
   /**
-   * Get all active interval IDs.
+   * Get the number of active alarm intervals.
    *
-   * Returns a copy of the interval IDs array for debugging/testing purposes.
+   * @returns {number} The current number of alarm intervals being monitored
+   *
+   * @example
+   * ```typescript
+   * const activeAlarmCount = sensorTimeoutMonitor.getActiveAlarmIntervalCount();
+   * console.log(`Monitoring ${activeAlarmCount} alarms`);
+   * ```
+   */
+  getActiveAlarmIntervalCount(): number {
+    return this.alarmIntervalIds.length;
+  }
+
+  /**
+   * Get all active sensor interval IDs.
+   *
+   * Returns a copy of the sensor interval IDs array for debugging/testing purposes.
+   * The returned array is a copy to prevent external modification.
+   *
+   * @returns {ReturnType<typeof setInterval>[]} Array of all current sensor interval IDs
+   *
+   * @example
+   * ```typescript
+   * const sensorIntervalIds = sensorTimeoutMonitor.getSensorIntervalIds();
+   * console.log(`Active sensor intervals: ${sensorIntervalIds.length}`);
+   * ```
+   */
+  getSensorIntervalIds(): ReturnType<typeof setInterval>[] {
+    return [...this.sensorIntervalIds]; // Return copy to prevent external modification
+  }
+
+  /**
+   * Get all active alarm interval IDs.
+   *
+   * Returns a copy of the alarm interval IDs array for debugging/testing purposes.
+   * The returned array is a copy to prevent external modification.
+   *
+   * @returns {ReturnType<typeof setInterval>[]} Array of all current alarm interval IDs
+   *
+   * @example
+   * ```typescript
+   * const alarmIntervalIds = sensorTimeoutMonitor.getAlarmIntervalIds();
+   * console.log(`Active alarm intervals: ${alarmIntervalIds.length}`);
+   * ```
+   */
+  getAlarmIntervalIds(): ReturnType<typeof setInterval>[] {
+    return [...this.alarmIntervalIds]; // Return copy to prevent external modification
+  }
+
+  /**
+   * Get the total number of active intervals (sensors + alarms).
+   *
+   * @returns {number} The total number of device intervals being monitored
+   *
+   * @example
+   * ```typescript
+   * const totalCount = sensorTimeoutMonitor.getActiveIntervalCount();
+   * console.log(`Monitoring ${totalCount} total devices`);
+   * ```
+   */
+  getActiveIntervalCount(): number {
+    return this.sensorIntervalIds.length + this.alarmIntervalIds.length;
+  }
+
+  /**
+   * Get all active interval IDs (sensors + alarms).
+   *
+   * Returns a copy of all interval IDs array for debugging/testing purposes.
    * The returned array is a copy to prevent external modification.
    *
    * @returns {ReturnType<typeof setInterval>[]} Array of all current interval IDs
@@ -312,7 +542,7 @@ export class SensorTimeoutMonitor {
    * ```
    */
   getIntervalIds(): ReturnType<typeof setInterval>[] {
-    return [...this.intervalIds]; // Return copy to prevent external modification
+    return [...this.sensorIntervalIds, ...this.alarmIntervalIds]; // Return copy to prevent external modification
   }
 }
 
@@ -320,7 +550,7 @@ export class SensorTimeoutMonitor {
  * Singleton instance of the SensorTimeoutMonitor for use across the application.
  *
  * This instance is shared across all modules that need to interact with
- * the sensor timeout monitoring system.
+ * the device timeout monitoring system.
  *
  * @example
  * ```typescript

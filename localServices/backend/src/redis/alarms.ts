@@ -6,6 +6,7 @@ const alarmSchema = new Schema("alarms", {
   externalID: { type: "string" },
   playing: { type: "boolean" },
   building: { type: "string" },
+  state: { type: "string" },
   ipAddress: { type: "string" },
   port: { type: "number" },
   macAddress: { type: "string" },
@@ -24,6 +25,7 @@ export interface Alarm {
   externalID: string;
   playing: boolean;
   building: string;
+  state: string;
   ipAddress?: string;
   port: number;
   macAddress?: string;

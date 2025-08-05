@@ -14,6 +14,7 @@ import { alarmLogsTable } from "../../db/schema/alarmLogs";
 import { alarmUpdatesTable } from "../../db/schema/alarmUpdates";
 import { writeRedisCheckpoint } from "../../redis/index";
 import { identifyDevice } from "../../utils/deviceIdentification";
+import { sensorTimeoutMonitor } from "../../sensorTimeoutMonitor";
 
 const router = express.Router();
 
@@ -88,6 +89,7 @@ router.post("/new", async (req, res, next) => {
     externalID: newAlarm.id,
     building: building,
     playing: false,
+    state: "connected",
     expectedSecondsUpdated: expectedSecondsUpdated,
     port: port,
     lastUpdated: new Date(),
@@ -100,6 +102,7 @@ router.post("/new", async (req, res, next) => {
   });
   await writePostgresCheckpoint();
   await writeRedisCheckpoint();
+  await sensorTimeoutMonitor.recreateAllIntervals();
   res.status(201).json({ status: "success", data: data });
 });
 
@@ -136,6 +139,7 @@ router.delete("/:alarmId", async (req, res, next) => {
   });
   await writePostgresCheckpoint();
   await writeRedisCheckpoint();
+  await sensorTimeoutMonitor.recreateAllIntervals();
   res.status(200).json({ status: "success", message: "Alarm deleted" });
 });
 
@@ -268,16 +272,16 @@ router.post("/:alarmId/handshake", async (req, res, next) => {
     return;
   }
 
-
   await emitNewData();
-  const identificationMethod =
-    deviceInfo?.identificationMethod || "url_param";
+  const identificationMethod = deviceInfo?.identificationMethod || "url_param";
   await raiseEvent({
     type: "info",
     message: `Received handshake from alarm ${alarm.name} in ${alarm.building} (identified by: ${identificationMethod}) with ip: ${deviceIp}, mac: ${macAddress}`,
     system: "backend:alarms",
   });
-  res.status(200).json({ status: "success", message: "Alarm handshake successful" });
+  res
+    .status(200)
+    .json({ status: "success", message: "Alarm handshake successful" });
 });
 
 /**
