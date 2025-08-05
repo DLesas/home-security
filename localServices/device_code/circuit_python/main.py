@@ -138,9 +138,9 @@ def main():
                 print(f"Entering light sleep for {manager.config.fatal_error_reboot_delay_s} seconds before attempting recovery...")
                 alarm.light_sleep_until_alarms(reboot_alarm)
 
-        # Fallback loop in case manager failed to initialize
-        while True:
-            time.sleep(1)
+        # Fallback: restart microcontroller if manager failed to initialize
+        print("Manager failed to initialize - restarting microcontroller...")
+        reset()
 
 
 if __name__ == "__main__":
