@@ -1,0 +1,1 @@
+ALTER TYPE "alarmState" ADD VALUE 'unknown';
