@@ -51,7 +51,9 @@ Hash: {hashTxt}
         """
         if not self.Device.read_only:
             try:
-                os.mkdir(self.log_dir)
+                # Check if directory already exists
+                if self.log_dir not in os.listdir():
+                    os.mkdir(self.log_dir)
             except OSError as e:
                 print('failed to make dir in log_issue: ',e)
                 pass
