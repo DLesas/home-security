@@ -11,6 +11,7 @@ export interface Config {
 }
 
 export const configRepository = new Repository(configSchema, redis);
+export const CONFIG_ENTITY_ID = "config:default";
 
 export const createConfigIndex = async () => {
   try {
@@ -21,28 +22,27 @@ export const createConfigIndex = async () => {
 };
 
 export const setDefaultConfig = async () => {
-  const config = (await configRepository
-    .search()
-    .returnFirst()) as Config | null;
-  if (config) {
-    return;
-  }
-  if (
-    !process.env.SENSOR_WARNING_TEMPERATURE ||
-    !process.env.SENSOR_CRITICAL_TEMPERATURE
-  ) {
+  const defaultWarning = 65;
+  const defaultCritical = 75;
+
+  const warningStr = process.env.SENSOR_WARNING_TEMPERATURE;
+  const criticalStr = process.env.SENSOR_CRITICAL_TEMPERATURE;
+
+  if (!warningStr || !criticalStr) {
     console.error(
       "SENSOR_WARNING_TEMPERATURE or SENSOR_CRITICAL_TEMPERATURE is not set"
     );
-    await configRepository.save({
-      sensorWarningTemparature: 65,
-      sensorCriticalTemparature: 75,
-    } as Config);
   }
-  await configRepository.save({
-    sensorWarningTemparature: parseInt(process.env.SENSOR_WARNING_TEMPERATURE!),
-    sensorCriticalTemparature: parseInt(
-      process.env.SENSOR_CRITICAL_TEMPERATURE!
+
+  const payload: Config = {
+    sensorWarningTemparature: parseInt(
+      (warningStr ?? String(defaultWarning)).toString()
     ),
-  } as Config);
+    sensorCriticalTemparature: parseInt(
+      (criticalStr ?? String(defaultCritical)).toString()
+    ),
+  } as Config;
+
+  // Always save to a constant ID to avoid duplicate config entities
+  await configRepository.save(CONFIG_ENTITY_ID, payload as Config);
 };
