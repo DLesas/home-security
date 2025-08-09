@@ -10,11 +10,11 @@ import { raiseEvent } from "../../events/notify";
 import { emitNewData } from "../socketHandler";
 import { EntityId } from "redis-om";
 import { raiseError } from "../../events/notify";
-import { makeID } from "../../utils";
+import { makeID } from "../../utils/index";
 import { sensorLogsTable } from "../../db/schema/sensorLogs";
 import { writeRedisCheckpoint } from "../../redis/index";
 import { identifyDevice } from "../../utils/deviceIdentification";
-import { sensorTimeoutMonitor } from "../../sensorTimeoutMonitor";
+import { sensorTimeoutMonitor } from "../../microDeviceTimeoutMonitor";
 
 const router = express.Router();
 
@@ -72,7 +72,7 @@ router.post("/:sensorId/handshake", async (req, res, next) => {
     !sensor.macAddress ||
     sensor.macAddress !== macAddress
   ) {
-    await doorSensorRepository.save({
+    await doorSensorRepository.save(sensor.externalID, {
       ...sensor,
       macAddress,
       ipAddress: deviceIp,
@@ -334,6 +334,7 @@ router.post("/new", async (req, res, next) => {
     name: newSensor.name,
     expectedSecondsUpdated,
   };
+  // Save with explicit ID to avoid duplicate entities
   await doorSensorRepository.save(newSensor.id, {
     name: newSensor.name,
     externalID: newSensor.id,

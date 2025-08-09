@@ -113,6 +113,7 @@ async function saveAlarmState(
     console.log(`[COOLDOWN] Alarm ${alarm.name} cooldown cleared`);
   }
 
-  await alarmRepository.save(alarm as Alarm);
+  // Save with explicit ID to avoid creating duplicate entities when alarm is a plain object
+  await alarmRepository.save(alarm.externalID, alarm as Alarm);
   return true;
 }

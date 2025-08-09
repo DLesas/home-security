@@ -47,7 +47,7 @@ export async function identifyDevice(req: Request): Promise<DeviceInfo | null> {
         sensor.macAddress !== deviceMac;
 
       if (needsUpdate) {
-        await doorSensorRepository.save({
+        await doorSensorRepository.save(sensor.externalID, {
           ...sensor,
           ipAddress: deviceIp,
           macAddress: deviceMac || sensor.macAddress,
@@ -85,7 +85,7 @@ export async function identifyDevice(req: Request): Promise<DeviceInfo | null> {
         alarm.macAddress !== deviceMac;
 
       if (needsUpdate) {
-        await alarmRepository.save({
+        await alarmRepository.save(alarm.externalID, {
           ...alarm,
           ipAddress: deviceIp,
           macAddress: deviceMac || alarm.macAddress,

@@ -9,12 +9,12 @@ import { alarmsTable } from "../../db/schema/alarms";
 import { type Alarm, alarmRepository } from "../../redis/alarms";
 import { EntityId } from "redis-om";
 import { raiseError } from "../../events/notify";
-import { makeID } from "../../utils";
+import { makeID } from "../../utils/index";
 import { alarmLogsTable } from "../../db/schema/alarmLogs";
 import { alarmUpdatesTable } from "../../db/schema/alarmUpdates";
 import { writeRedisCheckpoint } from "../../redis/index";
 import { identifyDevice } from "../../utils/deviceIdentification";
-import { sensorTimeoutMonitor } from "../../sensorTimeoutMonitor";
+import { sensorTimeoutMonitor } from "../../microDeviceTimeoutMonitor";
 
 const router = express.Router();
 
@@ -84,7 +84,8 @@ router.post("/new", async (req, res, next) => {
     .returning();
   const { buildingId, ...newAlarmData } = newAlarm;
   const data = { id: newAlarm.id, name: newAlarm.name, expectedSecondsUpdated };
-  await alarmRepository.save({
+  // Save with explicit ID to avoid duplicate entities
+  await alarmRepository.save(newAlarm.id, {
     name: name,
     externalID: newAlarm.id,
     building: building,
@@ -349,9 +350,9 @@ router.post("/update", async (req, res, next) => {
   }
 
   const { status, temperature, voltage, frequency } = result.data;
-  await alarmRepository.save({
+  await alarmRepository.save(alarm.externalID, {
     ...alarm,
-    status,
+    state: status,
     temperature,
     voltage,
     frequency,
