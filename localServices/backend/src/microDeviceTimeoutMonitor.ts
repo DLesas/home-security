@@ -5,6 +5,7 @@ import { sensorUpdatesTable } from "./db/schema/sensorUpdates";
 import { alarmUpdatesTable } from "./db/schema/alarmUpdates";
 import { db } from "./db/db";
 import { emitNewData } from "./express/socketHandler";
+import { setSensorStatusUnknown } from "./sensorFuncs";
 
 /**
  * This is a singleton class that is used to monitor the timeout status of all sensors and alarms.
@@ -159,30 +160,12 @@ export class SensorTimeoutMonitor {
    */
   private async createAllSensorIntervals(): Promise<void> {
     try {
-      // Fetch all sensors from Redis
+      // Fetch all sensors from Redis as Entities and create an interval for each
       const sensors = (await doorSensorRepository
         .search()
-        .return.all()) as doorSensor[];
-
-      // Create an interval for each sensor
-      sensors.forEach((sensorData) => {
-        // Convert Redis data to doorSensor type
-        const sensor: doorSensor = {
-          name: sensorData.name,
-          externalID: sensorData.externalID,
-          building: sensorData.building,
-          armed: sensorData.armed,
-          state: sensorData.state,
-          ipAddress: sensorData.ipAddress,
-          macAddress: sensorData.macAddress,
-          temperature: sensorData.temperature,
-          voltage: sensorData.voltage,
-          frequency: sensorData.frequency,
-          expectedSecondsUpdated: sensorData.expectedSecondsUpdated,
-          lastUpdated: new Date(sensorData.lastUpdated),
-        };
-
-        this.createSensorInterval(sensor);
+        .return.all()) as any[];
+      sensors.forEach((sensorEntity) => {
+        this.createSensorInterval(sensorEntity as doorSensor);
       });
     } catch (error) {
       console.error("Error creating sensor intervals:", error);
@@ -206,29 +189,10 @@ export class SensorTimeoutMonitor {
    */
   private async createAllAlarmIntervals(): Promise<void> {
     try {
-      // Fetch all alarms from Redis
-      const alarms = (await alarmRepository.search().return.all()) as Alarm[];
-
-      // Create an interval for each alarm
-      alarms.forEach((alarmData) => {
-        // Convert Redis data to Alarm type
-        const alarm: Alarm = {
-          name: alarmData.name,
-          externalID: alarmData.externalID,
-          building: alarmData.building,
-          playing: alarmData.playing,
-          state: alarmData.state,
-          ipAddress: alarmData.ipAddress,
-          port: alarmData.port,
-          macAddress: alarmData.macAddress,
-          temperature: alarmData.temperature,
-          voltage: alarmData.voltage,
-          frequency: alarmData.frequency,
-          expectedSecondsUpdated: alarmData.expectedSecondsUpdated,
-          lastUpdated: new Date(alarmData.lastUpdated),
-        };
-
-        this.createAlarmInterval(alarm);
+      // Fetch all alarms from Redis as Entities and create an interval for each
+      const alarms = (await alarmRepository.search().return.all()) as any[];
+      alarms.forEach((alarmEntity) => {
+        this.createAlarmInterval(alarmEntity as Alarm);
       });
     } catch (error) {
       console.error("Error creating alarm intervals:", error);
@@ -291,28 +255,34 @@ export class SensorTimeoutMonitor {
    */
   private async checkSensorTimeout(sensor: doorSensor): Promise<void> {
     try {
+      // Always fetch latest entity snapshot before checking timeout
+      const fresh = (await doorSensorRepository
+        .search()
+        .where("externalID")
+        .eq(sensor.externalID)
+        .returnFirst()) as doorSensor | null;
+      if (!fresh) return;
+
       // Get current timestamp
       const now = new Date();
 
       // Calculate time since last update in seconds
       const timeSinceLastUpdate =
-        (now.getTime() - sensor.lastUpdated.getTime()) / 1000;
+        (now.getTime() - fresh.lastUpdated.getTime()) / 1000;
 
       // Check if sensor has timed out
-      if (timeSinceLastUpdate > sensor.expectedSecondsUpdated) {
+      if (timeSinceLastUpdate > fresh.expectedSecondsUpdated) {
         // Sensor has timed out - mark as unknown
-        if (sensor.state !== "unknown") {
+        if (fresh.state !== "unknown") {
           console.log(
             `Sensor ${
-              sensor.externalID
+              fresh.externalID
             } timed out (${timeSinceLastUpdate.toFixed(0)}s since last update)`
           );
-
-          // Update sensor state to unknown
-          sensor.state = "unknown";
-          await doorSensorRepository.save(sensor);
+          // Use shared function to update sensor state to unknown (safely updates entity)
+          await setSensorStatusUnknown([fresh]);
           db.insert(sensorUpdatesTable).values({
-            sensorId: sensor.externalID,
+            sensorId: fresh.externalID,
             state: "unknown",
             temperature: undefined,
             voltage: undefined,
@@ -321,8 +291,8 @@ export class SensorTimeoutMonitor {
           // Raise warning event
           await raiseEvent({
             type: "warning",
-            message: `Sensor ${sensor.name} in ${
-              sensor.building
+            message: `Sensor ${fresh.name} in ${
+              fresh.building
             } marked as unknown due to timeout (${timeSinceLastUpdate.toFixed(
               0
             )}s since last update)`,
@@ -332,13 +302,13 @@ export class SensorTimeoutMonitor {
         }
       } else {
         // Sensor is still active - log recovery if it was previously unknown
-        if (sensor.state === "unknown") {
+        if (fresh.state === "unknown") {
           console.log(
-            `Sensor ${sensor.name} in ${sensor.building} recovered from unknown state`
+            `Sensor ${fresh.name} in ${fresh.building} recovered from unknown state`
           );
           await raiseEvent({
             type: "info",
-            message: `Sensor ${sensor.name} in ${sensor.building} recovered from unknown state`,
+            message: `Sensor ${fresh.name} in ${fresh.building} recovered from unknown state`,
             system: "backend:sensorTimeoutMonitor",
           });
           await emitNewData();
@@ -366,28 +336,38 @@ export class SensorTimeoutMonitor {
    */
   private async checkAlarmTimeout(alarm: Alarm): Promise<void> {
     try {
+      // Always fetch latest entity snapshot before checking timeout
+      const fresh = (await alarmRepository
+        .search()
+        .where("externalID")
+        .eq(alarm.externalID)
+        .returnFirst()) as Alarm | null;
+      if (!fresh) return;
+
       // Get current timestamp
       const now = new Date();
 
       // Calculate time since last update in seconds
       const timeSinceLastUpdate =
-        (now.getTime() - alarm.lastUpdated.getTime()) / 1000;
+        (now.getTime() - fresh.lastUpdated.getTime()) / 1000;
 
       // Check if alarm has timed out
-      if (timeSinceLastUpdate > alarm.expectedSecondsUpdated) {
+      if (timeSinceLastUpdate > fresh.expectedSecondsUpdated) {
         // Alarm has timed out - mark as unknown
-        if (alarm.state !== "unknown") {
+        if (fresh.state !== "unknown") {
           console.log(
-            `Alarm ${alarm.externalID} timed out (${timeSinceLastUpdate.toFixed(
+            `Alarm ${fresh.externalID} timed out (${timeSinceLastUpdate.toFixed(
               0
             )}s since last update)`
           );
-
-          // Update alarm state to unknown
-          alarm.state = "unknown";
-          await alarmRepository.save(alarm);
+          // Update alarm using explicit ID to avoid duplicates
+          await alarmRepository.save(fresh.externalID, {
+            ...fresh,
+            state: "unknown",
+            lastUpdated: new Date(),
+          });
           await db.insert(alarmUpdatesTable).values({
-            alarmId: alarm.externalID,
+            alarmId: fresh.externalID,
             state: "unknown",
             temperature: null,
             voltage: null,
@@ -396,8 +376,8 @@ export class SensorTimeoutMonitor {
           // Raise warning event
           await raiseEvent({
             type: "warning",
-            message: `Alarm ${alarm.name} in ${
-              alarm.building
+            message: `Alarm ${fresh.name} in ${
+              fresh.building
             } marked as unknown due to timeout (${timeSinceLastUpdate.toFixed(
               0
             )}s since last update)`,
@@ -407,13 +387,13 @@ export class SensorTimeoutMonitor {
         }
       } else {
         // Alarm is still active - log recovery if it was previously unknown
-        if (alarm.state === "unknown") {
+        if (fresh.state === "unknown") {
           console.log(
-            `Alarm ${alarm.name} in ${alarm.building} recovered from unknown state`
+            `Alarm ${fresh.name} in ${fresh.building} recovered from unknown state`
           );
           await raiseEvent({
             type: "info",
-            message: `Alarm ${alarm.name} in ${alarm.building} recovered from unknown state`,
+            message: `Alarm ${fresh.name} in ${fresh.building} recovered from unknown state`,
             system: "backend:sensorTimeoutMonitor",
           });
           await emitNewData();

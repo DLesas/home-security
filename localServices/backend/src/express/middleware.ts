@@ -3,7 +3,7 @@ import { db } from "../db/db";
 import { accessLogsTable } from "../db/schema/accessLogs";
 import { errorLogsTable } from "../db/schema/errorLogs";
 import { CustomError, raiseError } from "../events/notify";
-import { getIpAddress, normalizeIpAddress } from "../utils";
+import { getIpAddress, normalizeIpAddress } from "../utils/index";
 
 /**
  * Logs the request details to the access logs table

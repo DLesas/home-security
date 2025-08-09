@@ -20,7 +20,7 @@ import { createConfigIndex, setDefaultConfig } from "./redis/config";
 import { createAlarmIndex } from "./redis/alarms";
 import { setSensorStatusUnknown } from "./sensorFuncs";
 import { SocketEventSubscriber } from "./express/socketEventSubscriber";
-import { sensorTimeoutMonitor } from "./sensorTimeoutMonitor";
+import { sensorTimeoutMonitor } from "./microDeviceTimeoutMonitor";
 // import { startBonjourService } from "./express/advertisement/Bonjour";
 // import { startUdpListener } from "./express/advertisement/udpBroadcast";
 

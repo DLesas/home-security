@@ -7,7 +7,7 @@ import { buildingTable } from "../../db/schema/buildings";
 import { raiseError } from "../../events/notify";
 import { raiseEvent } from "../../events/notify";
 import { z } from "zod";
-import { makeID } from "../../utils";
+import { makeID } from "../../utils/index";
 import { emitNewData } from "../socketHandler";
 import { changeAlarmState } from "../../alarmFuncs";
 import { Alarm, alarmRepository } from "../../redis/alarms";
