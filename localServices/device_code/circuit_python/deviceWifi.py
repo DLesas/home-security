@@ -5,6 +5,7 @@ import adafruit_requests
 import time
 import binascii
 import ipaddress
+import random
 
 def require_connection(func):
     """
@@ -42,6 +43,10 @@ class deviceWifi:
         self.ip = None
         self.mac = None
         self.ID = ID
+        # Backoff tuning
+        self._initial_backoff_s = 0.5
+        self._max_backoff_s = 8.0
+        self._jitter_s = 0.25
         
     @inject_function_name
     def connect(self, func_name: str = "connect"):
@@ -56,6 +61,7 @@ class deviceWifi:
         wifi.radio.enabled = True
         self.Led.blink(self.blinks)
         retry_count = 0
+        backoff_s = self._initial_backoff_s
         while not wifi.radio.connected and retry_count < self.max_attempts:
             try:
                 wifi.radio.connect(self.ssid, self.password)
@@ -66,7 +72,10 @@ class deviceWifi:
                     func_name,
                     f"Failed to connect to WiFi: {e}",
                 )
-                time.sleep(0.5)
+                # Exponential backoff with jitter
+                sleep_s = backoff_s + (random.random() * self._jitter_s)
+                time.sleep(sleep_s)
+                backoff_s = min(backoff_s * 2.0, self._max_backoff_s)
             retry_count = retry_count + 1
         if not wifi.radio.connected:
             self.Logger.log_issue(
