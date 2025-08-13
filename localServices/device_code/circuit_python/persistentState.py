@@ -42,6 +42,9 @@ class PersistentState:
             # JSON parsing error
             print(f"Error parsing JSON file: {e}")
             self.state = {}
+        except Exception as e:
+            print(f"Error loading state: {e}")
+            self.state = {}
     
     def _save_state(self):
         """Save the current state dictionary to the JSON file."""

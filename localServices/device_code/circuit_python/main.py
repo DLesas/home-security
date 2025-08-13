@@ -113,34 +113,48 @@ def main():
 
     except Exception as e:
         print(f"FATAL ERROR in main: {e}")
-        # This is a catastrophic failure, try to log it and enter a safe state
-        if manager:
-            try:
-                manager.logger.log_issue("Critical", "main", "main", f"FATAL ERROR: {e}")
-                manager.networking.send_logs()
-            except:
-                pass
-            
-            # Turn the LED on solid to indicate a fatal error
-            manager.led.turn_on_led()
-            
-            # Create a flag file to signal a fatal error on the next boot
-            manager.persistent_state.add_persistent_state("fatal_error", time.monotonic())
+        # Attempt recovery; if anything in recovery fails, force a reset.
+        try:
+            if manager:
+                # Best-effort logging and sending logs
+                try:
+                    manager.logger.log_issue("Critical", "main", "main", f"FATAL ERROR: {e}")
+                    manager.networking.send_logs()
+                except Exception as log_err:
+                    print(f"Error during logging/send_logs: {log_err}")
 
-            # Create a wakeup alarm for the reboot delay
-            reboot_alarm = alarm.time.TimeAlarm(monotonic_time=time.monotonic() + manager.config.fatal_error_reboot_delay_s)
-            
-            # Choose sleep mode based on should_deep_sleep setting
-            if manager.config.should_deep_sleep:
-                print(f"Entering deep sleep for {manager.config.fatal_error_reboot_delay_s} seconds before attempting recovery...")
-                alarm.exit_and_deep_sleep_until_alarms(reboot_alarm)
-            else:
-                print(f"Entering light sleep for {manager.config.fatal_error_reboot_delay_s} seconds before attempting recovery...")
-                alarm.light_sleep_until_alarms(reboot_alarm)
+                # Best-effort LED indicator
+                try:
+                    manager.led.turn_on_led()
+                except Exception as led_err:
+                    print(f"Error turning on LED: {led_err}")
 
-        # Fallback: restart microcontroller if manager failed to initialize
-        print("Manager failed to initialize - restarting microcontroller...")
-        reset()
+                # Best-effort persistent flag for next boot
+                try:
+                    manager.persistent_state.add_persistent_state("fatal_error", time.monotonic())
+                except Exception as state_err:
+                    print(f"Error setting fatal flag: {state_err}")
+
+                # Prepare reboot alarm (best-effort)
+                reboot_alarm = None
+                try:
+                    reboot_alarm = alarm.time.TimeAlarm(
+                        monotonic_time=time.monotonic() + manager.config.fatal_error_reboot_delay_s
+                    )
+                except Exception as alarm_err:
+                    print(f"Error creating reboot alarm: {alarm_err}")
+
+                # Sleep path: deep sleep won't return; light sleep returns then we reset in finally
+                if reboot_alarm:
+                    if manager.config.should_deep_sleep:
+                        print(f"Entering deep sleep for {manager.config.fatal_error_reboot_delay_s} seconds before attempting recovery...")
+                        alarm.exit_and_deep_sleep_until_alarms(reboot_alarm)
+                    else:
+                        print(f"Entering light sleep for {manager.config.fatal_error_reboot_delay_s} seconds before attempting recovery...")
+                        alarm.light_sleep_until_alarms(reboot_alarm)
+        except Exception as recovery_error:
+            print(f"Recovery path failed, forcing reset: {recovery_error}")
+            reset()
 
 
 if __name__ == "__main__":
