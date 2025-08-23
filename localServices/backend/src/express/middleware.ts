@@ -32,15 +32,20 @@ export const loggingMiddleware = async (
       "userAgent: ",
       req.headers["user-agent"]
     );
-    await db.insert(accessLogsTable).values({
-      endpoint: req.baseUrl + req.path,
-      queryString: JSON.stringify(req.query),
-      body: JSON.stringify(req.body),
-      action: req.method as "GET" | "POST" | "DELETE" | "PUT",
-      connection: "http",
-      clientIp,
-      userAgent: req.headers["user-agent"],
-    });
+
+    // Skip database logging for health endpoint
+    if (req.path !== "/health") {
+      await db.insert(accessLogsTable).values({
+        endpoint: req.baseUrl + req.path,
+        queryString: JSON.stringify(req.query),
+        body: JSON.stringify(req.body),
+        action: req.method as "GET" | "POST" | "DELETE" | "PUT",
+        connection: "http",
+        clientIp,
+        userAgent: req.headers["user-agent"],
+      });
+    }
+
     next();
   } catch (err) {
     console.error("Error in logging middleware:", err);
