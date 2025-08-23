@@ -19,8 +19,9 @@ def inject_function_name(func):
     return wrapper
 
 class Logger:
-    def __init__(self, microDevice):
+    def __init__(self, microDevice, led):
         self.Device = microDevice
+        self.Led = led
         self.log_dir = "logs"
         self.issue_file = "issue_logs.csv"
         self.max_log_file_size = 512 * 1024
@@ -99,7 +100,9 @@ Hash: {hashTxt}
                 if last_line:
                     print(f"Previous log entry: {last_line}")
                 print(f"New log entry: {new_line.strip()}")
+                self.Led.blink(3, 0.5)
             except Exception as e:
+                self.Led.blink(5, 0.2)
                 print(f"Failed to log error: {e}")
         else:
             print(text)

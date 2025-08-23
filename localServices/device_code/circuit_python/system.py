@@ -25,7 +25,7 @@ class DeviceManager:
         self.device = microDevice()
         self.led = Led()
         self.persistent_state = PersistentState(device=self.device)
-        self.logger = Logger(self.device)
+        self.logger = Logger(self.device, self.led)
 
         # Networking components that depend on the core components
         self.device_wifi = deviceWifi(
