@@ -9,7 +9,7 @@ import { alarmsTable } from "../../db/schema/alarms";
 import { type Alarm, alarmRepository } from "../../redis/alarms";
 import { EntityId } from "redis-om";
 import { raiseError } from "../../events/notify";
-import { makeID } from "../../utils/index";
+import { makeID, truncateFromBeginning } from "../../utils/index";
 import { alarmLogsTable } from "../../db/schema/alarmLogs";
 import { alarmUpdatesTable } from "../../db/schema/alarmUpdates";
 import { writeRedisCheckpoint } from "../../redis/index";
@@ -172,9 +172,12 @@ router.post("/logs", async (req, res, next) => {
       .string()
       .regex(/^[a-f0-9]{64}$/, "Hash must be a valid SHA-256 hash"),
     Count: z.number().int().min(1, "Count must be a positive integer"),
-    last_seen: z.string().refine((val) => !isNaN(Date.parse(val)), {
-      message: "last_seen must be a valid date string",
-    }),
+    last_seen: z
+      .string()
+      .refine((val) => !isNaN(Date.parse(val)), {
+        message: "last_seen must be a valid date string",
+      })
+      .optional(),
   });
   const validationSchema = z.array(logSchema);
 
@@ -215,9 +218,9 @@ router.post("/logs", async (req, res, next) => {
       hash: item.Hash,
       class: item.Class,
       type: item.Type,
-      errorMessage: item.Error_Message,
+      errorMessage: truncateFromBeginning(item.Error_Message, 2048),
       count: item.Count,
-      last_seen: new Date(item.last_seen),
+      last_seen: item.last_seen ? new Date(item.last_seen) : null,
     }))
   );
 

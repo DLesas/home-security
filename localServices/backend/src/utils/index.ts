@@ -53,3 +53,46 @@ export const getIpAddress = (req: Request): string => {
     "";
   return clientIP;
 };
+
+/**
+ * Truncates a string from the beginning to ensure it doesn't exceed the specified byte limit.
+ * This preserves the end of the string which typically contains the most important error details.
+ *
+ * @param {string} text - The text to truncate.
+ * @param {number} maxBytes - The maximum byte length allowed (default: 2048).
+ * @returns {string} The truncated text with "..." prefix if truncation occurred.
+ */
+export const truncateFromBeginning = (
+  text: string,
+  maxBytes: number = 2048
+): string => {
+  if (!text) return text;
+
+  // Convert to Buffer to check byte length (not character length)
+  const textBuffer = Buffer.from(text, "utf8");
+
+  if (textBuffer.length <= maxBytes) {
+    return text;
+  }
+
+  const prefix = "...";
+  const prefixBuffer = Buffer.from(prefix, "utf8");
+  const availableBytes = maxBytes - prefixBuffer.length;
+
+  if (availableBytes <= 0) {
+    // If maxBytes is too small even for the prefix, just return truncated text
+    return text.slice(-Math.floor(maxBytes / 4)); // Rough approximation for UTF-8
+  }
+
+  // Find the right position to truncate from the end
+  let truncatedText = text;
+  let truncatedBuffer = textBuffer;
+
+  while (truncatedBuffer.length > availableBytes) {
+    // Remove characters from the beginning until we fit
+    truncatedText = truncatedText.slice(1);
+    truncatedBuffer = Buffer.from(truncatedText, "utf8");
+  }
+
+  return prefix + truncatedText;
+};

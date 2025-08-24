@@ -10,7 +10,7 @@ import { raiseEvent } from "../../events/notify";
 import { emitNewData } from "../socketHandler";
 import { EntityId } from "redis-om";
 import { raiseError } from "../../events/notify";
-import { makeID } from "../../utils/index";
+import { makeID, truncateFromBeginning } from "../../utils/index";
 import { sensorLogsTable } from "../../db/schema/sensorLogs";
 import { writeRedisCheckpoint } from "../../redis/index";
 import { identifyDevice } from "../../utils/deviceIdentification";
@@ -257,7 +257,7 @@ router.post("/logs", async (req, res, next) => {
       hash: item.Hash,
       class: item.Class,
       type: item.Type,
-      errorMessage: item.Error_Message,
+      errorMessage: truncateFromBeginning(item.Error_Message, 2048),
       count: item.Count,
       last_seen: new Date(item.last_seen),
     }))
