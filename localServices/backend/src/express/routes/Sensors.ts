@@ -214,6 +214,9 @@ router.post("/logs", async (req, res, next) => {
       .string()
       .regex(/^[a-f0-9]{64}$/, "Hash must be a valid SHA-256 hash"),
     Count: z.number().int().min(1, "Count must be a positive integer"),
+    last_seen: z.string().refine((val) => !isNaN(Date.parse(val)), {
+      message: "last_seen must be a valid date string",
+    }),
   });
   const validationSchema = z.array(logSchema);
 
@@ -256,6 +259,7 @@ router.post("/logs", async (req, res, next) => {
       type: item.Type,
       errorMessage: item.Error_Message,
       count: item.Count,
+      last_seen: new Date(item.last_seen),
     }))
   );
 

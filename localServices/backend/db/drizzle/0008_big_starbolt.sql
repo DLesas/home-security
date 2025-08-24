@@ -1,0 +1,1 @@
+ALTER TABLE "sensorLogs" ADD COLUMN "last_seen" timestamp with time zone NOT NULL;
