@@ -172,6 +172,9 @@ router.post("/logs", async (req, res, next) => {
       .string()
       .regex(/^[a-f0-9]{64}$/, "Hash must be a valid SHA-256 hash"),
     Count: z.number().int().min(1, "Count must be a positive integer"),
+    last_seen: z.string().refine((val) => !isNaN(Date.parse(val)), {
+      message: "last_seen must be a valid date string",
+    }),
   });
   const validationSchema = z.array(logSchema);
 
@@ -214,6 +217,7 @@ router.post("/logs", async (req, res, next) => {
       type: item.Type,
       errorMessage: item.Error_Message,
       count: item.Count,
+      last_seen: new Date(item.last_seen),
     }))
   );
 
@@ -296,9 +300,9 @@ router.post("/:alarmId/handshake", async (req, res, next) => {
  */
 router.post("/update", async (req, res, next) => {
   const validationSchema = z.object({
-    status: z.enum(["on", "off"], {
-      required_error: "status is required",
-      invalid_type_error: "status must be one of: on, off",
+    state: z.enum(["on", "off"], {
+      required_error: "state is required",
+      invalid_type_error: "state must be one of: on, off",
     }),
     temperature: z
       .number({
@@ -349,10 +353,10 @@ router.post("/update", async (req, res, next) => {
     return;
   }
 
-  const { status, temperature, voltage, frequency } = result.data;
+  const { state, temperature, voltage, frequency } = result.data;
   await alarmRepository.save(alarm.externalID, {
     ...alarm,
-    state: status,
+    state: state,
     temperature,
     voltage,
     frequency,
@@ -362,7 +366,7 @@ router.post("/update", async (req, res, next) => {
 
   await db.insert(alarmUpdatesTable).values({
     alarmId: alarm.externalID,
-    state: status,
+    state: state,
     temperature: temperature.toString(),
     voltage: voltage ? voltage.toString() : null,
     frequency: frequency,
