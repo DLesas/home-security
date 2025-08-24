@@ -216,7 +216,7 @@ router.post("/logs", async (req, res, next) => {
     Count: z.number().int().min(1, "Count must be a positive integer"),
     last_seen: z.string().refine((val) => !isNaN(Date.parse(val)), {
       message: "last_seen must be a valid date string",
-    }),
+    }).optional(),
   });
   const validationSchema = z.array(logSchema);
 
@@ -257,9 +257,9 @@ router.post("/logs", async (req, res, next) => {
       hash: item.Hash,
       class: item.Class,
       type: item.Type,
-      errorMessage: truncateFromBeginning(item.Error_Message, 2048),
+      errorMessage: truncateFromBeginning(item.Error_Message, 2000),
       count: item.Count,
-      last_seen: new Date(item.last_seen),
+      last_seen: item.last_seen ? new Date(item.last_seen) : null,
     }))
   );
 
