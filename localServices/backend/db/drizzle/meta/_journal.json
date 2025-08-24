@@ -57,6 +57,13 @@
       "when": 1756039518870,
       "tag": "0008_big_starbolt",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1756052042541,
+      "tag": "0009_white_shadowcat",
+      "breakpoints": true
     }
   ]
 }

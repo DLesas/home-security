@@ -14,7 +14,7 @@ export const sensorLogsTable = pgTable("sensorLogs", {
     hash: varchar("hash", { length: 255 }).notNull(),
     type: varchar("type", { length: 255 }).notNull(),
     count: integer("count").default(0),
-    last_seen: timestamp("last_seen", { withTimezone: true }).notNull(),
+    last_seen: timestamp("last_seen", { withTimezone: true }),
 });
 
 export type selectSensorLog = InferSelectModel<typeof sensorLogsTable>;
