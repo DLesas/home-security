@@ -377,7 +377,7 @@ router.post("/update", async (req, res, next) => {
 
   await raiseEvent({
     type: "info",
-    message: `Alarm ${alarm.name} in ${alarm.building} (identified by: ${deviceInfo.identificationMethod}) updated with state: ${status}, temperature: ${temperature}, voltage: ${voltage}, frequency: ${frequency}`,
+    message: `Alarm ${alarm.name} in ${alarm.building} (identified by: ${deviceInfo.identificationMethod}) updated with state: ${state}, temperature: ${temperature}, voltage: ${voltage}, frequency: ${frequency}`,
     system: "backend:alarms",
   });
 
