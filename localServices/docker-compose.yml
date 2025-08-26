@@ -120,6 +120,8 @@ services:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - EVENTS_CHANNEL=${EVENTS_CHANNEL}
+      - ACCESS_KEY=${ACCESS_KEY}
+      - SECRET_KEY=${SECRET_KEY}
     networks:
       - backend
     depends_on:
