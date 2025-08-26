@@ -107,20 +107,134 @@ function formatData(sensors: doorSensor[], alarms: Alarm[]): Data {
   const logs: {
     [building: string]: DoorEntries
   } = {}
-  for (const sensor of sensors) {
-    if (!logs[sensor.building]) {
-      logs[sensor.building] = {}
+
+  // Get and sync sensor order from localStorage
+  let sensorOrder: { [building: string]: string[] } = {}
+  if (typeof window !== 'undefined') {
+    const savedOrder = localStorage.getItem('sensorOrder')
+    if (savedOrder) {
+      try {
+        sensorOrder = JSON.parse(savedOrder)
+      } catch (error) {
+        console.error('Failed to parse sensor order from localStorage:', error)
+      }
     }
-    logs[sensor.building][sensor.name] = {
-      status: sensor.state,
-      armed: sensor.armed,
+
+    // Sync sensor order with current sensors (handles first-time, additions, removals)
+    sensorOrder = syncSensorOrderInFormatData(sensors, sensorOrder)
+  }
+
+  // Group sensors by building first
+  const sensorsByBuilding: { [building: string]: doorSensor[] } = {}
+  for (const sensor of sensors) {
+    if (!sensorsByBuilding[sensor.building]) {
+      sensorsByBuilding[sensor.building] = []
+    }
+    sensorsByBuilding[sensor.building].push(sensor)
+  }
+
+  // Process each building and apply ordering
+  for (const [building, buildingSensors] of Object.entries(sensorsByBuilding)) {
+    logs[building] = {}
+
+    // Get the order for this building, if it exists
+    const orderedSensorNames = sensorOrder[building] || []
+
+    // Create a map for quick sensor lookup
+    const sensorMap = new Map(
+      buildingSensors.map((sensor) => [sensor.name, sensor])
+    )
+
+    // First, add sensors in the specified order
+    for (const sensorName of orderedSensorNames) {
+      const sensor = sensorMap.get(sensorName)
+      if (sensor) {
+        logs[building][sensor.name] = {
+          status: sensor.state,
+          armed: sensor.armed,
+        }
+        sensorMap.delete(sensorName) // Remove from map to avoid duplicates
+      }
+    }
+
+    // Then add any remaining sensors that weren't in the ordered list
+    for (const [sensorName, sensor] of sensorMap) {
+      logs[building][sensor.name] = {
+        status: sensor.state,
+        armed: sensor.armed,
+      }
     }
   }
+
   return {
     alarm: alarms.some((alarm) => alarm.playing),
     logs: logs,
     issues: [],
   }
+}
+
+// Helper function to sync sensor order (similar to useSensorOrder hook logic)
+function syncSensorOrderInFormatData(
+  sensors: doorSensor[],
+  existingOrder: { [building: string]: string[] }
+): { [building: string]: string[] } {
+  // Create current sensor mapping by building
+  const currentSensorsByBuilding: { [building: string]: string[] } = {}
+  sensors.forEach((sensor) => {
+    if (!currentSensorsByBuilding[sensor.building]) {
+      currentSensorsByBuilding[sensor.building] = []
+    }
+    currentSensorsByBuilding[sensor.building].push(sensor.name)
+  })
+
+  let needsUpdate = false
+  const newOrder: { [building: string]: string[] } = {}
+
+  // Process each building
+  Object.keys(currentSensorsByBuilding).forEach((building) => {
+    const currentSensors = currentSensorsByBuilding[building]
+    const existingSensors = existingOrder[building] || []
+
+    // Start with existing order, filtering out sensors that no longer exist
+    const validExistingSensors = existingSensors.filter((sensorName) =>
+      currentSensors.includes(sensorName)
+    )
+
+    // Add any new sensors that aren't in the existing order
+    const newSensors = currentSensors.filter(
+      (sensorName) => !existingSensors.includes(sensorName)
+    )
+
+    // Combine: existing valid sensors + new sensors in their original order
+    newOrder[building] = [...validExistingSensors, ...newSensors]
+
+    // Check if this building's order changed
+    if (
+      !existingOrder[building] ||
+      JSON.stringify(newOrder[building]) !==
+        JSON.stringify(existingOrder[building])
+    ) {
+      needsUpdate = true
+    }
+  })
+
+  // Remove buildings that no longer have sensors
+  Object.keys(existingOrder).forEach((building) => {
+    if (!currentSensorsByBuilding[building]) {
+      needsUpdate = true
+    }
+  })
+
+  // Update localStorage if changes detected
+  if (needsUpdate) {
+    try {
+      localStorage.setItem('sensorOrder', JSON.stringify(newOrder))
+    } catch (error) {
+      console.error('Failed to save updated sensor order:', error)
+    }
+  }
+
+  return newOrder
 }
 
 interface SocketDataContextProps {
@@ -168,7 +282,6 @@ export const SocketDataProvider: React.FC<SocketDataProps> = ({ children }) => {
       setData(formattedData)
       setSensors(value.sensors)
       setAlarms(value.alarms)
-      console.log(formattedData)
     }
 
     function onSchedules(value: any) {
