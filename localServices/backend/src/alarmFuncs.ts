@@ -1,16 +1,19 @@
 import { type Alarm, alarmRepository } from "./redis/alarms";
+import { alarmTimeoutManager } from "./alarmTimeoutManager";
 import { ALARM_COOLDOWN_SECONDS } from "./config";
 
 /**
  * Alarm Functions with Cooldown Protection
  *
- * This module implements a configurable cooldown mechanism to prevent rapid alarm
- * activation/deactivation cycles. When an alarm is turned off, it cannot be
- * turned on again for ALARM_COOLDOWN_SECONDS (default: 30s). This prevents issues
- * with devices that may send multiple "open" state signals despite being opened only once.
+ * This module implements alarm state management with cooldown protection.
+ * Timeout functionality is handled by the AlarmTimeoutManager singleton.
  *
- * The cooldown duration is controlled by the ALARM_COOLDOWN_SECONDS environment variable.
- * The cooldown is stored in Redis and persists across service restarts.
+ * Cooldown: When an alarm is turned off, it cannot be turned on again for
+ * ALARM_COOLDOWN_SECONDS (default: 30s). This prevents issues with devices that may
+ * send multiple "open" state signals despite being opened only once.
+ *
+ * Auto-timeout: Managed by AlarmTimeoutManager - each alarm can have its own timeout duration.
+ * Set alarm.autoTurnOffSeconds to desired timeout (0 = no timeout).
  */
 
 // Define the expected response type
@@ -77,7 +80,7 @@ export async function changeAlarmState(
 
 /**
  * Saves the updated state of an alarm based on the response from the alarm device to redis.
- * Sets cooldown timestamp when alarms are turned off.
+ * Sets cooldown timestamp when alarms are turned off and delegates timeout management to AlarmTimeoutManager.
  *
  * @param {Alarm} alarm - The redis alarm object to be updated.
  * @param {AlarmResponse} res - The response object containing the new state of the alarm relay.
@@ -95,8 +98,12 @@ async function saveAlarmState(
   alarm.frequency = res.frequency;
   alarm.lastUpdated = new Date();
 
-  // Set cooldown when alarm is turned off
+  // Handle timeout and cooldown management
   if (state === "off") {
+    // Clear auto-timeout when alarm is manually turned off
+    alarmTimeoutManager.clearAlarmTimeout(alarm.externalID);
+
+    // Set cooldown when alarm is turned off
     const cooldownUntil = new Date();
     cooldownUntil.setSeconds(
       cooldownUntil.getSeconds() + ALARM_COOLDOWN_SECONDS
@@ -111,6 +118,9 @@ async function saveAlarmState(
     // Clear cooldown when alarm is successfully turned on
     alarm.cooldownUntil = undefined;
     console.log(`[COOLDOWN] Alarm ${alarm.name} cooldown cleared`);
+
+    // Set auto-timeout when alarm is turned on (managed by singleton)
+    await alarmTimeoutManager.setAlarmTimeout(alarm);
   }
 
   // Save with explicit ID to avoid creating duplicate entities when alarm is a plain object

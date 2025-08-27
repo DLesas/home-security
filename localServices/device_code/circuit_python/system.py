@@ -7,7 +7,7 @@ from udp import Udp
 from networking import Networking
 from deviceWifi import deviceWifi
 from config import Config
-
+import time
 class DeviceManager:
     """
     Handles the common bootstrapping process for all devices.
@@ -24,8 +24,15 @@ class DeviceManager:
         self.config = Config(config_path)
         self.device = microDevice()
         self.led = Led()
-        self.persistent_state = PersistentState(device=self.device)
+        # Use NVM for persistent state instead of JSON files
+        self.persistent_state = PersistentState(device=self.device, use_nvm=True)
         self.logger = Logger(self.device, self.led)
+
+        # Initialize persistent states
+        self._init_persistent_states()
+
+        # Add 60 seconds to the auto turn off seconds to wait for the server to update the alarm state itself 
+        self.auto_turn_off_seconds = self.config.auto_turn_off_seconds + 60
 
         # Networking components that depend on the core components
         self.device_wifi = deviceWifi(
@@ -56,6 +63,7 @@ class DeviceManager:
         Connects to the network, syncs time, and handshakes with the server.
         """
         print("--- Bootstrapping Network ---")
+
         self.device_wifi.connect()
         self.networking.update_mac_address()  # Update MAC address after WiFi connection
         self.time_clock.set_time_ntp()
@@ -63,3 +71,22 @@ class DeviceManager:
         self.networking.handshake_with_server()
         print("--- Bootstrap Complete ---")
         self.led.blink(10, delay=0.5)
+
+    def _init_persistent_states(self):
+        """Initialize persistent states for the device."""
+        try:
+
+            # Initialize last boot time (current time)
+            
+            self.persistent_state.add_persistent_state("last_boot_time", time.time())
+
+            print("Persistent states initialized")
+            
+            # Print NVM usage if using NVM
+            if self.persistent_state.use_nvm:
+                usage = self.persistent_state.get_nvm_usage()
+                if usage:
+                    print(f"NVM status: {usage['items']} items, {usage['percent']:.1f}% used")
+
+        except Exception as e:
+            print(f"Error initializing persistent states: {e}")
