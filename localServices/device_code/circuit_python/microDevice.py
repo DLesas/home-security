@@ -6,8 +6,8 @@ from microcontroller import cpu
 
 class microDevice:
     def __init__(self):
-        self.read_only = self.check_serial_connection()
-    
+        self.read_only = False
+
     @staticmethod
     def collect_garbage():
         """
