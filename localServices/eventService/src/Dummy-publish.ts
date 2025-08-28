@@ -3,17 +3,25 @@ import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import { logError } from "./shared/db/db";
 
 export const numbers = [
-  { name: "Vi", number: "000000000000", email: "vi@example.com" },
-  { name: "Deb", number: "000000000000", email: "deb@example.com" },
-  { name: "Dav", number: "000000000000", email: "dav@example.com" },
+  { name: "Vi", number: "+447825514688", email: "vi@example.com" },
+  { name: "Deb", number: "+447771594191", email: "deb@example.com" },
+  { name: "Dav", number: "+447854972536", email: "dav@example.com" },
 ];
 
 const sns = new SNSClient({
   region: "eu-west-2",
+  credentials: {
+    accessKeyId: process.env.ACCESS_KEY!,
+    secretAccessKey: process.env.SECRET_KEY!,
+  },
 });
 
 const ses = new SESClient({
   region: "eu-west-2",
+  credentials: {
+    accessKeyId: process.env.ACCESS_KEY!,
+    secretAccessKey: process.env.SECRET_KEY!,
+  },
 });
 
 export async function sendSMS(
