@@ -83,7 +83,7 @@ router.post("/:sensorId/handshake", async (req, res, next) => {
     const identificationMethod =
       deviceInfo?.identificationMethod || "url_param";
     await raiseEvent({
-      type: "info",
+      type: "debug",
       message: `Received handshake from sensor ${sensor.name} in ${sensor.building} (identified by: ${identificationMethod}) with ip: ${deviceIp}, mac: ${macAddress}`,
       system: "backend:sensors",
     });
@@ -175,7 +175,7 @@ router.post("/update", async (req, res, next) => {
 
   await emitNewData();
   await raiseEvent({
-    type: "info",
+    type: "debug",
     message: `Sensor ${sensor.name} in ${sensor.building} (identified by: ${deviceInfo.identificationMethod}) updated with state: ${status}, temperature: ${temperature}, voltage: ${voltage}, frequency: ${frequency}`,
     system: "backend:sensors",
   });
@@ -264,7 +264,7 @@ router.post("/logs", async (req, res, next) => {
   );
 
   await raiseEvent({
-    type: "info",
+    type: "debug",
     message: `Logs received from sensor ${sensor.name} in ${sensor.building} (identified by: ${deviceInfo.identificationMethod})`,
     system: "backend:sensors",
   });
@@ -465,7 +465,7 @@ router.post("/:sensorId/disarm", async (req, res, next) => {
   await changeSensorStatus([sensor], false);
   await emitNewData();
   await raiseEvent({
-    type: "warning",
+    type: "info",
     message: `Sensor ${sensor.name} in ${sensor.building} disarmed`,
     system: "backend:sensors",
     title: `Sensor Disarmed: ${sensor.name} in ${sensor.building}`,

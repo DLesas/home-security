@@ -170,7 +170,7 @@ export class SensorTimeoutMonitor {
     } catch (error) {
       console.error("Error creating sensor intervals:", error);
       await raiseEvent({
-        type: "warning",
+        type: "debug",
         message: `Failed to create sensor intervals: ${error}`,
         system: "backend:sensorTimeoutMonitor",
       });
@@ -375,7 +375,7 @@ export class SensorTimeoutMonitor {
           });
           // Raise warning event
           await raiseEvent({
-            type: "warning",
+            type: "critical",
             message: `Alarm ${fresh.name} in ${
               fresh.building
             } marked as unknown due to timeout (${timeSinceLastUpdate.toFixed(
