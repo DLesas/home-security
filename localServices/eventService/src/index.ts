@@ -8,6 +8,7 @@ async function main() {
   // Set up event handlers
   console.log("Event service started");
   consumer.on("event", async (event: FormattedEvent) => {
+    console.log("Event received to event service:", event);
     if (event.data.type === "critical") {
       for (const person of numbers) {
         await sendSMS(person.number, event.data.message, event.data.title);
