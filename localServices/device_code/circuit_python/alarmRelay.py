@@ -1,5 +1,5 @@
 from logging import inject_function_name
-from logging import Logger
+from logging import Logger, LogType
 from led import Led
 from microDevice import microDevice
 from deviceWifi import deviceWifi, require_connection
@@ -75,19 +75,42 @@ class alarmRelay:
         self.voltage = self.Device.read_voltage()
         self.frequency = self.Device.read_frequency()
     
-    @require_connection    
+    @require_connection
     def send_ping(self):
+        """Send ping with retry logic (up to 10 attempts)."""
         self.read_all_stats()
         data = {"state": self.state, "temperature": self.temperature, "voltage": self.voltage, "frequency": self.frequency}
         data = json.dumps(data)
         url = f"{self.Networking.server_protocol}://{self.Networking.server_ip}:{self.Networking.server_port}/api/v{self.Networking.api_version}/{self.Networking.device_module}s/update"
-        response = self.deviceWifi.requests.post(url, headers=self.headers, data=data)
-        if response.status_code == 200:
-            print(f"Successfully sent alarm state: {self.state}")
-        else:
-            self.Logger.log_issue("Error", self.__class__.__name__, "send_ping", f"Failed to send alarm state, status code: {response.status_code}, response: {response.text}")
-        if "response" in locals():
-            response.close()
+
+        max_retries = 10
+
+        for attempt in range(max_retries):
+            try:
+                response = self.deviceWifi.requests.post(url, headers=self.headers, data=data)
+
+                if response.status_code == 200:
+                    print(f"Successfully sent alarm state: {self.state}")
+                    response.close()
+                    return  # Success - exit the retry loop
+
+                # Log the failure for this attempt (except on the last attempt)
+                if attempt < max_retries - 1:
+                    print(f"Ping attempt {attempt + 1} failed (status: {response.status_code}), retrying...")
+                else:
+                    # Final attempt failed - log error
+                    self.Logger.log_issue(LogType.Error, self.__class__.__name__, "send_ping",
+                                        f"Failed to send alarm state after {max_retries} attempts. "
+                                        f"Final status: {response.status_code}, response: {response.text}")
+                response.close()
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    print(f"Ping attempt {attempt + 1} failed with exception: {e}, retrying...")
+                else:
+                    # Final attempt failed with exception
+                    self.Logger.log_issue(LogType.Error, self.__class__.__name__, "send_ping",
+                                        f"Failed to send alarm state after {max_retries} attempts. "
+                                        f"Final exception: {e}")
     
     def check_auto_timeout(self):
         """
@@ -97,16 +120,14 @@ class alarmRelay:
         if (self.state == "on" and 
             self.auto_turn_off_seconds > 0 and 
             self.alarm_activated_time is not None):
-            
-            elapsed_time = time.monotonic() - self.alarm_activated_time
-            
+            elapsed_time = time.monotonic() - self.alarm_activated_time       
             if elapsed_time >= self.auto_turn_off_seconds:
                 print(f"Auto turn-off triggered after {elapsed_time:.1f}s (timeout: {self.auto_turn_off_seconds}s)")
                 self.change_relay_state(False)
-                self.Logger.log_issue("Critical", self.__class__.__name__, "check_auto_timeout", 
-                                    f"Alarm auto-turned off after {self.auto_turn_off_seconds}s timeout locally rather than via server")
+                self.Logger.log_issue(LogType.Critical, self.__class__.__name__, "check_auto_timeout", 
+                                    f"""Alarm auto-turned off after {self.auto_turn_off_seconds}s timeout locally rather than via the server telling it too.
+                                     We normally expect the server to control the alarm state, this is a fallback mechanism. This is an issue with the server. Please check the server logs.""")
                 return True
-        
         return False
 
     def register_routes(self):
