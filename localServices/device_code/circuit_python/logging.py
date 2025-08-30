@@ -3,6 +3,7 @@ import time
 import gc
 import adafruit_hashlib as hashlib
 from collections import deque
+from typing import Union, Literal
 
 def inject_function_name(func):
     """
@@ -19,6 +20,13 @@ def inject_function_name(func):
         func_name = getattr(func, '__name__', str(func))
         return func(self, *args, **kwargs, func_name=func_name)
     return wrapper
+
+class LogType:
+    Error = 'Error'
+    Warning = 'Warning'
+    Info = 'Info'
+    Debug = 'Debug'
+    Critical = 'Critical'
 
 class Logger:
     def __init__(self, microDevice, led, max_logs=100, memory_threshold_percent=20):
@@ -76,15 +84,15 @@ class Logger:
             print(f"Error checking memory: {e}")
             return 100  # Assume enough memory on error
 
-    def log_issue(self, type: str, class_name: str, function_name: str, error_message: str):
+    def log_issue(self, type: LogType, class_name: str, function_name: str, error_message: str):
         """
         Log an issue to memory.
 
         Args:
-            type (str): The type of issue.
-            class_name (str): The name of the class where the issue occurred.
-            function_name (str): The name of the function where the issue occurred.
-            error_message (str): The error message to log.
+            type: The type of issue (LogType.Error, LogType.Warning, LogType.Info, LogType.Debug, LogType.Critical)
+            class_name: The name of the class
+            function_name: The name of the function  
+            error_message: The error message to log
         """
         # Periodically check memory
         if time.monotonic() - self.last_memory_check > self.memory_check_interval:
