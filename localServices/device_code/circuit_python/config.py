@@ -50,7 +50,7 @@ class Config:
         # Door Sensor Specific
         self.door_switch_pin = env.get("door_switch_pin")
         self.buzzer_pin = env.get("buzzer_pin")
-        self.ping_interval_s = int(env.get("ping_interval_s", 300))
+        self.ping_interval_s = int(env.get("ping_interval_s", 120)) - 10
         self.local_alarm_timeout_s = int(env.get("local_alarm_timeout_s", 60))
         self.should_deep_sleep = bool(int(env.get("should_deep_sleep", 0)))
 
