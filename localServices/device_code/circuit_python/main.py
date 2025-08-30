@@ -95,17 +95,17 @@ def main():
                 if alarm_relay.check_auto_timeout():
                     # Alarm was auto-turned off, send update to server
                     alarm_relay.send_ping()
+                    manager.device.collect_garbage()
+                
+                pool_result = server.poll()
+                if pool_result == REQUEST_HANDLED_RESPONSE_SENT:
+                    manager.device.collect_garbage()
                 
                 if time.monotonic() - start_time > manager.config.ping_interval_s:
                     alarm_relay.send_ping()
                     manager.networking.send_logs()
                     start_time = time.monotonic()
-
-                pool_result = server.poll()
-                if pool_result == REQUEST_HANDLED_RESPONSE_SENT:
                     manager.device.collect_garbage()
-
-                manager.device.collect_garbage()
         
         else:
             print(f"FATAL: Unknown DEVICE_MODULE '{device_module}' in config.env")
