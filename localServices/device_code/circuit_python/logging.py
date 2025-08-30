@@ -3,7 +3,6 @@ import time
 import gc
 import adafruit_hashlib as hashlib
 from collections import deque
-from typing import Union, Literal
 
 def inject_function_name(func):
     """
