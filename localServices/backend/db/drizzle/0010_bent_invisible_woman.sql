@@ -1,0 +1,1 @@
+ALTER TYPE "eventType" ADD VALUE 'debug';

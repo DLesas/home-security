@@ -64,6 +64,13 @@
       "when": 1756052042541,
       "tag": "0009_white_shadowcat",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1756551368026,
+      "tag": "0010_bent_invisible_woman",
+      "breakpoints": true
     }
   ]
 }
