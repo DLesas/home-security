@@ -59,6 +59,12 @@ export async function changeAlarmState(
       const promise: Promise<Boolean> = fetch(url, { method: "POST" }).then(
         async (response) => {
           if (!response.ok) {
+            // raiseEvent({
+            //   type: "error",
+            //   message: `Failed to trigger alarm ${element.name}. Status: ${response.status}`,
+            //   system: "backend:alarmFuncs",
+            //   title: `Alarm Error: ${element.name}`,
+            // });
             throw new Error(
               `Failed to trigger alarm ${element.name}. Status: ${response.status}`
             );
