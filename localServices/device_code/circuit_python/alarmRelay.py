@@ -108,8 +108,8 @@ class alarmRelay:
                 else:
                     # Final attempt failed - log error
                     self.Logger.log_issue(LogType.Error, self.__class__.__name__, "send_ping",
-                                        f"Failed to send alarm state after {max_retries} attempts. "
-                                        f"Final status: {response.status_code}, response: {response.text}")
+                                        f"""Failed to send alarm state after {max_retries} attempts. 
+                                        Final status: {response.status_code}, response: {response.text}""")
                 response.close()
             except Exception as e:
                 if attempt < max_retries - 1:
@@ -117,8 +117,8 @@ class alarmRelay:
                 else:
                     # Final attempt failed with exception
                     self.Logger.log_issue(LogType.Error, self.__class__.__name__, "send_ping",
-                                        f"Failed to send alarm state after {max_retries} attempts. "
-                                        f"Final exception: {e}")
+                                        f"""Failed to send alarm state after {max_retries} attempts. 
+                                        Final exception: {e}""")
     
     def check_auto_timeout(self):
         """
