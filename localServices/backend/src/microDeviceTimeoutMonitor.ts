@@ -293,9 +293,9 @@ export class SensorTimeoutMonitor {
             type: "warning",
             message: `Sensor ${fresh.name} in ${
               fresh.building
-            } marked as unknown due to timeout (${timeSinceLastUpdate.toFixed(
+            } marked as unknown as we expected a signal from it but did not recieve one (${timeSinceLastUpdate.toFixed(
               0
-            )}s since last update)`,
+            )}s since last update and we expect a signal every ${fresh.expectedSecondsUpdated}s). We can't guarantee that the sensor is still connected to the network.`,
             system: "backend:sensorTimeoutMonitor",
           });
           await emitNewData();
@@ -373,14 +373,13 @@ export class SensorTimeoutMonitor {
             voltage: null,
             frequency: null,
           });
-          // Raise warning event
           await raiseEvent({
             type: "critical",
             message: `Alarm ${fresh.name} in ${
               fresh.building
-            } marked as unknown due to timeout (${timeSinceLastUpdate.toFixed(
+            } is currently in an unknown state as we expected a signal from it but did not recieve one (${timeSinceLastUpdate.toFixed(
               0
-            )}s since last update)`,
+            )}s since last update and we expect a signal every ${fresh.expectedSecondsUpdated}s). We can't guarantee that the alarm is still connected to the network hence unsure if it will trigger when needed.`,
             system: "backend:sensorTimeoutMonitor",
           });
           await emitNewData();
@@ -393,7 +392,7 @@ export class SensorTimeoutMonitor {
           );
           await raiseEvent({
             type: "info",
-            message: `Alarm ${fresh.name} in ${fresh.building} recovered from unknown state`,
+            message: `Alarm ${fresh.name} in ${fresh.building} recovered from unknown state and is now back online`,
             system: "backend:sensorTimeoutMonitor",
           });
           await emitNewData();
