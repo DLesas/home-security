@@ -21,6 +21,8 @@ import { createAlarmIndex } from "./redis/alarms";
 import { setSensorStatusUnknown } from "./sensorFuncs";
 import { SocketEventSubscriber } from "./express/socketEventSubscriber";
 import { sensorTimeoutMonitor } from "./microDeviceTimeoutMonitor";
+import { changeAlarmState } from "./alarmFuncs";
+import { alarmTimeoutManager } from "./alarmTimeoutManager";
 // import { startBonjourService } from "./express/advertisement/Bonjour";
 // import { startUdpListener } from "./express/advertisement/udpBroadcast";
 
@@ -84,6 +86,10 @@ server.listen(port, async () => {
   // Start the Sensor Timeout Monitor (using the singleton instance)
   await sensorTimeoutMonitor.start();
 
+  // Initialize and start the Alarm Timeout Manager
+  alarmTimeoutManager.setAlarmStateChangeCallback(changeAlarmState);
+  await alarmTimeoutManager.start();
+
   //const cleanupBonjour = startBonjourService();
   // const cleanupUdpBroadcast = startUdpListener();
 
@@ -95,6 +101,9 @@ server.listen(port, async () => {
 
     // Stop the Sensor Timeout Monitor
     sensorTimeoutMonitor.stop();
+
+    // Stop the Alarm Timeout Manager
+    alarmTimeoutManager.stop();
 
     //cleanupBonjour();
     //cleanupUdpBroadcast();

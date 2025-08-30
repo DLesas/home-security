@@ -57,7 +57,6 @@ class Networking:
         self.device_module = device_module
         self.user_agent = user_agent
         self.id = id
-        self.log_dir = "logs"  # Add log directory for send_logs method
         
         # Handle MAC address - it might be None if WiFi isn't connected yet
         if self.deviceWifi.mac is not None:
@@ -180,45 +179,61 @@ class Networking:
     @inject_function_name
     def send_logs(self, func_name: str = 'send_logs'):
         """
-        Parse a CSV log file, convert it to JSON in record format, and send it to the specified endpoint.
-
-        Args:
-            file_path (str): The path to the log file.
+        Get logs from memory and send them to the server endpoint.
         """
+        # Get logs from the in-memory logger
+        logs_to_send = self.Logger.get_logs_for_sending()
+        
+        if not logs_to_send:
+            print("No logs to send")
+            return
+        
         self.Led.blink(self.blinks)
         self.Led.turn_on_led()
-        for file in os.listdir(self.log_dir):
-            file_path = f"{self.log_dir}/{file}"
-            try:
-                with open(file_path, "r") as f:
-                    header = f.readline().strip().split(",")
-                    records = []
-                    for line in f:
-                        values = line.strip().split(",")
-                        record = {column: value for column, value in zip(header, values)}
-                        records.append(record)
-                data = records
-                data = json.dumps(data)
-                endpoint = (
-                    f"{self.server_protocol}://"
-                    + f"{self.server_ip}:{str(self.server_port)}/"
-                    + "api/"
-                    + f"v{str(self.api_version)}/"
-                    + f"{self.device_module}s/"
-                    + f"logs")
-                response = self.deviceWifi.requests.post(endpoint, headers=self.headers, data=data)
-                if response.status_code == 200:
-                    print(f"Log data sent successfully to {endpoint}")
-                    self.Logger.truncate_log_file(file_path, 0)
-                else:
-                    self.Logger.truncate_log_file(file_path)
-                    self.Logger.log_issue("Error", self.__class__.__name__, func_name, f"Failed to send log data. Status code: {response.status_code}, response: {response.text}")
-            except Exception as e:
-                self.Logger.truncate_log_file(file_path)
-                self.Logger.log_issue("error", self.__class__.__name__, func_name, str(e))
-            finally:
-                if "response" in locals():
-                    response.close()
+        
+        try:
+            # Print memory stats before sending
+            self.Logger.print_stats()
+            
+            # Convert logs to JSON
+            data = json.dumps(logs_to_send)
+            
+            # Build endpoint URL
+            endpoint = (
+                f"{self.server_protocol}://"
+                + f"{self.server_ip}:{str(self.server_port)}/"
+                + "api/"
+                + f"v{str(self.api_version)}/"
+                + f"{self.device_module}s/"
+                + f"logs"
+            )
+            
+            print(f"Sending {len(logs_to_send)} log entries to {endpoint}")
+            
+            # Send logs to server
+            response = self.deviceWifi.requests.post(endpoint, headers=self.headers, data=data)
+            
+            if response.status_code == 200:
+                print(f"Log data sent successfully to {endpoint}")
+                # Clear logs from memory after successful send
+                self.Logger.clear_logs()
+            else:
+                print(f"Failed to send logs: {response.status_code}")
+                # Don't clear logs on failure, they'll be retried later
+                self.Logger.log_issue(
+                    "Error", 
+                    self.__class__.__name__, 
+                    func_name, 
+                    f"Failed to send log data. Status code: {response.status_code}, response: {response.text}"
+                )
+        except Exception as e:
+            print(f"Error sending logs: {e}")
+            # Don't clear logs on error, they'll be retried later
+            self.Logger.log_issue("error", self.__class__.__name__, func_name, str(e))
+        finally:
+            if "response" in locals():
+                response.close()
+        
         self.Led.turn_off_led()
         self.Device.collect_garbage()
         

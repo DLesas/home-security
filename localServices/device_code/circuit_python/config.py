@@ -57,6 +57,7 @@ class Config:
         # Alarm Relay Specific
         self.relay_pin = env.get("relay_pin")
         self.server_listen_port = int(env.get("port", 8000))
+        self.auto_turn_off_seconds = int(env.get("auto_turn_off_seconds", 0))
 
         if not self.ssid or not self.password or not self.id or not self.device_module:
             raise ValueError("SSID, PASSWORD, ID, and DEVICE_MODULE must be set in the config file.")

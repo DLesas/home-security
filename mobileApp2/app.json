@@ -14,11 +14,11 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "jsEngine": "hermes",
+    "assetBundlePatterns": ["**/*"],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "jsEngine": "hermes"
     },
     "android": {
       "adaptiveIcon": {
@@ -31,13 +31,9 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-    "plugins": [
-      "expo-router",
-      "expo-secure-store"
-    ],
+    "plugins": ["expo-router", "expo-secure-store"],
     "experiments": {
       "typedRoutes": true
     }
-    
   }
 }

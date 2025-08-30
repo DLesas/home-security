@@ -9,6 +9,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const eventTypeEnum = pgEnum("eventType", [
+  "debug",
   "info",
   "warning",
   "critical",

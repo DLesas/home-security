@@ -28,6 +28,7 @@ class alarmRelay:
         deviceWifi: deviceWifi, 
         Networking: Networking,
         relay_pin: str,
+        auto_turn_off_seconds: int = 0,
         port: int = 8000,
         debug: bool = True,
     ):
@@ -48,6 +49,8 @@ class alarmRelay:
         self.temperature = None
         self.voltage = None
         self.frequency = None
+        self.auto_turn_off_seconds = auto_turn_off_seconds
+        self.alarm_activated_time = None  # Track when alarm was turned on
         self.register_routes()
         self.port = int(port)
         self.headers = self.Networking.headers
@@ -55,10 +58,17 @@ class alarmRelay:
     def change_relay_state(self, state: bool):
         self.switch.value = bool(state)
         self.state = "on" if state else "off"
+        
         if state:
             self.Led.turn_on_led()
+            # Record when alarm was turned on
+            self.alarm_activated_time = time.monotonic()
+            print(f"Alarm activated at {self.alarm_activated_time}, auto turn-off in {self.auto_turn_off_seconds}s")
         else:
             self.Led.turn_off_led()
+            # Clear activation time when turned off
+            self.alarm_activated_time = None
+            print("Alarm deactivated, auto turn-off timer cleared")
 
     def read_all_stats(self):
         self.temperature = self.Device.read_temperature()
@@ -78,6 +88,26 @@ class alarmRelay:
             self.Logger.log_issue("Error", self.__class__.__name__, "send_ping", f"Failed to send alarm state, status code: {response.status_code}, response: {response.text}")
         if "response" in locals():
             response.close()
+    
+    def check_auto_timeout(self):
+        """
+        Check if alarm should be automatically turned off based on timeout.
+        Returns True if alarm was auto-turned off, False otherwise.
+        """
+        if (self.state == "on" and 
+            self.auto_turn_off_seconds > 0 and 
+            self.alarm_activated_time is not None):
+            
+            elapsed_time = time.monotonic() - self.alarm_activated_time
+            
+            if elapsed_time >= self.auto_turn_off_seconds:
+                print(f"Auto turn-off triggered after {elapsed_time:.1f}s (timeout: {self.auto_turn_off_seconds}s)")
+                self.change_relay_state(False)
+                self.Logger.log_issue("Critical", self.__class__.__name__, "check_auto_timeout", 
+                                    f"Alarm auto-turned off after {self.auto_turn_off_seconds}s timeout locally rather than via server")
+                return True
+        
+        return False
 
     def register_routes(self):
         @self.server.route("/on", "POST")    

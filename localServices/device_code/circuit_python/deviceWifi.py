@@ -6,6 +6,7 @@ import time
 import binascii
 import ipaddress
 import random
+from microcontroller import reset
 
 def require_connection(func):
     """
@@ -85,6 +86,7 @@ class deviceWifi:
                 f"Failed to connect to WiFi after {self.max_attempts} attempts",
             )
             self.Led.set_fatal_error()
+            reset()
         self.ip = wifi.radio.ipv4_address
         self.mac = binascii.hexlify(bytearray(wifi.radio.mac_address))
         print(f"Connected. IP: {self.ip}, MAC: {self.mac}")

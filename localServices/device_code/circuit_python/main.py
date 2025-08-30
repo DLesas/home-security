@@ -71,10 +71,7 @@ def main():
                 manager.device_wifi.check_connection()
                 door_sensor.read_all_stats()
                 door_sensor.send_data()
-                
-                needs_clearing = manager.logger.check_log_files()
-                if needs_clearing:
-                    manager.networking.send_logs()
+                manager.networking.send_logs()
                 
                 # Use smart sleep to choose between light/deep sleep based on armed status
                 door_sensor.smart_sleep()
@@ -85,24 +82,30 @@ def main():
         elif device_module == "alarm":
             alarm_relay = alarmRelay(
                 manager.logger, manager.led, manager.device, manager.device_wifi, 
-                manager.networking, manager.config.relay_pin, manager.config.server_listen_port
+                manager.networking, manager.config.relay_pin, manager.auto_turn_off_seconds,
+                manager.config.server_listen_port
             )
             
             server = alarm_relay.start_server()
             start_time = time.monotonic()
             
+            
             while True:
+                # Check for auto timeout
+                if alarm_relay.check_auto_timeout():
+                    # Alarm was auto-turned off, send update to server
+                    alarm_relay.send_ping()
+                
                 if time.monotonic() - start_time > manager.config.ping_interval_s:
                     alarm_relay.send_ping()
+                    manager.networking.send_logs()
                     start_time = time.monotonic()
 
                 pool_result = server.poll()
                 if pool_result == REQUEST_HANDLED_RESPONSE_SENT:
                     manager.device.collect_garbage()
 
-                needs_clearing = manager.logger.check_log_files()
-                if needs_clearing:
-                    manager.networking.send_logs()
+                manager.device.collect_garbage()
         
         else:
             print(f"FATAL: Unknown DEVICE_MODULE '{device_module}' in config.env")
@@ -124,16 +127,10 @@ def main():
                     print(f"Error during logging/send_logs: {log_err}")
 
                 # Best-effort LED indicator
-                try:
-                    manager.led.turn_on_led()
-                except Exception as led_err:
-                    print(f"Error turning on LED: {led_err}")
+                manager.led.turn_on_led()
 
                 # Best-effort persistent flag for next boot
-                try:
-                    manager.persistent_state.add_persistent_state("fatal_error", time.monotonic())
-                except Exception as state_err:
-                    print(f"Error setting fatal flag: {state_err}")
+                manager.persistent_state.add_persistent_state("fatal_error", time.monotonic())
 
                 # Prepare reboot alarm (best-effort)
                 reboot_alarm = None
@@ -149,9 +146,11 @@ def main():
                     if manager.config.should_deep_sleep:
                         print(f"Entering deep sleep for {manager.config.fatal_error_reboot_delay_s} seconds before attempting recovery...")
                         alarm.exit_and_deep_sleep_until_alarms(reboot_alarm)
+                        reset()
                     else:
                         print(f"Entering light sleep for {manager.config.fatal_error_reboot_delay_s} seconds before attempting recovery...")
                         alarm.light_sleep_until_alarms(reboot_alarm)
+                        reset()
         except Exception as recovery_error:
             print(f"Recovery path failed, forcing reset: {recovery_error}")
             reset()

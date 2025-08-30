@@ -26,6 +26,9 @@ const router = express.Router();
  * @returns {void}
  * @requires {string} name - The name of the alarm (1-255 characters)
  * @requires {string} building - The name of the building (1-255 characters)
+ * @requires {number} expectedSecondsUpdated - Expected update interval in seconds (0-86400)
+ * @requires {number} port - Port number for the alarm (1-65535)
+ * @requires {number} autoTurnOffSeconds - Auto turn-off timeout in seconds (0 = no timeout, max 86400)
  */
 router.post("/new", async (req, res, next) => {
   const validationSchema = z.object({
@@ -57,13 +60,24 @@ router.post("/new", async (req, res, next) => {
       })
       .min(1, "port must be more than 0")
       .max(65535, "port must be less than 65535"),
+    autoTurnOffSeconds: z
+      .number({
+        required_error: "autoTurnOffSeconds is required",
+        invalid_type_error: "autoTurnOffSeconds must be a number",
+      })
+      .min(0, "autoTurnOffSeconds must be 0 or greater (0 = no timeout)")
+      .max(
+        86400,
+        "autoTurnOffSeconds must be less than 24 hours (86400 seconds)"
+      ),
   });
   const result = validationSchema.safeParse(req.body);
   if (!result.success) {
     next(raiseError(400, JSON.stringify(result.error.errors)));
     return;
   }
-  const { name, building, expectedSecondsUpdated, port } = result.data;
+  const { name, building, expectedSecondsUpdated, port, autoTurnOffSeconds } =
+    result.data;
   const buildingExists = await db
     .select()
     .from(buildingTable)
@@ -83,7 +97,12 @@ router.post("/new", async (req, res, next) => {
     })
     .returning();
   const { buildingId, ...newAlarmData } = newAlarm;
-  const data = { id: newAlarm.id, name: newAlarm.name, expectedSecondsUpdated };
+  const data = {
+    id: newAlarm.id,
+    name: newAlarm.name,
+    expectedSecondsUpdated,
+    autoTurnOffSeconds,
+  };
   // Save with explicit ID to avoid duplicate entities
   await alarmRepository.save(newAlarm.id, {
     name: name,
@@ -93,6 +112,7 @@ router.post("/new", async (req, res, next) => {
     state: "connected",
     expectedSecondsUpdated: expectedSecondsUpdated,
     port: port,
+    autoTurnOffSeconds: autoTurnOffSeconds,
     lastUpdated: new Date(),
   } as Alarm);
   await emitNewData();
@@ -225,7 +245,7 @@ router.post("/logs", async (req, res, next) => {
   );
 
   await raiseEvent({
-    type: "info",
+    type: "debug",
     message: `Logs received from alarm ${alarm.name} in ${alarm.building} (identified by: ${deviceInfo.identificationMethod})`,
     system: "backend:alarms",
   });
@@ -283,7 +303,7 @@ router.post("/:alarmId/handshake", async (req, res, next) => {
   await emitNewData();
   const identificationMethod = deviceInfo?.identificationMethod || "url_param";
   await raiseEvent({
-    type: "info",
+    type: "debug",
     message: `Received handshake from alarm ${alarm.name} in ${alarm.building} (identified by: ${identificationMethod}) with ip: ${deviceIp}, mac: ${macAddress}`,
     system: "backend:alarms",
   });
@@ -376,7 +396,7 @@ router.post("/update", async (req, res, next) => {
   });
 
   await raiseEvent({
-    type: "info",
+    type: "debug",
     message: `Alarm ${alarm.name} in ${alarm.building} (identified by: ${deviceInfo.identificationMethod}) updated with state: ${state}, temperature: ${temperature}, voltage: ${voltage}, frequency: ${frequency}`,
     system: "backend:alarms",
   });

@@ -111,6 +111,7 @@ export default function App() {
     { name: 'Home', href: '/home' },
     { name: 'Logs', href: '/logs' },
     { name: 'Scheduling', href: '/scheduling' },
+    { name: 'Settings', href: '/settings' },
     { name: 'Test', href: '/test' },
     { name: 'All', href: '/all' },
   ]
@@ -151,6 +152,14 @@ export default function App() {
             color={pathname === '/scheduling' ? 'primary' : 'foreground'}
           >
             Scheduling
+          </Link>
+        </NavbarItem>
+        <NavbarItem isActive={pathname === '/settings'}>
+          <Link
+            href="/settings"
+            color={pathname === '/settings' ? 'primary' : 'foreground'}
+          >
+            Settings
           </Link>
         </NavbarItem>
         <NavbarItem isActive={pathname === '/all'}>

@@ -31,7 +31,8 @@ export type EventTitle =
   | alarmEvent
   | "warning System Event"
   | "critical System Event"
-  | "info System Event";
+  | "info System Event"
+  | "debug System Event";
 
 export interface Event {
   type: insertEventLog["type"];

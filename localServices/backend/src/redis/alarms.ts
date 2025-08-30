@@ -16,6 +16,7 @@ const alarmSchema = new Schema("alarms", {
   expectedSecondsUpdated: { type: "number" },
   lastUpdated: { type: "date" },
   cooldownUntil: { type: "date" },
+  autoTurnOffSeconds: { type: "number" },
 });
 
 export const alarmRepository = new Repository(alarmSchema, redis);
@@ -35,6 +36,7 @@ export interface Alarm {
   expectedSecondsUpdated: number;
   lastUpdated: Date;
   cooldownUntil?: Date;
+  autoTurnOffSeconds?: number; // Individual timeout setting (0 = no timeout)
 }
 
 export const createAlarmIndex = async () => {

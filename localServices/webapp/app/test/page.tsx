@@ -167,6 +167,7 @@ const NewAlarmComponent: React.FC = () => {
   const [expectedSecondsUpdated, setExpectedSecondsUpdated] =
     useState<number>(0)
   const [port, setPort] = useState<number>(0)
+  const [autoTurnOffSeconds, setAutoTurnOffSeconds] = useState<number>(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -186,7 +187,13 @@ const NewAlarmComponent: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, building, expectedSecondsUpdated, port }),
+        body: JSON.stringify({
+          name,
+          building,
+          expectedSecondsUpdated,
+          port,
+          autoTurnOffSeconds,
+        }),
       })
       const data = await res.json()
       setResponseData(data)
@@ -199,6 +206,7 @@ const NewAlarmComponent: React.FC = () => {
         setBuilding('')
         setExpectedSecondsUpdated(0)
         setPort(0)
+        setAutoTurnOffSeconds(0)
       }
     } catch (e: any) {
       setError(e.message || 'Unknown error')
@@ -240,6 +248,14 @@ const NewAlarmComponent: React.FC = () => {
         type="number"
         value={port ? port.toString() : ''}
         onChange={(e) => setPort(Number(e.target.value))}
+      />
+      <Input
+        label="Auto Turn Off Seconds"
+        type="number"
+        placeholder="0 = no timeout, max 86400 (24h)"
+        value={autoTurnOffSeconds ? autoTurnOffSeconds.toString() : ''}
+        onChange={(e) => setAutoTurnOffSeconds(Number(e.target.value))}
+        description="Timeout in seconds (0 = no timeout, max 86400)"
       />
       <Button
         color="primary"

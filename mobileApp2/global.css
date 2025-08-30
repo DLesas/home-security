@@ -10,19 +10,19 @@
     --card-foreground: 240 10% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
+    --primary: 217, 65%, 53%; /* primary */
     --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
+    --secondary: 15, 66%, 73%; /* secondary */
+    --secondary-foreground: 217, 65%, 53%; /* primary */
+    --muted: 15, 66%, 73%; /* secondary */
     --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
+    --accent: 64, 65%, 65%; /* accent */
+    --accent-foreground: 217, 65%, 53%; /* primary */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
+    --border: 240 5.9% 90%; /* secondary muted */
+    --input: 240 5.9% 90%; /* secondary muted */
+    --ring: 217, 65%, 53%; /* primary */
   }
 
   .dark:root {
@@ -32,18 +32,34 @@
     --card-foreground: 0 0% 98%;
     --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
+    --primary: 0 0% 98%; /* primary */
     --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
+    --secondary: 240 3.7% 15.9%; /* secondary */
+    --secondary-foreground: 0 0% 98%; /* primary */
+    --muted: 240 3.7% 15.9%; /* secondary */
     --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 240 3.7% 15.9%; /* secondary */
+    --accent-foreground: 0 0% 98%; /* primary */
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+    --border: 240 3.7% 15.9%; /* secondary */
+    --input: 240 3.7% 15.9%; /* secondary */
+    --ring: 240 4.9% 83.9%; /* primary */
   }
+}
+
+/* 
+:root[data-theme="light"] {
+  --text: hsl(0, 0%, 0%);
+  --background: hsl(0, 0%, 100%);
+  --primary: hsl(217, 65%, 53%);
+  --secondary: hsl(15, 66%, 73%);
+  --accent: hsl(64, 65%, 65%);
+}
+:root[data-theme="dark"] {
+  --text: hsl(0, 0%, 100%);
+  --background: hsl(0, 0%, 0%);
+  --primary: hsl(217, 65%, 47%);
+  --secondary: hsl(15, 66%, 27%);
+  --accent: hsl(64, 65%, 35%);
 }
