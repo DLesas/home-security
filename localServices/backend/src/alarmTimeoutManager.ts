@@ -179,7 +179,7 @@ export class AlarmTimeoutManager {
 
           // Raise info event
           await raiseEvent({
-            type: "info",
+            type: "warning",
             message: `Alarm ${alarm.name} in ${alarm.building} automatically turned off after ${alarm.autoTurnOffSeconds}s timeout`,
             system: "backend:alarmTimeoutManager",
           });
