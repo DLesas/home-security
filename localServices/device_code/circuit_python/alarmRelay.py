@@ -55,6 +55,14 @@ class alarmRelay:
         self.port = int(port)
         self.headers = self.Networking.headers
 
+        if self.auto_turn_off_seconds == 0:
+            self.Logger.log_issue(LogType.Critical, self.__class__.__name__, "alarmRelay",
+             """Auto turn-off seconds is 0, this happened either because you set it explicitly
+              or forgot to include the value in the config file. This is not recommended as
+               this means the alarm will not turn off automatically by itself if there
+                is an issue with the server or you do not turn it off yourself. Please set a
+                value for auto turn-off seconds in the config file greater than 0.""")
+
     def change_relay_state(self, state: bool):
         self.switch.value = bool(state)
         self.state = "on" if state else "off"
