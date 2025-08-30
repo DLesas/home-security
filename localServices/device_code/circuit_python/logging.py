@@ -161,9 +161,6 @@ Hash: {hashTxt}
         if hashTxt in self.log_counts and self.log_counts[hashTxt] > 1:
             print(f"This log has occurred {self.log_counts[hashTxt]} times")
         
-        # Visual feedback
-        self.Led.blink(3, 0.5)
-        
         # Collect garbage after logging
         self.Device.collect_garbage()
     
