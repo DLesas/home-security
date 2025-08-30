@@ -34,7 +34,7 @@
                 
                 # WebSocket configuration
                 transport http {
-                    versions h1 h2c
+                    versions 1.1 h2c
                     keepalive 30s
                 }
             }
@@ -97,7 +97,7 @@
             
             # WebSocket configuration
             transport http {
-                versions h1 h2c
+                versions 1.1 h2c
                 keepalive 30s
             }
         }
