@@ -183,6 +183,8 @@ type LogCardProps = {
 const LogCard: React.FC<LogCardProps> = ({ logKey, data }) => {
   const buildingOpen = checkBuildingOpen(data, logKey)
   const { socket, url } = useSocket()
+  const { sensors } = useSocketData()
+  const router = useRouter()
   const [buttons, setButtons] = useState([
     { name: 'Arm', loading: false, color: 'danger', function: arm },
     { name: 'Disarm', loading: false, color: 'success', function: disarm },
@@ -229,6 +231,15 @@ const LogCard: React.FC<LogCardProps> = ({ logKey, data }) => {
     ))
   }
 
+  function handleSensorClick(sensorName: string) {
+    const sensor = sensors.find(
+      (s) => s.name === sensorName && s.building === logKey
+    )
+    if (sensor) {
+      router.push(`/sensors/${sensor.externalID}`)
+    }
+  }
+
   return (
     <Card className={cardClassName}>
       <div className="flex flex-row justify-around px-10 text-center text-lg">
@@ -236,21 +247,28 @@ const LogCard: React.FC<LogCardProps> = ({ logKey, data }) => {
       </div>
       <div className="flex flex-row justify-around text-center">
         {data.logs[logKey] &&
-          Object.keys(data.logs[logKey]).map((key2) => (
+          Object.keys(data.logs[logKey]).map((sensorName) => (
             <div
-              key={key2}
+              key={sensorName}
               className="flex flex-col gap-4 text-ellipsis text-nowrap text-sm font-light"
             >
-              <span className="">{key2}</span>
+              <Button
+                variant="light"
+                size="sm"
+                onPress={() => handleSensorClick(sensorName)}
+                className="min-w-0 px-2"
+              >
+                {sensorName}
+              </Button>
               <div className="font-bold">
                 {
                   // @ts-ignore
-                  data.logs[logKey][key2] &&
+                  data.logs[logKey][sensorName] &&
                   // @ts-ignore
-                  data.logs[logKey][key2].status === 'open' ? (
+                  data.logs[logKey][sensorName].status === 'open' ? (
                     <span className="text-danger-400">Open</span>
                   ) : // @ts-ignore
-                  data.logs[logKey][key2].status === 'closed' ? (
+                  data.logs[logKey][sensorName].status === 'closed' ? (
                     <span className="text-success-400">Closed</span>
                   ) : (
                     <span className="text-gray-400">Unknown</span>
