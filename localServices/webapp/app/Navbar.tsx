@@ -18,7 +18,8 @@ import { MdNotifications } from 'react-icons/md'
 import { Popover, PopoverTrigger, PopoverContent } from '@nextui-org/popover'
 import { useSocket } from './socketInitializer'
 import { useSocketData } from './socketData'
-import { Link } from '@nextui-org/link'
+import NextLink from 'next/link'
+import { Link as NextUILink } from '@nextui-org/link'
 
 type LogStatus = 'open' | 'closed'
 interface DoorValues {
@@ -131,52 +132,58 @@ export default function App() {
 
       <NavbarContent className="hidden gap-4 sm:flex" justify="center">
         <NavbarItem isActive={pathname === '/home'}>
-          <Link
+          <NextUILink
+            as={NextLink}
             href="/home"
             color={pathname === '/home' ? 'primary' : 'foreground'}
           >
             Home
-          </Link>
+          </NextUILink>
         </NavbarItem>
         <NavbarItem isActive={pathname === '/logs'}>
-          <Link
+          <NextUILink
+            as={NextLink}
             href="/logs"
             color={pathname === '/logs' ? 'primary' : 'foreground'}
           >
             Logs
-          </Link>
+          </NextUILink>
         </NavbarItem>
         <NavbarItem isActive={pathname === '/scheduling'}>
-          <Link
+          <NextUILink
+            as={NextLink}
             href="/scheduling"
             color={pathname === '/scheduling' ? 'primary' : 'foreground'}
           >
             Scheduling
-          </Link>
+          </NextUILink>
         </NavbarItem>
         <NavbarItem isActive={pathname === '/settings'}>
-          <Link
+          <NextUILink
+            as={NextLink}
             href="/settings"
             color={pathname === '/settings' ? 'primary' : 'foreground'}
           >
             Settings
-          </Link>
+          </NextUILink>
         </NavbarItem>
         <NavbarItem isActive={pathname === '/all'}>
-          <Link
+          <NextUILink
+            as={NextLink}
             href="/all"
             color={pathname === '/all' ? 'primary' : 'foreground'}
           >
             All
-          </Link>
+          </NextUILink>
         </NavbarItem>
         <NavbarItem isActive={pathname === '/test'}>
-          <Link
+          <NextUILink
+            as={NextLink}
             href="/test"
             color={pathname === '/test' ? 'primary' : 'foreground'}
           >
             Test
-          </Link>
+          </NextUILink>
         </NavbarItem>
       </NavbarContent>
       <NavbarContent justify="end">
@@ -188,7 +195,8 @@ export default function App() {
       <NavbarMenu>
         {menuItems.map((item, index) => (
           <NavbarMenuItem key={`${item}-${index}`}>
-            <Link
+            <NextUILink
+              as={NextLink}
               color={item.href === pathname ? 'primary' : 'foreground'}
               className="w-full"
               href={item.href}
@@ -197,7 +205,7 @@ export default function App() {
               }}
             >
               {item.name}
-            </Link>
+            </NextUILink>
           </NavbarMenuItem>
         ))}
       </NavbarMenu>
