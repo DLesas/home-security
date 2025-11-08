@@ -15,6 +15,7 @@ export default function SettingsPage() {
     hasChanges,
     saveSensorOrder,
     updateSensorOrder,
+    getBuildingOrder,
     syncSensorOrder,
     initializeSensorOrder,
   } = useSensorOrder()
@@ -29,14 +30,39 @@ export default function SettingsPage() {
   const handleDragEnd = (result: any) => {
     if (!result.destination) return
 
-    const { source, destination } = result
-    const building = source.droppableId
+    const { source, destination, type } = result
 
-    const newOrder = { ...sensorOrder }
-    const [reorderedItem] = newOrder[building].splice(source.index, 1)
-    newOrder[building].splice(destination.index, 0, reorderedItem)
+    if (type === 'BUILDING') {
+      // Handle building reordering
+      const newBuildingOrder = [...sensorOrder.buildingOrder]
+      const [reorderedBuilding] = newBuildingOrder.splice(source.index, 1)
+      newBuildingOrder.splice(destination.index, 0, reorderedBuilding)
 
-    updateSensorOrder(newOrder)
+      const newOrder = {
+        ...sensorOrder,
+        buildingOrder: newBuildingOrder,
+      }
+      updateSensorOrder(newOrder)
+    } else {
+      // Handle sensor reordering within a building
+      const building = source.droppableId
+      const newSensorsInBuildings = { ...sensorOrder.sensorsInBuildings }
+      const [reorderedItem] = newSensorsInBuildings[building].splice(
+        source.index,
+        1
+      )
+      newSensorsInBuildings[building].splice(
+        destination.index,
+        0,
+        reorderedItem
+      )
+
+      const newOrder = {
+        ...sensorOrder,
+        sensorsInBuildings: newSensorsInBuildings,
+      }
+      updateSensorOrder(newOrder)
+    }
   }
 
   const handleSave = () => {
@@ -47,7 +73,7 @@ export default function SettingsPage() {
     initializeSensorOrder(sensors)
   }
 
-  const buildings = Object.keys(sensorOrder)
+  const buildings = getBuildingOrder()
 
   return (
     <div className="container mx-auto max-w-4xl px-4 py-8">
@@ -87,103 +113,148 @@ export default function SettingsPage() {
           </CardHeader>
           <CardBody>
             <DragDropContext onDragEnd={handleDragEnd}>
-              <div className="flex flex-col gap-6">
-                {buildings.map((building) => (
-                  <div key={building} className="rounded-lg border p-4">
-                    <h3 className="mb-4 text-lg font-medium">{building}</h3>
-                    <Droppable droppableId={building}>
-                      {(provided, snapshot) => (
-                        <div
-                          {...provided.droppableProps}
-                          ref={provided.innerRef}
-                          className={`min-h-[100px] rounded-lg border-2 border-dashed p-4 ${
-                            snapshot.isDraggingOver
-                              ? 'border-primary bg-primary/10'
-                              : 'border-gray-300'
-                          }`}
-                        >
-                          {sensorOrder[building]?.map((sensorName, index) => {
-                            const sensor = sensors.find(
-                              (s) =>
-                                s.name === sensorName && s.building === building
-                            )
-                            if (!sensor) return null
-
-                            return (
-                              <Draggable
-                                key={`${building}-${sensorName}`}
-                                draggableId={`${building}-${sensorName}`}
-                                index={index}
+              <Droppable droppableId="buildings" type="BUILDING">
+                {(provided) => (
+                  <div
+                    {...provided.droppableProps}
+                    ref={provided.innerRef}
+                    className="flex flex-col gap-6"
+                  >
+                    {buildings.map((building, buildingIndex) => (
+                      <Draggable
+                        key={building}
+                        draggableId={building}
+                        index={buildingIndex}
+                      >
+                        {(buildingProvided, buildingSnapshot) => (
+                          <div
+                            ref={buildingProvided.innerRef}
+                            {...buildingProvided.draggableProps}
+                            className={`rounded-lg border p-4 ${
+                              buildingSnapshot.isDragging
+                                ? 'border-primary shadow-lg'
+                                : 'border-gray-200'
+                            }`}
+                          >
+                            <div className="mb-4 flex items-center gap-3">
+                              <div
+                                {...buildingProvided.dragHandleProps}
+                                className="cursor-grab text-gray-400 hover:text-gray-600 active:cursor-grabbing"
                               >
-                                {(provided, snapshot) => (
-                                  <div
-                                    ref={provided.innerRef}
-                                    {...provided.draggableProps}
-                                    className={`mb-2 last:mb-0 ${
-                                      snapshot.isDragging ? 'z-50' : ''
-                                    }`}
-                                  >
-                                    <Card
-                                      className={`transition-shadow ${
-                                        snapshot.isDragging
-                                          ? 'shadow-lg'
-                                          : 'shadow-sm hover:shadow-md'
-                                      }`}
-                                    >
-                                      <CardBody className="flex flex-row items-center gap-3 p-3">
-                                        <div
-                                          {...provided.dragHandleProps}
-                                          className="cursor-grab text-gray-400 hover:text-gray-600 active:cursor-grabbing"
-                                        >
-                                          <MdDragIndicator size={20} />
-                                        </div>
-                                        <div className="flex-1">
-                                          <p className="font-medium">
-                                            {sensor.name}
-                                          </p>
-                                          <p className="text-sm text-gray-500">
-                                            Status: {sensor.state} |
-                                            {sensor.armed
-                                              ? ' Armed'
-                                              : ' Disarmed'}
-                                          </p>
-                                        </div>
-                                        <div
-                                          className={`rounded px-2 py-1 text-xs ${
-                                            sensor.state === 'open'
-                                              ? 'bg-red-100 text-red-700'
-                                              : sensor.state === 'closed'
-                                                ? 'bg-green-100 text-green-700'
-                                                : 'bg-gray-100 text-gray-700'
-                                          }`}
-                                        >
-                                          {sensor.state}
-                                        </div>
-                                      </CardBody>
-                                    </Card>
-                                  </div>
-                                )}
-                              </Draggable>
-                            )
-                          })}
-                          {provided.placeholder}
-                          {(!sensorOrder[building] ||
-                            sensorOrder[building].length === 0) && (
-                            <div className="py-8 text-center text-gray-500">
-                              No sensors in this building
+                                <MdDragIndicator size={20} />
+                              </div>
+                              <h3 className="text-lg font-medium">
+                                {building}
+                              </h3>
                             </div>
-                          )}
-                        </div>
-                      )}
-                    </Droppable>
-                  </div>
-                ))}
-                {buildings.length === 0 && (
-                  <div className="py-8 text-center text-gray-500">
-                    No sensors available
+                            <Droppable droppableId={building} type="SENSOR">
+                              {(sensorProvided, sensorSnapshot) => (
+                                <div
+                                  {...sensorProvided.droppableProps}
+                                  ref={sensorProvided.innerRef}
+                                  className={`min-h-[100px] rounded-lg border-2 border-dashed p-4 ${
+                                    sensorSnapshot.isDraggingOver
+                                      ? 'border-primary bg-primary/10'
+                                      : 'border-gray-300'
+                                  }`}
+                                >
+                                  {sensorOrder.sensorsInBuildings[
+                                    building
+                                  ]?.map((sensorName, index) => {
+                                    const sensor = sensors.find(
+                                      (s) =>
+                                        s.name === sensorName &&
+                                        s.building === building
+                                    )
+                                    if (!sensor) return null
+
+                                    return (
+                                      <Draggable
+                                        key={`${building}-${sensorName}`}
+                                        draggableId={`${building}-${sensorName}`}
+                                        index={index}
+                                      >
+                                        {(
+                                          sensorItemProvided,
+                                          sensorItemSnapshot
+                                        ) => (
+                                          <div
+                                            ref={sensorItemProvided.innerRef}
+                                            {...sensorItemProvided.draggableProps}
+                                            className={`mb-2 last:mb-0 ${
+                                              sensorItemSnapshot.isDragging
+                                                ? 'z-50'
+                                                : ''
+                                            }`}
+                                          >
+                                            <Card
+                                              className={`transition-shadow ${
+                                                sensorItemSnapshot.isDragging
+                                                  ? 'shadow-lg'
+                                                  : 'shadow-sm hover:shadow-md'
+                                              }`}
+                                            >
+                                              <CardBody className="flex flex-row items-center gap-3 p-3">
+                                                <div
+                                                  {...sensorItemProvided.dragHandleProps}
+                                                  className="cursor-grab text-gray-400 hover:text-gray-600 active:cursor-grabbing"
+                                                >
+                                                  <MdDragIndicator size={20} />
+                                                </div>
+                                                <div className="flex-1">
+                                                  <p className="font-medium">
+                                                    {sensor.name}
+                                                  </p>
+                                                  <p className="text-sm text-gray-500">
+                                                    Status: {sensor.state} |
+                                                    {sensor.armed
+                                                      ? ' Armed'
+                                                      : ' Disarmed'}
+                                                  </p>
+                                                </div>
+                                                <div
+                                                  className={`rounded px-2 py-1 text-xs ${
+                                                    sensor.state === 'open'
+                                                      ? 'bg-red-100 text-red-700'
+                                                      : sensor.state ===
+                                                          'closed'
+                                                        ? 'bg-green-100 text-green-700'
+                                                        : 'bg-gray-100 text-gray-700'
+                                                  }`}
+                                                >
+                                                  {sensor.state}
+                                                </div>
+                                              </CardBody>
+                                            </Card>
+                                          </div>
+                                        )}
+                                      </Draggable>
+                                    )
+                                  })}
+                                  {sensorProvided.placeholder}
+                                  {(!sensorOrder.sensorsInBuildings[building] ||
+                                    sensorOrder.sensorsInBuildings[building]
+                                      .length === 0) && (
+                                    <div className="py-8 text-center text-gray-500">
+                                      No sensors in this building
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </Droppable>
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                    {buildings.length === 0 && (
+                      <div className="py-8 text-center text-gray-500">
+                        No sensors available
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
+              </Droppable>
             </DragDropContext>
           </CardBody>
         </Card>
