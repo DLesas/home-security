@@ -48,23 +48,30 @@ interface doorSensor {
 //   "recurrence": "weekly",
 // }
 
-export interface schedule {
+// Unified schedule schema - every schedule now contains both arm and disarm configurations
+export type schedule = {
+  id: string
   name: string
-  building: string
-  action: 'Arm' | 'Disarm'
-  date?: string
-  time: string
-  days?: (
-    | 'Monday'
-    | 'Tuesday'
-    | 'Wednesday'
-    | 'Thursday'
-    | 'Friday'
-    | 'Saturday'
-    | 'Sunday'
-  )[]
-  recurrence: 'Daily' | 'Weekly' | 'One off'
-}
+  sensorIDs: string[]
+  createdAt: Date
+} & (
+  | {
+      type: 'recurring'
+      armTime: string // "21:00" format
+      armDayOffset: number // 0 = same day, 1 = next day
+      disarmTime: string // "07:00" format
+      disarmDayOffset: number // 0 = same day as creation, 1 = next day
+      recurrence: 'Daily' | 'Weekly'
+      days?: string[] // Only for Weekly: ['Monday', 'Wednesday', 'Friday']
+      active: boolean
+      lastModified: Date
+    }
+  | {
+      type: 'oneTime'
+      armDateTime: Date // When to arm sensors
+      disarmDateTime: Date // When to disarm sensors
+    }
+)
 
 interface SocketDataProps {
   children: ReactNode
@@ -109,12 +116,31 @@ function formatData(sensors: doorSensor[], alarms: Alarm[]): Data {
   } = {}
 
   // Get and sync sensor order from localStorage
-  let sensorOrder: { [building: string]: string[] } = {}
+  let sensorOrder: {
+    buildingOrder: string[]
+    sensorsInBuildings: { [building: string]: string[] }
+  } = {
+    buildingOrder: [],
+    sensorsInBuildings: {},
+  }
+
   if (typeof window !== 'undefined') {
     const savedOrder = localStorage.getItem('sensorOrder')
     if (savedOrder) {
       try {
-        sensorOrder = JSON.parse(savedOrder)
+        const parsed = JSON.parse(savedOrder)
+        // Handle backward compatibility - old format was { [building: string]: string[] }
+        if (Array.isArray(parsed.buildingOrder) && parsed.sensorsInBuildings) {
+          // New format
+          sensorOrder = parsed
+        } else {
+          // Old format - convert to new format
+          const buildingOrder = Object.keys(parsed)
+          const sensorsInBuildings = parsed
+          sensorOrder = { buildingOrder, sensorsInBuildings }
+          // Save in new format
+          localStorage.setItem('sensorOrder', JSON.stringify(sensorOrder))
+        }
       } catch (error) {
         console.error('Failed to parse sensor order from localStorage:', error)
       }
@@ -133,12 +159,29 @@ function formatData(sensors: doorSensor[], alarms: Alarm[]): Data {
     sensorsByBuilding[sensor.building].push(sensor)
   }
 
-  // Process each building and apply ordering
-  for (const [building, buildingSensors] of Object.entries(sensorsByBuilding)) {
+  // Process buildings in the specified order
+  const orderedBuildings =
+    sensorOrder.buildingOrder.length > 0
+      ? sensorOrder.buildingOrder.filter(
+          (building) => sensorsByBuilding[building]
+        )
+      : Object.keys(sensorsByBuilding)
+
+  // Add any buildings not in the order to the end
+  const remainingBuildings = Object.keys(sensorsByBuilding).filter(
+    (building) => !orderedBuildings.includes(building)
+  )
+  const allBuildings = [...orderedBuildings, ...remainingBuildings]
+
+  // Process each building in order and apply sensor ordering
+  for (const building of allBuildings) {
+    const buildingSensors = sensorsByBuilding[building]
+    if (!buildingSensors) continue
+
     logs[building] = {}
 
-    // Get the order for this building, if it exists
-    const orderedSensorNames = sensorOrder[building] || []
+    // Get the sensor order for this building, if it exists
+    const orderedSensorNames = sensorOrder.sensorsInBuildings[building] || []
 
     // Create a map for quick sensor lookup
     const sensorMap = new Map(
@@ -176,8 +219,14 @@ function formatData(sensors: doorSensor[], alarms: Alarm[]): Data {
 // Helper function to sync sensor order (similar to useSensorOrder hook logic)
 function syncSensorOrderInFormatData(
   sensors: doorSensor[],
-  existingOrder: { [building: string]: string[] }
-): { [building: string]: string[] } {
+  existingOrder: {
+    buildingOrder: string[]
+    sensorsInBuildings: { [building: string]: string[] }
+  }
+): {
+  buildingOrder: string[]
+  sensorsInBuildings: { [building: string]: string[] }
+} {
   // Create current sensor mapping by building
   const currentSensorsByBuilding: { [building: string]: string[] } = {}
   sensors.forEach((sensor) => {
@@ -187,13 +236,32 @@ function syncSensorOrderInFormatData(
     currentSensorsByBuilding[sensor.building].push(sensor.name)
   })
 
+  // Get existing order
+  const existingBuildingOrder = existingOrder.buildingOrder || []
+  const existingSensorsInBuildings = existingOrder.sensorsInBuildings || {}
   let needsUpdate = false
-  const newOrder: { [building: string]: string[] } = {}
 
-  // Process each building
+  // Sync building order
+  const currentBuildings = Object.keys(currentSensorsByBuilding)
+  const validExistingBuildings = existingBuildingOrder.filter((building) =>
+    currentBuildings.includes(building)
+  )
+  const newBuildings = currentBuildings.filter(
+    (building) => !existingBuildingOrder.includes(building)
+  )
+  const newBuildingOrder = [...validExistingBuildings, ...newBuildings]
+
+  if (
+    JSON.stringify(newBuildingOrder) !== JSON.stringify(existingBuildingOrder)
+  ) {
+    needsUpdate = true
+  }
+
+  // Process sensors in each building
+  const newSensorsInBuildings: { [building: string]: string[] } = {}
   Object.keys(currentSensorsByBuilding).forEach((building) => {
     const currentSensors = currentSensorsByBuilding[building]
-    const existingSensors = existingOrder[building] || []
+    const existingSensors = existingSensorsInBuildings[building] || []
 
     // Start with existing order, filtering out sensors that no longer exist
     const validExistingSensors = existingSensors.filter((sensorName) =>
@@ -206,29 +274,35 @@ function syncSensorOrderInFormatData(
     )
 
     // Combine: existing valid sensors + new sensors in their original order
-    newOrder[building] = [...validExistingSensors, ...newSensors]
+    newSensorsInBuildings[building] = [...validExistingSensors, ...newSensors]
 
-    // Check if this building's order changed
+    // Check if this building's sensor order changed
     if (
-      !existingOrder[building] ||
-      JSON.stringify(newOrder[building]) !==
-        JSON.stringify(existingOrder[building])
+      !existingSensorsInBuildings[building] ||
+      JSON.stringify(newSensorsInBuildings[building]) !==
+        JSON.stringify(existingSensorsInBuildings[building])
     ) {
       needsUpdate = true
     }
   })
 
   // Remove buildings that no longer have sensors
-  Object.keys(existingOrder).forEach((building) => {
+  Object.keys(existingSensorsInBuildings).forEach((building) => {
     if (!currentSensorsByBuilding[building]) {
       needsUpdate = true
     }
   })
 
   // Update localStorage if changes detected
+  const newOrder = {
+    buildingOrder: newBuildingOrder,
+    sensorsInBuildings: newSensorsInBuildings,
+  }
+
   if (needsUpdate) {
     try {
       localStorage.setItem('sensorOrder', JSON.stringify(newOrder))
+      // Don't dispatch event here to avoid infinite loops - this function is called during formatting
     } catch (error) {
       console.error('Failed to save updated sensor order:', error)
     }
@@ -243,6 +317,7 @@ interface SocketDataContextProps {
   isConnected: boolean
   sensors: doorSensor[]
   alarms: Alarm[]
+  socket: any | null
 }
 
 const SocketDataContext = createContext<SocketDataContextProps>({
@@ -251,6 +326,7 @@ const SocketDataContext = createContext<SocketDataContextProps>({
   isConnected: false,
   sensors: [],
   alarms: [],
+  socket: null,
 })
 
 export const useSocketData = (): SocketDataContextProps =>
@@ -258,12 +334,20 @@ export const useSocketData = (): SocketDataContextProps =>
 
 export const SocketDataProvider: React.FC<SocketDataProps> = ({ children }) => {
   const [data, setData] = useState<Data>({} as Data)
-  const [schedules, setSchedules] = useState([])
+  const [schedules, setSchedules] = useState<schedule[]>([])
   const [isConnected, setIsConnected] = useState<boolean>(false)
   const [sensors, setSensors] = useState<doorSensor[]>([])
   const [alarms, setAlarms] = useState<Alarm[]>([])
   const { socket } = useSocket() // Assuming you have a custom hook to get the socket instance
   const router = useRouter()
+
+  // Function to reformat data (useful when sensor order changes)
+  const reformatData = () => {
+    if (sensors.length > 0 || alarms.length > 0) {
+      const formattedData = formatData(sensors, alarms)
+      setData(formattedData)
+    }
+  }
 
   useEffect(() => {
     console.log(socket)
@@ -277,23 +361,24 @@ export const SocketDataProvider: React.FC<SocketDataProps> = ({ children }) => {
       router.push('/')
     }
 
-    function onData(value: { sensors: doorSensor[]; alarms: Alarm[] }) {
-      const formattedData = formatData(value.sensors, value.alarms)
+    function onData(value: {
+      sensors?: doorSensor[]
+      alarms?: Alarm[]
+      schedules?: schedule[]
+    }) {
+      const formattedData = formatData(value.sensors || [], value.alarms || [])
       setData(formattedData)
-      setSensors(value.sensors)
-      setAlarms(value.alarms)
-    }
-
-    function onSchedules(value: any) {
-      setSchedules(value)
-      console.log(value)
+      setSensors(value.sensors || [])
+      setAlarms(value.alarms || [])
+      if (value.schedules) {
+        setSchedules(value.schedules)
+      }
     }
 
     if (socket) {
       socket.on('connect', onConnect)
       socket.on('disconnect', onDisconnect)
       socket.on('data', onData)
-      socket.on('schedules', onSchedules)
     }
 
     return () => {
@@ -301,14 +386,47 @@ export const SocketDataProvider: React.FC<SocketDataProps> = ({ children }) => {
         socket.off('connect', onConnect)
         socket.off('disconnect', onDisconnect)
         socket.off('data', onData)
-        socket.off('schedules', onSchedules)
       }
     }
   }, [socket])
 
+  // Listen for localStorage changes to sensor order
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'sensorOrder') {
+        // Reformat data when sensor order changes
+        reformatData()
+      }
+    }
+
+    // Listen for storage events (when localStorage is changed in another tab/component)
+    window.addEventListener('storage', handleStorageChange)
+
+    // Also listen for a custom event for same-page localStorage changes
+    const handleCustomStorageChange = () => {
+      reformatData()
+    }
+    window.addEventListener('sensorOrderChanged', handleCustomStorageChange)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener(
+        'sensorOrderChanged',
+        handleCustomStorageChange
+      )
+    }
+  }, [sensors, alarms])
+
   return (
     <SocketDataContext.Provider
-      value={{ data, schedules, isConnected, sensors, alarms }}
+      value={{
+        data,
+        schedules: schedules || [],
+        isConnected,
+        sensors,
+        alarms,
+        socket,
+      }}
     >
       {children}
     </SocketDataContext.Provider>

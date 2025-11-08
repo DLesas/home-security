@@ -2,9 +2,9 @@ import { useSocketData, type schedule as scheduleType } from '../socketData'
 import { Input } from '@nextui-org/input'
 import { Select, SelectItem } from '@nextui-org/select'
 import { TimeInput } from '@nextui-org/date-input'
-import { Time } from '@internationalized/date'
-import { DateInput } from '@nextui-org/date-input'
-import { today, getLocalTimeZone, parseDate } from '@internationalized/date'
+import { DatePicker } from '@nextui-org/date-picker'
+import { Time, ZonedDateTime, parseAbsoluteToLocal } from '@internationalized/date'
+import { getLocalTimeZone, now } from '@internationalized/date'
 import { useEffect, useState } from 'react'
 import {
   Modal,
@@ -12,10 +12,35 @@ import {
   ModalHeader,
   ModalBody,
   ModalFooter,
-  useDisclosure,
 } from '@nextui-org/modal'
 import { CheckboxGroup, Checkbox } from '@nextui-org/checkbox'
 import { Button } from '@nextui-org/button'
+import { Card, CardBody } from '@nextui-org/card'
+import { Chip } from '@nextui-org/chip'
+
+// Unified schedule data interface
+interface RecurringScheduleData {
+  type: 'recurring'
+  name: string
+  sensorIds: string[]
+  armTime: string // "HH:MM"
+  armDayOffset: number
+  disarmTime: string // "HH:MM"
+  disarmDayOffset: number
+  recurrence: 'Daily' | 'Weekly'
+  days?: string[]
+  active: boolean
+}
+
+interface OneTimeScheduleData {
+  type: 'oneTime'
+  name: string
+  sensorIds: string[]
+  armDateTime: string // ISO datetime
+  disarmDateTime: string // ISO datetime
+}
+
+type ScheduleData = RecurringScheduleData | OneTimeScheduleData
 
 export function ScheduleEditor({
   schedule,
@@ -26,134 +51,564 @@ export function ScheduleEditor({
   isOpen: boolean
   onClose: () => void
 }) {
-  const { data, schedules, isConnected } = useSocketData()
-  const [recurrence, setRecurrence] = useState<
-    // @ts-ignore
-    (typeof schedule)['recurrence'] | undefined
-  >(undefined)
-  const Hour = schedule?.time ? parseInt(schedule.time.split(':')[0]) : 0
-  const Min = schedule?.time ? parseInt(schedule.time.split(':')[1]) : 0
+  const { sensors } = useSocketData()
 
+  // Schedule type selection
+  const [scheduleType, setScheduleType] = useState<'recurring' | 'oneTime'>('recurring')
+
+  // Unified schedule state
+  const [scheduleData, setScheduleData] = useState<ScheduleData>({
+    type: 'recurring',
+    name: '',
+    sensorIds: [],
+    armTime: '21:00',
+    armDayOffset: 0,
+    disarmTime: '07:00',
+    disarmDayOffset: 1,
+    recurrence: 'Daily',
+    days: [],
+    active: true,
+  })
+
+  const [loading, setLoading] = useState(false)
+
+  // Initialize from existing schedule if editing
   useEffect(() => {
     if (schedule) {
-      setRecurrence(schedule.recurrence)
+      setScheduleType(schedule.type)
+
+      if (schedule.type === 'recurring') {
+        setScheduleData({
+          type: 'recurring',
+          name: schedule.name,
+          sensorIds: schedule.sensorIDs,
+          armTime: schedule.armTime,
+          armDayOffset: schedule.armDayOffset,
+          disarmTime: schedule.disarmTime,
+          disarmDayOffset: schedule.disarmDayOffset,
+          recurrence: schedule.recurrence,
+          days: schedule.days || [],
+          active: schedule.active,
+        })
+      } else {
+        setScheduleData({
+          type: 'oneTime',
+          name: schedule.name,
+          sensorIds: schedule.sensorIDs,
+          armDateTime: schedule.armDateTime.toISOString(),
+          disarmDateTime: schedule.disarmDateTime.toISOString(),
+        })
+      }
+    } else {
+      // Reset to defaults when creating new schedule
+      if (scheduleType === 'recurring') {
+        setScheduleData({
+          type: 'recurring',
+          name: '',
+          sensorIds: [],
+          armTime: '21:00',
+          armDayOffset: 0,
+          disarmTime: '07:00',
+          disarmDayOffset: 1,
+          recurrence: 'Daily',
+          days: [],
+          active: true,
+        })
+      } else {
+        setScheduleData({
+          type: 'oneTime',
+          name: '',
+          sensorIds: [],
+          armDateTime: now(getLocalTimeZone()).add({ hours: 1 }).toDate().toISOString(),
+          disarmDateTime: now(getLocalTimeZone()).add({ hours: 3 }).toDate().toISOString(),
+        })
+      }
     }
-  }, [schedule])
+  }, [schedule, scheduleType])
+
+  // Handle schedule type change (only for new schedules)
+  const handleScheduleTypeChange = (newType: 'recurring' | 'oneTime') => {
+    setScheduleType(newType)
+
+    // Preserve name and sensorIds, reset other fields
+    const currentName = scheduleData.name
+    const currentSensorIds = scheduleData.sensorIds
+
+    if (newType === 'recurring') {
+      setScheduleData({
+        type: 'recurring',
+        name: currentName,
+        sensorIds: currentSensorIds,
+        armTime: '21:00',
+        armDayOffset: 0,
+        disarmTime: '07:00',
+        disarmDayOffset: 1,
+        recurrence: 'Daily',
+        days: [],
+        active: true,
+      })
+    } else {
+      setScheduleData({
+        type: 'oneTime',
+        name: currentName,
+        sensorIds: currentSensorIds,
+        armDateTime: now(getLocalTimeZone()).add({ hours: 1 }).toDate().toISOString(),
+        disarmDateTime: now(getLocalTimeZone()).add({ hours: 3 }).toDate().toISOString(),
+      })
+    }
+  }
+
+  const handleSave = async () => {
+    setLoading(true)
+    try {
+      const endpoint = schedule ? `/schedules/${schedule.id}` : '/schedules/new'
+      const method = schedule ? 'PUT' : 'POST'
+
+      const response = await fetch(`/api${endpoint}`, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(scheduleData),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to save schedule')
+      }
+
+      onClose()
+    } catch (error) {
+      console.error('Error saving schedule:', error)
+      alert(`Failed to save schedule: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!schedule) return
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/schedules/${schedule.id}`, {
+        method: 'DELETE',
+      })
+      if (!response.ok) throw new Error('Failed to delete schedule')
+      onClose()
+    } catch (error) {
+      console.error('Error deleting schedule:', error)
+      alert(`Failed to delete schedule: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const renderRecurringScheduleForm = (data: RecurringScheduleData) => {
+    const armHour = parseInt(data.armTime.split(':')[0])
+    const armMin = parseInt(data.armTime.split(':')[1])
+    const disarmHour = parseInt(data.disarmTime.split(':')[0])
+    const disarmMin = parseInt(data.disarmTime.split(':')[1])
+
+    return (
+      <div className="flex flex-col gap-4">
+        <Input
+          label="Schedule name"
+          isRequired
+          value={data.name}
+          onChange={(e) =>
+            setScheduleData({ ...data, name: e.target.value })
+          }
+          placeholder="Evening Security Schedule"
+        />
+
+        <Select
+          label="Recurrence"
+          isRequired
+          selectedKeys={[data.recurrence]}
+          onSelectionChange={(keys) => {
+            const value = Array.from(keys)[0] as 'Daily' | 'Weekly'
+            setScheduleData({ ...data, recurrence: value })
+          }}
+        >
+          <SelectItem key="Daily">Daily</SelectItem>
+          <SelectItem key="Weekly">Weekly</SelectItem>
+        </Select>
+
+        {data.recurrence === 'Weekly' && (
+          <CheckboxGroup
+            label="Select days"
+            orientation="horizontal"
+            value={data.days}
+            onValueChange={(value) =>
+              setScheduleData({ ...data, days: value })
+            }
+          >
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Checkbox value="Monday">Mon</Checkbox>
+              <Checkbox value="Tuesday">Tue</Checkbox>
+              <Checkbox value="Wednesday">Wed</Checkbox>
+              <Checkbox value="Thursday">Thu</Checkbox>
+              <Checkbox value="Friday">Fri</Checkbox>
+              <Checkbox value="Saturday">Sat</Checkbox>
+              <Checkbox value="Sunday">Sun</Checkbox>
+            </div>
+          </CheckboxGroup>
+        )}
+
+        <Card>
+          <CardBody className="gap-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Chip color="success" size="sm">ARM</Chip>
+              <span className="text-small font-medium">Arm Configuration</span>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <TimeInput
+                label="Arm Time"
+                isRequired
+                hourCycle={24}
+                value={new Time(armHour, armMin)}
+                onChange={(value) => {
+                  setScheduleData({
+                    ...data,
+                    armTime: `${value.hour.toString().padStart(2, '0')}:${value.minute.toString().padStart(2, '0')}`,
+                  })
+                }}
+                granularity="minute"
+                hideTimeZone
+              />
+
+              <Select
+                label="Day Offset"
+                isRequired
+                selectedKeys={[data.armDayOffset.toString()]}
+                onSelectionChange={(keys) => {
+                  const value = parseInt(Array.from(keys)[0] as string)
+                  setScheduleData({ ...data, armDayOffset: value })
+                }}
+              >
+                <SelectItem key="0">Same day</SelectItem>
+                <SelectItem key="1">Next day</SelectItem>
+              </Select>
+            </div>
+            <p className="text-tiny text-default-500">
+              When to arm the sensors (e.g., evening before bedtime)
+            </p>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardBody className="gap-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Chip color="warning" size="sm">DISARM</Chip>
+              <span className="text-small font-medium">Disarm Configuration</span>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <TimeInput
+                label="Disarm Time"
+                isRequired
+                hourCycle={24}
+                value={new Time(disarmHour, disarmMin)}
+                onChange={(value) => {
+                  setScheduleData({
+                    ...data,
+                    disarmTime: `${value.hour.toString().padStart(2, '0')}:${value.minute.toString().padStart(2, '0')}`,
+                  })
+                }}
+                granularity="minute"
+                hideTimeZone
+              />
+
+              <Select
+                label="Day Offset"
+                isRequired
+                selectedKeys={[data.disarmDayOffset.toString()]}
+                onSelectionChange={(keys) => {
+                  const value = parseInt(Array.from(keys)[0] as string)
+                  setScheduleData({ ...data, disarmDayOffset: value })
+                }}
+              >
+                <SelectItem key="0">Same day</SelectItem>
+                <SelectItem key="1">Next day</SelectItem>
+              </Select>
+            </div>
+            <p className="text-tiny text-default-500">
+              When to disarm the sensors (e.g., morning after waking up)
+            </p>
+          </CardBody>
+        </Card>
+      </div>
+    )
+  }
+
+  const renderOneTimeScheduleForm = (data: OneTimeScheduleData) => {
+    // Parse ISO datetime to separate date and time
+    const parseISODateTime = (isoString: string) => {
+      const date = new Date(isoString)
+      return {
+        date: parseAbsoluteToLocal(isoString),
+        time: new Time(date.getHours(), date.getMinutes()),
+      }
+    }
+
+    const armDateTime = parseISODateTime(data.armDateTime)
+    const disarmDateTime = parseISODateTime(data.disarmDateTime)
+
+    // Helper to combine date and time into ISO string
+    const combineDateTime = (dateValue: ZonedDateTime, timeValue: Time): string => {
+      const combined = dateValue.set({
+        hour: timeValue.hour,
+        minute: timeValue.minute,
+      })
+      return combined.toDate().toISOString()
+    }
+
+    return (
+      <div className="flex flex-col gap-4">
+        <Input
+          label="Schedule name"
+          isRequired
+          value={data.name}
+          onChange={(e) =>
+            setScheduleData({ ...data, name: e.target.value })
+          }
+          placeholder="Vacation Security"
+        />
+
+        <Card>
+          <CardBody className="gap-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Chip color="success" size="sm">ARM</Chip>
+              <span className="text-small font-medium">Arm Date & Time</span>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <DatePicker
+                label="Arm Date"
+                isRequired
+                value={armDateTime.date}
+                onChange={(value: ZonedDateTime) => {
+                  if (value) {
+                    setScheduleData({
+                      ...data,
+                      armDateTime: combineDateTime(value, armDateTime.time),
+                    })
+                  }
+                }}
+                granularity="day"
+              />
+
+              <TimeInput
+                label="Arm Time"
+                isRequired
+                hourCycle={24}
+                value={armDateTime.time}
+                onChange={(value: Time) => {
+                  setScheduleData({
+                    ...data,
+                    armDateTime: combineDateTime(armDateTime.date, value),
+                  })
+                }}
+                granularity="minute"
+                hideTimeZone
+              />
+            </div>
+            <p className="text-tiny text-default-500">
+              When to arm the sensors
+            </p>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardBody className="gap-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Chip color="warning" size="sm">DISARM</Chip>
+              <span className="text-small font-medium">Disarm Date & Time</span>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <DatePicker
+                label="Disarm Date"
+                isRequired
+                value={disarmDateTime.date}
+                onChange={(value: ZonedDateTime) => {
+                  if (value) {
+                    setScheduleData({
+                      ...data,
+                      disarmDateTime: combineDateTime(value, disarmDateTime.time),
+                    })
+                  }
+                }}
+                granularity="day"
+              />
+
+              <TimeInput
+                label="Disarm Time"
+                isRequired
+                hourCycle={24}
+                value={disarmDateTime.time}
+                onChange={(value: Time) => {
+                  setScheduleData({
+                    ...data,
+                    disarmDateTime: combineDateTime(disarmDateTime.date, value),
+                  })
+                }}
+                granularity="minute"
+                hideTimeZone
+              />
+            </div>
+            <p className="text-tiny text-default-500">
+              When to disarm the sensors
+            </p>
+          </CardBody>
+        </Card>
+      </div>
+    )
+  }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      size="2xl"
+      scrollBehavior="inside"
+      classNames={{
+        base: 'max-h-[90vh]',
+        body: 'overflow-y-auto',
+      }}
+    >
       <ModalContent>
         {(onClose) => (
           <>
             <ModalHeader className="flex flex-col gap-1">
-              {schedule ? `Ammend ${schedule.name}` : 'New Schedule'}
+              <div className="flex items-center justify-between">
+                <span>{schedule ? `Edit Schedule` : 'New Schedule'}</span>
+                <Chip
+                  color={scheduleType === 'recurring' ? 'primary' : 'secondary'}
+                  size="sm"
+                >
+                  {scheduleType === 'recurring' ? 'Recurring' : 'One-Time'}
+                </Chip>
+              </div>
             </ModalHeader>
+
             <ModalBody>
               <div className="flex flex-col gap-4">
-                <div className="flex flex-row">
-                  <Input
-                    label="Schedule name"
-                    isRequired
-                    value={schedule?.name}
-                  ></Input>
-                </div>
-                <div className="flex flex-row gap-2">
-                  <Select
-                    onChange={(e) => {
-                      // @ts-ignore
-                      setRecurrence(e.target.value)
-                    }}
-                    selectionMode="single"
-                    isRequired
-                    value={recurrence}
-                    defaultSelectedKeys={schedule ? [schedule?.recurrence] : []}
-                    label="Schedule type"
-                  >
-                    <SelectItem key="One off" value="One off">
-                      One off
-                    </SelectItem>
-                    <SelectItem key="Daily" value="Daily">
-                      Daily
-                    </SelectItem>
-                    <SelectItem key="Weekly" value="Weekly">
-                      Weekly
-                    </SelectItem>
-                  </Select>
-                  <Select
-                    selectionMode="single"
-                    label="Schedule action"
-                    isRequired
-                    defaultSelectedKeys={schedule ? [schedule?.action] : []}
-                  >
-                    <SelectItem key="Arm" value="Arm">
-                      Arm
-                    </SelectItem>
-                    <SelectItem key="Disarm" value="Disarm">
-                      Disarm
-                    </SelectItem>
-                  </Select>
-                </div>
-                <div className="gap flex flex-row gap-2">
-                  <Select
-                    selectionMode="single"
-                    isRequired
-                    label="Building"
-                    defaultSelectedKeys={schedule ? [schedule?.building] : []}
-                  >
-                    {Object.keys(data.logs).map((building) => (
-                      <SelectItem key={building} value={building}>
-                        {building}
-                      </SelectItem>
-                    ))}
-                  </Select>
-                  <TimeInput
-                    label="Time"
-                    isRequired
-                    hourCycle={24}
-                    defaultValue={new Time(Hour, Min)}
-                    granularity="minute"
-                    hideTimeZone
-                  ></TimeInput>
-                </div>
-                {recurrence !== 'Daily' && (
-                  <div className="flex flex-row">
-                    {recurrence === 'Weekly' && (
+                {/* Sensor Selection */}
+                <Card>
+                  <CardBody className="gap-3">
+                    <div>
+                      <p className="mb-2 text-small font-medium">
+                        Select Sensors (required)
+                      </p>
+                      <p className="mb-3 text-tiny text-default-500">
+                        Choose which sensors this schedule will control
+                      </p>
                       <CheckboxGroup
-                        isRequired
-                        label="Select days"
-                        orientation="horizontal"
-                        defaultValue={schedule?.days}
-                      >
-                        <Checkbox value="Monday">Monday</Checkbox>
-                        <Checkbox value="Tuesday">Tuesday</Checkbox>
-                        <Checkbox value="Wednesday">Wednesday</Checkbox>
-                        <Checkbox value="Thursday">Thursday</Checkbox>
-                        <Checkbox value="Friday">Friday</Checkbox>
-                        <Checkbox value="Saturday">Saturday</Checkbox>
-                        <Checkbox value="Sunday">Sunday</Checkbox>
-                      </CheckboxGroup>
-                    )}
-                    {recurrence === 'One off' && (
-                      <DateInput
-                        defaultValue={
-                          schedule?.date ? parseDate(schedule?.date) : undefined
+                        value={scheduleData.sensorIds}
+                        onValueChange={(value) =>
+                          setScheduleData({ ...scheduleData, sensorIds: value })
                         }
-                        granularity="day"
-                        label="Date"
+                        orientation="horizontal"
                         isRequired
-                      ></DateInput>
-                    )}
-                  </div>
+                        errorMessage={
+                          scheduleData.sensorIds.length === 0
+                            ? 'At least one sensor must be selected'
+                            : ''
+                        }
+                        isInvalid={scheduleData.sensorIds.length === 0}
+                      >
+                        <div className="grid grid-cols-1 gap-3">
+                          {/* Group sensors by building */}
+                          {Object.entries(
+                            sensors.reduce(
+                              (acc: Record<string, typeof sensors>, sensor) => {
+                                if (!acc[sensor.building]) {
+                                  acc[sensor.building] = []
+                                }
+                                acc[sensor.building].push(sensor)
+                                return acc
+                              },
+                              {} as Record<string, typeof sensors>
+                            )
+                          ).map(([building, buildingSensors]) => (
+                            <div
+                              key={building}
+                              className="rounded-lg border p-3"
+                            >
+                              <h4 className="mb-2 text-small font-medium">
+                                {building}
+                              </h4>
+                              <div className="grid grid-cols-2 gap-2">
+                                {buildingSensors.map((sensor) => (
+                                  <Checkbox
+                                    key={sensor.externalID}
+                                    value={sensor.externalID}
+                                  >
+                                    {sensor.name}
+                                  </Checkbox>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CheckboxGroup>
+                    </div>
+                  </CardBody>
+                </Card>
+
+                {/* Schedule Type Selection for new schedules */}
+                {!schedule && (
+                  <Card>
+                    <CardBody>
+                      <Select
+                        label="Schedule Type"
+                        isRequired
+                        selectedKeys={[scheduleType]}
+                        onSelectionChange={(keys) => {
+                          const value = Array.from(keys)[0] as 'recurring' | 'oneTime'
+                          handleScheduleTypeChange(value)
+                        }}
+                      >
+                        <SelectItem key="recurring">Recurring Schedule</SelectItem>
+                        <SelectItem key="oneTime">One-Time Schedule</SelectItem>
+                      </Select>
+                    </CardBody>
+                  </Card>
                 )}
+
+                {/* Render appropriate form based on schedule type */}
+                {scheduleData.type === 'recurring'
+                  ? renderRecurringScheduleForm(scheduleData)
+                  : renderOneTimeScheduleForm(scheduleData)}
               </div>
             </ModalBody>
-            <ModalFooter>
-              <Button color="danger" variant="light" onPress={onClose}>
-                Go back
-              </Button>
-              <Button color="primary" onPress={onClose}>
-                {schedule ? `Save schedule` : 'Save new schedule'}
-              </Button>
+
+            <ModalFooter className="flex justify-between">
+              <div>
+                {schedule && (
+                  <Button
+                    color="danger"
+                    variant="flat"
+                    onPress={handleDelete}
+                    isLoading={loading}
+                  >
+                    Delete Schedule
+                  </Button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button color="default" variant="light" onPress={onClose}>
+                  Cancel
+                </Button>
+                <Button
+                  color="primary"
+                  onPress={handleSave}
+                  isLoading={loading}
+                  isDisabled={scheduleData.sensorIds.length === 0 || !scheduleData.name}
+                >
+                  {schedule ? 'Update' : 'Create'} Schedule
+                </Button>
+              </div>
             </ModalFooter>
           </>
         )}

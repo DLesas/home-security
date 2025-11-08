@@ -8,11 +8,20 @@ import { sensorLogsTable } from "./sensorLogs";
 import { alarmLogsTable } from "./alarmLogs";
 import { alarmUpdatesTable, alarmStateEnum } from "./alarmUpdates";
 import { alarmsTable } from "./alarms";
+import {
+  scheduleExecutionsTable,
+  scheduleActionEnum,
+  scheduleTypeEnum,
+  scheduleRecurrenceEnum,
+} from "./scheduleExecutions";
 
 export const actionEnums = actionEnum;
 export const eventTypeEnums = eventTypeEnum;
 export const connectionEnums = connectionEnum;
 export const alarmStateEnums = alarmStateEnum;
+export const scheduleActionEnums = scheduleActionEnum;
+export const scheduleTypeEnums = scheduleTypeEnum;
+export const scheduleRecurrenceEnums = scheduleRecurrenceEnum;
 
 export const generalLogTable = accessLogsTable;
 export const errorLogTable = errorLogsTable;
@@ -25,12 +34,16 @@ export const buildingTable = buildingsTable;
 export const alarmLogTable = alarmLogsTable;
 export const alarmUpdateTable = alarmUpdatesTable;
 export const alarmTable = alarmsTable;
+export const scheduleExecutionTable = scheduleExecutionsTable;
 
 export const db = {
   actionEnums,
   eventTypeEnums,
   connectionEnums,
   alarmStateEnums,
+  scheduleActionEnums,
+  scheduleTypeEnums,
+  scheduleRecurrenceEnums,
   errorLogTable,
   generalLogTable,
   eventLogTable,
@@ -41,4 +54,5 @@ export const db = {
   doorSensorTable,
   buildingTable,
   alarmTable,
+  scheduleExecutionTable,
 };

@@ -8,6 +8,7 @@ import sensorRoutes from "./express/routes/Sensors";
 import buildingRoutes from "./express/routes/Buildings";
 import alarmRoutes from "./express/routes/Alarms";
 import logsRoutes from "./express/routes/logs";
+import scheduleRoutes from "./express/routes/Schedules";
 import setupSocketHandlers from "./express/socketHandler";
 import { runMigrations, runCustomSQL } from "./db/db";
 import { connectRedis } from "./redis/index";
@@ -18,11 +19,14 @@ import {
 } from "./redis/doorSensors";
 import { createConfigIndex, setDefaultConfig } from "./redis/config";
 import { createAlarmIndex } from "./redis/alarms";
+import { createScheduleIndexes } from "./redis/schedules";
 import { setSensorStatusUnknown } from "./sensorFuncs";
 import { SocketEventSubscriber } from "./express/socketEventSubscriber";
 import { sensorTimeoutMonitor } from "./microDeviceTimeoutMonitor";
 import { changeAlarmState } from "./alarmFuncs";
 import { alarmTimeoutManager } from "./alarmTimeoutManager";
+import { scheduleManager } from "./scheduleManager";
+import { changeSensorStatus } from "./sensorFuncs";
 // import { startBonjourService } from "./express/advertisement/Bonjour";
 // import { startUdpListener } from "./express/advertisement/udpBroadcast";
 
@@ -42,6 +46,7 @@ await connectRedis();
 await createDoorSensorIndex();
 await createConfigIndex();
 await createAlarmIndex();
+await createScheduleIndexes();
 await setDefaultConfig();
 await runMigrations();
 // await runCustomSQL();
@@ -68,6 +73,7 @@ app.use("/api/v1/sensors", sensorRoutes);
 app.use("/api/v1/buildings", buildingRoutes);
 app.use("/api/v1/alarms", alarmRoutes);
 app.use("/api/v1/logs", logsRoutes);
+app.use("/api/v1/schedules", scheduleRoutes);
 
 // Error handling middleware
 app.use(errorHandler);
@@ -90,6 +96,10 @@ server.listen(port, async () => {
   alarmTimeoutManager.setAlarmStateChangeCallback(changeAlarmState);
   await alarmTimeoutManager.start();
 
+  // Initialize and start the Schedule Manager
+  scheduleManager.setSensorStateChangeCallback(changeSensorStatus);
+  await scheduleManager.start();
+
   //const cleanupBonjour = startBonjourService();
   // const cleanupUdpBroadcast = startUdpListener();
 
@@ -104,6 +114,9 @@ server.listen(port, async () => {
 
     // Stop the Alarm Timeout Manager
     alarmTimeoutManager.stop();
+
+    // Stop the Schedule Manager
+    scheduleManager.stop();
 
     //cleanupBonjour();
     //cleanupUdpBroadcast();
