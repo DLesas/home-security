@@ -1,4 +1,5 @@
 import { useSocketData, type schedule as scheduleType } from '../socketData'
+import { useSocket } from '../socketInitializer'
 import { Input } from '@nextui-org/input'
 import { Select, SelectItem } from '@nextui-org/select'
 import { TimeInput } from '@nextui-org/date-input'
@@ -52,6 +53,7 @@ export function ScheduleEditor({
   onClose: () => void
 }) {
   const { sensors } = useSocketData()
+  const { url } = useSocket()
 
   // Schedule type selection
   const [scheduleType, setScheduleType] = useState<'recurring' | 'oneTime'>('recurring')
@@ -164,7 +166,7 @@ export function ScheduleEditor({
       const endpoint = schedule ? `/schedules/${schedule.id}` : '/schedules/new'
       const method = schedule ? 'PUT' : 'POST'
 
-      const response = await fetch(`/api/v1${endpoint}`, {
+      const response = await fetch(`${url}/api/v1${endpoint}`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(scheduleData),
@@ -188,7 +190,7 @@ export function ScheduleEditor({
     if (!schedule) return
     setLoading(true)
     try {
-      const response = await fetch(`/api/v1/schedules/${schedule.id}`, {
+      const response = await fetch(`${url}/api/v1/schedules/${schedule.id}`, {
         method: 'DELETE',
       })
       if (!response.ok) throw new Error('Failed to delete schedule')
