@@ -281,7 +281,7 @@ export class SensorTimeoutMonitor {
           );
           // Use shared function to update sensor state to unknown (safely updates entity)
           await setSensorStatusUnknown([fresh]);
-          db.insert(sensorUpdatesTable).values({
+          await db.insert(sensorUpdatesTable).values({
             sensorId: fresh.externalID,
             state: "unknown",
             temperature: undefined,

@@ -185,8 +185,8 @@ export async function DoorSensorUpdate({
   currentState.frequency = frequency ? frequency : undefined;
   currentState.lastUpdated = new Date();
   await doorSensorRepository.save(currentState);
-  // not awaiting as server is running continously so this will happen in background
-  db.insert(sensorUpdatesTable).values({
+  // Log sensor update to PostgreSQL
+  await db.insert(sensorUpdatesTable).values({
     sensorId: currentState.externalID,
     state: state,
     temperature: temperature.toString(),
