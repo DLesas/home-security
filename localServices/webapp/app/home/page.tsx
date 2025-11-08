@@ -256,7 +256,12 @@ const LogCard: React.FC<LogCardProps> = ({ logKey, data }) => {
                 variant="light"
                 size="sm"
                 onPress={() => handleSensorClick(sensorName)}
-                className="min-w-0 px-2"
+                className={`min-w-0 px-2 ${
+                  // @ts-ignore
+                  data.logs[logKey][sensorName]?.armed
+                    ? 'text-danger-400'
+                    : 'text-foreground'
+                }`}
               >
                 {sensorName}
               </Button>
