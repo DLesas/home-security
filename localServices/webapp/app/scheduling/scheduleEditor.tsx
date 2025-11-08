@@ -164,7 +164,7 @@ export function ScheduleEditor({
       const endpoint = schedule ? `/schedules/${schedule.id}` : '/schedules/new'
       const method = schedule ? 'PUT' : 'POST'
 
-      const response = await fetch(`/api${endpoint}`, {
+      const response = await fetch(`/api/v1${endpoint}`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(scheduleData),
@@ -188,7 +188,7 @@ export function ScheduleEditor({
     if (!schedule) return
     setLoading(true)
     try {
-      const response = await fetch(`/api/schedules/${schedule.id}`, {
+      const response = await fetch(`/api/v1/schedules/${schedule.id}`, {
         method: 'DELETE',
       })
       if (!response.ok) throw new Error('Failed to delete schedule')
