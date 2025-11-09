@@ -32,14 +32,16 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="bg-background text-foreground theme-blue-dark">
-      <body className={`${VollkornFont.variable} font-sans`}>
+    <html lang="en" className="bg-background text-foreground">
+      <body className={`${VollkornFont.variable} font-sans antialiased`}>
         <Providers>
           <Toaster position="bottom-right" reverseOrder={false} />
           <SocketInitializer>
             <SocketDataProvider>
-              <Navbar></Navbar>
-              {children}
+              <Navbar />
+              <main className="min-h-screen">
+                {children}
+              </main>
             </SocketDataProvider>
           </SocketInitializer>
         </Providers>
