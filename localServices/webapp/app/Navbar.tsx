@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { useRouter, usePathname } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import {
   Navbar,
   NavbarBrand,
@@ -13,39 +13,28 @@ import {
 } from '@nextui-org/navbar'
 import { Badge } from '@nextui-org/badge'
 import { Button } from '@nextui-org/button'
-import { AcmeLogo } from '../components/AcmeLogo'
 import { MdNotifications } from 'react-icons/md'
+import { HiOutlineMoon, HiOutlineSun } from 'react-icons/hi2'
 import { Popover, PopoverTrigger, PopoverContent } from '@nextui-org/popover'
+import { useTheme } from 'next-themes'
 import { useSocket } from './socketInitializer'
 import { useSocketData } from './socketData'
 import NextLink from 'next/link'
 import { Link as NextUILink } from '@nextui-org/link'
 
-type LogStatus = 'open' | 'closed'
-interface DoorValues {
-  status: LogStatus
-  armed: boolean
+interface Issue {
+  msg: string
+  time: Date
+  id: string
 }
 
-interface DoorEntries {
-  [key: string]: DoorValues
-}
-
-interface Example {
+interface Data {
   alarm: boolean
   logs: {
-    [key: string]: DoorEntries | {}
+    [key: string]: any
   }
-  issues:
-    | {
-        msg: string
-        time: Date
-        id: string
-      }[]
-    | [] // Update to allow for an empty array
+  issues: Issue[] | []
 }
-
-type Data = Example
 
 function dismiss(socket: any, callback: () => void, subject: string) {
   if (socket) {
@@ -58,43 +47,56 @@ function Notifications({ data }: { data: Data }) {
 
   return (
     <Badge
-      content={
-        data.issues
-          ? data.issues.length > 0
-            ? data.issues.length
-            : undefined
-          : undefined
-      }
+      content={data.issues?.length > 0 ? data.issues.length : undefined}
       shape="circle"
       color="danger"
+      size="sm"
     >
-      <Popover placement="bottom" showArrow offset={20}>
+      <Popover placement="bottom-end" showArrow offset={10}>
         <PopoverTrigger>
-          <Button isIconOnly radius="full" variant="light">
-            <MdNotifications size={24}></MdNotifications>
+          <Button
+            isIconOnly
+            radius="full"
+            variant="light"
+            size="sm"
+            aria-label="Notifications"
+          >
+            <MdNotifications size={20} />
           </Button>
         </PopoverTrigger>
-        <PopoverContent
-          className="w-4/6 p-4"
-          aria-label="Dropdown menu with description"
-        >
-          <div className="flex flex-col gap-4">
-            {data.issues
-              ? data.issues.map((issue) => (
+        <PopoverContent className="w-80 p-0">
+          <div className="px-4 py-3 border-b border-default-200 dark:border-default-100">
+            <p className="text-sm font-semibold">Notifications</p>
+          </div>
+          <div className="max-h-96 overflow-y-auto">
+            {data.issues?.length > 0 ? (
+              <div className="divide-y divide-default-200 dark:divide-default-100">
+                {data.issues.map((issue) => (
                   <div
-                    className="flex flex-row items-center justify-between gap-4"
                     key={issue.id}
+                    className="px-4 py-3 hover:bg-default-100 dark:hover:bg-default-50 transition-colors"
                   >
-                    <div className="whitespace-break-spaces">{issue.msg}</div>
-                    <Button
-                      size="sm"
-                      onClick={() => dismiss(socket, () => {}, issue.id)}
-                    >
-                      dismiss
-                    </Button>
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-sm text-default-700 dark:text-default-600 flex-1">
+                        {issue.msg}
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="flat"
+                        onPress={() => dismiss(socket, () => {}, issue.id)}
+                        className="shrink-0"
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
                   </div>
-                ))
-              : null}
+                ))}
+              </div>
+            ) : (
+              <div className="px-4 py-8 text-center">
+                <p className="text-sm text-default-500">No notifications</p>
+              </div>
+            )}
           </div>
         </PopoverContent>
       </Popover>
@@ -102,10 +104,39 @@ function Notifications({ data }: { data: Data }) {
   )
 }
 
-export default function App() {
-  const router = useRouter()
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return (
+      <Button isIconOnly radius="full" variant="light" size="sm">
+        <div className="w-5 h-5" />
+      </Button>
+    )
+  }
+
+  return (
+    <Button
+      isIconOnly
+      radius="full"
+      variant="light"
+      size="sm"
+      onPress={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+      aria-label="Toggle theme"
+    >
+      {theme === 'dark' ? <HiOutlineSun size={20} /> : <HiOutlineMoon size={20} />}
+    </Button>
+  )
+}
+
+export default function AppNavbar() {
   const pathname = usePathname()
-  const { data, isConnected } = useSocketData()
+  const { data } = useSocketData()
   const [isMenuOpen, setIsMenuOpen] = React.useState(false)
 
   const menuItems = [
@@ -118,91 +149,69 @@ export default function App() {
   ]
 
   return (
-    <Navbar isMenuOpen={isMenuOpen} onMenuOpenChange={setIsMenuOpen}>
+    <Navbar
+      isMenuOpen={isMenuOpen}
+      onMenuOpenChange={setIsMenuOpen}
+      maxWidth="2xl"
+      classNames={{
+        wrapper: 'px-4 md:px-6',
+        base: 'border-b border-default-200 dark:border-default-100',
+      }}
+    >
+      {/* Mobile: Hamburger + Logo */}
       <NavbarContent>
         <NavbarMenuToggle
           aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
-          className="sm:hidden"
+          className="md:hidden"
         />
         <NavbarBrand>
-          <AcmeLogo />
-          <p className="font-bold text-inherit">Dimitri's security</p>
-        </NavbarBrand>
-      </NavbarContent>
-
-      <NavbarContent className="hidden gap-4 sm:flex" justify="center">
-        <NavbarItem isActive={pathname === '/home'}>
           <NextUILink
             as={NextLink}
             href="/home"
-            color={pathname === '/home' ? 'primary' : 'foreground'}
+            color="foreground"
+            className="font-volkorn font-semibold text-lg"
           >
-            Home
+            Home Security
           </NextUILink>
-        </NavbarItem>
-        <NavbarItem isActive={pathname === '/logs'}>
-          <NextUILink
-            as={NextLink}
-            href="/logs"
-            color={pathname === '/logs' ? 'primary' : 'foreground'}
-          >
-            Logs
-          </NextUILink>
-        </NavbarItem>
-        <NavbarItem isActive={pathname === '/scheduling'}>
-          <NextUILink
-            as={NextLink}
-            href="/scheduling"
-            color={pathname === '/scheduling' ? 'primary' : 'foreground'}
-          >
-            Scheduling
-          </NextUILink>
-        </NavbarItem>
-        <NavbarItem isActive={pathname === '/settings'}>
-          <NextUILink
-            as={NextLink}
-            href="/settings"
-            color={pathname === '/settings' ? 'primary' : 'foreground'}
-          >
-            Settings
-          </NextUILink>
-        </NavbarItem>
-        <NavbarItem isActive={pathname === '/all'}>
-          <NextUILink
-            as={NextLink}
-            href="/all"
-            color={pathname === '/all' ? 'primary' : 'foreground'}
-          >
-            All
-          </NextUILink>
-        </NavbarItem>
-        <NavbarItem isActive={pathname === '/test'}>
-          <NextUILink
-            as={NextLink}
-            href="/test"
-            color={pathname === '/test' ? 'primary' : 'foreground'}
-          >
-            Test
-          </NextUILink>
-        </NavbarItem>
+        </NavbarBrand>
       </NavbarContent>
+
+      {/* Desktop: Navigation Links */}
+      <NavbarContent className="hidden md:flex gap-6" justify="center">
+        {menuItems.map((item) => (
+          <NavbarItem key={item.href} isActive={pathname === item.href}>
+            <NextUILink
+              as={NextLink}
+              href={item.href}
+              color={pathname === item.href ? 'primary' : 'foreground'}
+              className="text-sm font-medium"
+            >
+              {item.name}
+            </NextUILink>
+          </NavbarItem>
+        ))}
+      </NavbarContent>
+
+      {/* Right Side: Notifications + Theme Toggle */}
       <NavbarContent justify="end">
-        <NavbarItem></NavbarItem>
+        <NavbarItem>
+          <ThemeToggle />
+        </NavbarItem>
         <NavbarItem>
           <Notifications data={data} />
         </NavbarItem>
       </NavbarContent>
-      <NavbarMenu>
-        {menuItems.map((item, index) => (
-          <NavbarMenuItem key={`${item}-${index}`}>
+
+      {/* Mobile Menu */}
+      <NavbarMenu className="pt-6 gap-2">
+        {menuItems.map((item) => (
+          <NavbarMenuItem key={item.href}>
             <NextUILink
               as={NextLink}
-              color={item.href === pathname ? 'primary' : 'foreground'}
-              className="w-full"
               href={item.href}
-              onPress={() => {
-                setIsMenuOpen(false)
-              }}
+              color={pathname === item.href ? 'primary' : 'foreground'}
+              className="w-full text-base py-2"
+              onPress={() => setIsMenuOpen(false)}
             >
               {item.name}
             </NextUILink>

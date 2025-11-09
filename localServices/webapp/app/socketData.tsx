@@ -9,6 +9,7 @@ import React, {
 } from 'react'
 import { useSocket } from './socketInitializer' // Assuming you have a custom hook to get the socket instance
 import { useRouter } from 'next/navigation'
+import { SecurityData, DoorEntries, DoorValues, LogStatus, Issue } from './types'
 
 interface Alarm {
   name: string
@@ -77,38 +78,7 @@ interface SocketDataProps {
   children: ReactNode
 }
 
-type LogStatus = 'open' | 'closed'
-
-interface DoorValues {
-  status: LogStatus
-  armed: boolean
-}
-
-// Define the DoorEntries type with an index signature
-type DoorEntries = {
-  [sensorName: string]: {
-    status: string
-    armed: boolean
-  }
-}
-
-// Initialize logs with the correct type
-
-interface Example {
-  alarm: boolean
-  logs: {
-    [key: string]: DoorEntries | {}
-  }
-  issues:
-    | {
-        msg: string
-        time: Date
-        id: string
-      }[]
-    | []
-}
-
-type Data = Example
+type Data = SecurityData
 
 function formatData(sensors: doorSensor[], alarms: Alarm[]): Data {
   const logs: {

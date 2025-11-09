@@ -2,12 +2,66 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================
+   MINIMALIST DESIGN SYSTEM - MOBILE FIRST
+   Vercel/Notion inspired spacing & typography
+   ============================================ */
+
 @layer base {
   :root {
+    /* Original color variables */
     --background: 200 20% 98%;
     --btn-background: 200 10% 91%;
     --btn-background-hover: 200 10% 89%;
     --foreground: 200 50% 3%;
+
+    /* Spacing Scale (Mobile-First) */
+    --space-xs: 0.5rem;    /* 8px */
+    --space-sm: 1rem;      /* 16px */
+    --space-md: 1.5rem;    /* 24px */
+    --space-lg: 2rem;      /* 32px */
+    --space-xl: 2.5rem;    /* 40px */
+    --space-2xl: 3rem;     /* 48px */
+    --space-3xl: 4rem;     /* 64px */
+
+    /* Typography Scale */
+    --text-xs: 0.75rem;    /* 12px */
+    --text-sm: 0.875rem;   /* 14px */
+    --text-base: 1rem;     /* 16px */
+    --text-lg: 1.125rem;   /* 18px */
+    --text-xl: 1.25rem;    /* 20px */
+    --text-2xl: 1.5rem;    /* 24px */
+    --text-3xl: 1.875rem;  /* 30px */
+    --text-4xl: 2.25rem;   /* 36px */
+
+    /* Line Heights (Comfortable Reading) */
+    --leading-tight: 1.25;
+    --leading-normal: 1.5;
+    --leading-relaxed: 1.75;
+    --leading-loose: 2;
+
+    /* Border Radius */
+    --radius-sm: 0.375rem;  /* 6px */
+    --radius-md: 0.5rem;    /* 8px */
+    --radius-lg: 0.75rem;   /* 12px */
+    --radius-xl: 1rem;      /* 16px */
+
+    /* Monochrome Colors (Hybrid Approach) */
+    --color-mono-50: 0 0% 98%;   /* Near white */
+    --color-mono-100: 0 0% 95%;
+    --color-mono-200: 0 0% 90%;
+    --color-mono-300: 0 0% 80%;
+    --color-mono-400: 0 0% 60%;
+    --color-mono-500: 0 0% 40%;
+    --color-mono-600: 0 0% 30%;
+    --color-mono-700: 0 0% 20%;
+    --color-mono-800: 0 0% 10%;
+    --color-mono-900: 0 0% 5%;   /* Near black */
+
+    /* Transition Durations */
+    --transition-fast: 150ms;
+    --transition-normal: 200ms;
+    --transition-slow: 300ms;
   }
 
   @media (prefers-color-scheme: dark) {
@@ -16,13 +70,59 @@
       --btn-background: 200 10% 9%;
       --btn-background-hover: 200 10% 12%;
       --foreground: 200 20% 96%;
+
+      /* Invert monochrome for dark mode */
+      --color-mono-50: 0 0% 5%;
+      --color-mono-100: 0 0% 10%;
+      --color-mono-200: 0 0% 20%;
+      --color-mono-300: 0 0% 30%;
+      --color-mono-400: 0 0% 40%;
+      --color-mono-500: 0 0% 60%;
+      --color-mono-600: 0 0% 70%;
+      --color-mono-700: 0 0% 80%;
+      --color-mono-800: 0 0% 90%;
+      --color-mono-900: 0 0% 95%;
     }
   }
-}
 
-@layer base {
+  /* Base Element Styling */
   * {
     @apply border-foreground/20;
+  }
+
+  /* Body Typography (Mobile-First) */
+  body {
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Headings with Serif Accent */
+  h1, h2, h3 {
+    font-family: var(--font-vollkorn), Georgia, serif;
+    font-weight: 600;
+    line-height: var(--leading-tight);
+    letter-spacing: -0.02em;
+  }
+
+  h1 {
+    font-size: var(--text-3xl);
+  }
+
+  h2 {
+    font-size: var(--text-2xl);
+  }
+
+  h3 {
+    font-size: var(--text-xl);
+  }
+
+  /* Desktop Typography Scaling */
+  @media (min-width: 768px) {
+    h1 {
+      font-size: var(--text-4xl);
+    }
   }
 }
 
