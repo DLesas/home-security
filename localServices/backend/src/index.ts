@@ -89,8 +89,12 @@ server.listen(port, async () => {
   // Start the Socket Event Subscriber
   await socketEventSubscriber.start();
 
-  // Start the Sensor Timeout Monitor (using the singleton instance)
-  await sensorTimeoutMonitor.start();
+  // Start the Sensor Timeout Monitor after a 2-minute delay to allow devices to connect
+  const TIMEOUT_MONITOR_STARTUP_DELAY_MS = 2 * 60 * 1000; // 2 minutes
+  setTimeout(async () => {
+    console.log("Starting Sensor Timeout Monitor after startup delay...");
+    await sensorTimeoutMonitor.start();
+  }, TIMEOUT_MONITOR_STARTUP_DELAY_MS);
 
   // Initialize and start the Alarm Timeout Manager
   alarmTimeoutManager.setAlarmStateChangeCallback(changeAlarmState);
