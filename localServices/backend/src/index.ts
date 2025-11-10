@@ -78,7 +78,8 @@ app.use("/api/v1/schedules", scheduleRoutes);
 // Error handling middleware
 app.use(errorHandler);
 
-setupSocketHandlers(io);
+// Setup Socket.IO with Redis adapter before starting the server
+await setupSocketHandlers(io);
 
 // Initialize the Socket Event Subscriber
 const socketEventSubscriber = new SocketEventSubscriber();
