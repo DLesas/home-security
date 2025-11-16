@@ -1,0 +1,32 @@
+{
+  "name": "camera-ingestion",
+  "version": "1.0.0",
+  "description": "Camera ingestion service for home security system - captures frames, streams to clients, and records video",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts"
+  },
+  "keywords": [
+    "camera",
+    "video",
+    "streaming",
+    "recording",
+    "iot"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "socket.io": "^4.6.1",
+    "@socket.io/redis-adapter": "^8.2.1",
+    "redis": "^4.6.5",
+    "sharp": "^0.32.0",
+    "dotenv": "^16.0.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^18.0.0",
+    "tsx": "^3.12.6"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    /* Language and Environment */
+    "target": "es2017",
+
+    /* Modules */
+    "module": "ESNext",
+    "rootDir": "./src",
+    "moduleResolution": "Node",
+    "baseUrl": "./",
+    "paths": {
+      "*": ["*", "*.js"]
+    },
+
+    /* Emit */
+    "outDir": "./dist",
+
+    /* Interop Constraints */
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+
+    /* Type Checking */
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+
+    /* Completeness */
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.js",
+    "src/**/*.json"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "recordings"
+  ]
+}
