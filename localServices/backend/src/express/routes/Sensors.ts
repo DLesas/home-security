@@ -5,13 +5,14 @@ import { changeSensorStatus, DoorSensorUpdate } from "../../sensorFuncs";
 import { db, writePostgresCheckpoint } from "../../db/db";
 import { sensorsTable } from "../../db/schema/sensors";
 import { buildingTable } from "../../db/schema/buildings";
-import { eq } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { raiseEvent } from "../../events/notify";
 import { emitNewData } from "../socketHandler";
 import { EntityId } from "redis-om";
 import { raiseError } from "../../events/notify";
 import { makeID, truncateFromBeginning } from "../../utils/index";
 import { sensorLogsTable } from "../../db/schema/sensorLogs";
+import { sensorUpdatesTable } from "../../db/schema/sensorUpdates";
 import { writeRedisCheckpoint } from "../../redis/index";
 import { identifyDevice } from "../../utils/deviceIdentification";
 import { sensorTimeoutMonitor } from "../../microDeviceTimeoutMonitor";
@@ -412,6 +413,67 @@ router.delete("/:sensorId", async (req, res, next) => {
 });
 
 // Routes below are used by the phone app and the web app
+
+/**
+ * @route GET /:sensorId/updates
+ * @description Gets paginated updates for a sensor
+ * @param {express.Request} req - The request object
+ * @param {express.Response} res - The response object
+ * @returns {void}
+ * @urlparam {string} sensorId - The ID of the sensor
+ * @queryparam {number} limit - Number of updates per page (default: 100, max: 1000)
+ * @queryparam {number} offset - Number of updates to skip (default: 0)
+ * @queryparam {string} state - Filter by state (open, closed, unknown)
+ */
+router.get("/:sensorId/updates", async (req, res, next) => {
+  const { sensorId } = req.params;
+  const limit = Math.min(
+    parseInt(req.query.limit as string) || 100,
+    1000
+  );
+  const offset = Math.max(
+    parseInt(req.query.offset as string) || 0,
+    0
+  );
+  const stateFilter = req.query.state as string | undefined;
+
+  // Verify sensor exists
+  const sensor = (await doorSensorRepository
+    .search()
+    .where("externalID")
+    .eq(sensorId)
+    .returnFirst()) as doorSensor | null;
+
+  if (!sensor) {
+    next(raiseError(404, "Sensor not recognized"));
+    return;
+  }
+
+  // Build where conditions
+  const whereConditions = [eq(sensorUpdatesTable.sensorId, sensorId)];
+
+  if (stateFilter && ['open', 'closed', 'unknown'].includes(stateFilter)) {
+    whereConditions.push(eq(sensorUpdatesTable.state, stateFilter as 'open' | 'closed' | 'unknown'));
+  }
+
+  // Get the paginated updates for this sensor
+  const updates = await db
+    .select()
+    .from(sensorUpdatesTable)
+    .where(and(...whereConditions))
+    .orderBy(desc(sensorUpdatesTable.dateTime))
+    .limit(limit)
+    .offset(offset);
+
+  res.json({
+    status: "success",
+    limit,
+    offset,
+    state: stateFilter || null,
+    count: updates.length,
+    updates: updates
+  });
+});
 
 /**
  * @route POST /:sensorId/arm
