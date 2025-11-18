@@ -5,77 +5,30 @@ import { useSocketData } from '../../socketData'
 import { Button } from '@nextui-org/button'
 import { Card } from '@nextui-org/card'
 import { Chip } from '@nextui-org/chip'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useSocket } from '../../socketInitializer'
-
-interface SensorUpdate {
-  id: string
-  sensorId: string
-  sensorName: string
-  state: 'open' | 'closed' | 'unknown'
-  temperature: string
-  voltage: string
-  frequency: string
-  dateTime: string
-}
-
-interface LogResponse {
-  success: boolean
-  data: SensorUpdate[]
-  pagination: {
-    page: number
-    limit: number
-    total: number
-    totalPages: number
-  }
-}
+import { useSensorUpdatesQuery } from '../../../hooks/queries/useSensorUpdatesQuery'
 
 export default function SensorDetail() {
   const params = useParams()
   const router = useRouter()
   const { sensors } = useSocketData()
   const { url } = useSocket()
-  const [recentActivity, setRecentActivity] = useState<SensorUpdate[]>([])
-  const [loadingActivity, setLoadingActivity] = useState(true)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
+  const [limit, setLimit] = useState(10)
   const [armLoading, setArmLoading] = useState(false)
   const [disarmLoading, setDisarmLoading] = useState(false)
 
   const sensorId = params.sensorId as string
   const sensor = sensors.find((s) => s.externalID === sensorId)
 
-  useEffect(() => {
-    if (sensor) {
-      fetchRecentActivity(1)
-    }
-  }, [sensor])
-
-  const fetchRecentActivity = async (page: number) => {
-    if (!sensor) return
-
-    setLoadingActivity(true)
-    try {
-      const response = await fetch(
-        `${url}/api/v1/logs/sensor-updates?sensorName=${encodeURIComponent(sensor.name)}&limit=10&page=${page}&sort=desc`
-      )
-      const data: LogResponse = await response.json()
-
-      if (data.success) {
-        if (page === 1) {
-          setRecentActivity(data.data)
-        } else {
-          setRecentActivity([...recentActivity, ...data.data])
-        }
-        setCurrentPage(page)
-        setTotalPages(data.pagination.totalPages)
-      }
-    } catch (error) {
-      console.error('Failed to fetch recent activity:', error)
-    } finally {
-      setLoadingActivity(false)
-    }
-  }
+  // Fetch sensor updates using TanStack Query
+  const { data, isLoading } = useSensorUpdatesQuery(
+    sensorId,
+    limit,
+    0,
+    undefined,
+    !!sensor
+  )
 
   const handleArm = async () => {
     if (!sensor) return
@@ -261,18 +214,18 @@ export default function SensorDetail() {
       <Card className="p-4 sm:p-6">
         <h2 className="mb-3 text-base font-semibold sm:mb-4 sm:text-lg">📜 Recent Activity</h2>
 
-        {loadingActivity && currentPage === 1 ? (
+        {isLoading ? (
           <div className="py-8 text-center text-sm text-gray-500 sm:text-base">
             Loading activity...
           </div>
-        ) : recentActivity.length === 0 ? (
+        ) : !data || data.updates.length === 0 ? (
           <div className="py-8 text-center text-sm text-gray-500 sm:text-base">
             No activity recorded yet
           </div>
         ) : (
           <>
             <div className="space-y-2">
-              {recentActivity.map((update) => (
+              {data.updates.map((update) => (
                 <div
                   key={update.id}
                   className="flex flex-col gap-2 border-b py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
@@ -280,7 +233,7 @@ export default function SensorDetail() {
                   {/* Left side: Time and Status */}
                   <div className="flex items-center gap-3">
                     <div className="text-xs text-gray-500 sm:text-sm">
-                      {formatDate(update.dateTime)}
+                      {formatDate(update.dateTime || '')}
                     </div>
                     <Chip
                       color={getStateColor(update.state)}
@@ -293,19 +246,18 @@ export default function SensorDetail() {
 
                   {/* Right side: Telemetry data */}
                   <div className="flex gap-3 text-xs text-gray-600 sm:gap-4 sm:text-sm">
-                    <span>🌡️ {update.temperature}°C</span>
-                    <span className="text-gray-400">🔋 {update.voltage}V</span>
+                    <span>🌡️ {update.temperature || 'N/A'}°C</span>
+                    <span className="text-gray-400">🔋 {update.voltage || 'N/A'}V</span>
                   </div>
                 </div>
               ))}
             </div>
 
-            {currentPage < totalPages && (
+            {data.count === limit && (
               <div className="mt-4 text-center">
                 <Button
                   variant="bordered"
-                  onPress={() => fetchRecentActivity(currentPage + 1)}
-                  isLoading={loadingActivity}
+                  onPress={() => setLimit(limit + 10)}
                   size="lg"
                   className="w-full sm:w-auto"
                 >
