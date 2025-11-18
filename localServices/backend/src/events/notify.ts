@@ -48,7 +48,7 @@ export async function raiseEvent(event: Event) {
     system: event.system,
   });
   if (event.type === "warning" || event.type === "critical" || event.title) {
-    event.title = event.title ? event.title : `${event.type} System Event`;
+    event.title = event.title ? event.title : `${event.type} System Event` as unknown as EventTitle;
     await publishEvent({
       type: event.type,
       message: event.message,
