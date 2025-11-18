@@ -107,12 +107,12 @@ export default function Index() {
         {/* Connection Status Pill */}
         <div className="flex items-center gap-2">
           {isConnected ? (
-            <StatusPill type="connected">
-              <FaCircle size={8} /> Connected
+            <StatusPill type="connected" startContent={<FaCircle size={8} />}>
+           Connected
             </StatusPill>
           ) : (
-            <StatusPill type="disconnected">
-              <FaRegCircle size={8} /> Disconnected
+            <StatusPill type="disconnected" startContent={<FaRegCircle size={8} />}>
+              Disconnected
             </StatusPill>
           )}
         </div>

@@ -155,7 +155,6 @@ export default function AppNavbar() {
       maxWidth="2xl"
       classNames={{
         wrapper: 'px-4 md:px-6',
-        base: 'border-b border-default-200 dark:border-default-100',
       }}
     >
       {/* Mobile: Hamburger + Logo */}
