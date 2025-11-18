@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import ms from "ms";
 import { StreamCapture, FrameData } from "./streams/streamInterface";
 import { emitFrame } from "./socketHandler";
 import {
@@ -11,6 +12,7 @@ import {
 } from "./config";
 import { cpuMonitor } from "./cpuMonitor";
 import { ContinuousRecorder } from "./recording/continuousRecorder";
+import { raiseEvent } from "./utils/events";
 
 /**
  * FrameGrabber orchestrates frame capture, compression, and distribution
@@ -36,6 +38,11 @@ export class FrameGrabber {
   // Performance metrics
   private frameProcessingTimes: number[] = [];
   private lastQualityAdjustment: number = 0;
+
+  // Frame flow health monitoring
+  private lastFrameTime: number = 0;
+  private frameFlowState: 'healthy' | 'warning' | 'critical' = 'healthy';
+  private frameFlowCheckInterval: NodeJS.Timeout | null = null;
 
   constructor(streamCapture: StreamCapture, aiSamplingRate?: number) {
     this.streamCapture = streamCapture;
@@ -82,6 +89,11 @@ export class FrameGrabber {
     // Start the recorder (FFmpeg fps filter handles CFR)
     await this.recorder.start();
 
+    // Start frame flow health monitoring
+    this.lastFrameTime = Date.now();
+    this.frameFlowState = 'healthy';
+    this.startFrameFlowMonitoring();
+
     this.isRunning = true;
     console.log(
       `[FrameGrabber ${this.streamCapture.getCameraId()}] Started successfully`
@@ -103,6 +115,12 @@ export class FrameGrabber {
       `[FrameGrabber ${this.streamCapture.getCameraId()}] Stopping frame grabber`
     );
 
+    // Stop frame flow monitoring
+    if (this.frameFlowCheckInterval) {
+      clearInterval(this.frameFlowCheckInterval);
+      this.frameFlowCheckInterval = null;
+    }
+
     // Remove all listeners
     this.streamCapture.removeAllListeners("frame");
     this.streamCapture.removeAllListeners("error");
@@ -115,10 +133,6 @@ export class FrameGrabber {
 
     this.isRunning = false;
     this.frameCount = 0;
-
-    console.log(
-      `[FrameGrabber ${this.streamCapture.getCameraId()}] Stopped successfully`
-    );
   }
 
   /**
@@ -127,6 +141,17 @@ export class FrameGrabber {
   private async handleFrame(frameData: FrameData): Promise<void> {
     const startTime = Date.now();
     this.frameCount++;
+
+    // Update frame flow monitoring
+    const previousState = this.frameFlowState;
+    const previousTime = this.lastFrameTime;
+    this.lastFrameTime = startTime;
+
+    // Reset to healthy if we were in warning/critical state
+    if (previousState !== 'healthy') {
+      this.frameFlowState = 'healthy';
+      await this.emitFrameFlowRecovery(previousState, previousTime);
+    }
 
     try {
       const cameraId = this.streamCapture.getCameraId();
@@ -155,7 +180,7 @@ export class FrameGrabber {
         const avgProcessing = this.getAverageProcessingTime();
         const fps = this.getCurrentFPS();
         console.log(
-          `[FrameGrabber ${cameraId}] Frame ${this.frameCount} | ` +
+          `[FrameGrabber ${cameraId}, ${this.streamCapture.getCameraName()}] Frame ${this.frameCount} | ` +
           `FPS: ${fps.toFixed(1)} | ` +
           `Avg Processing: ${avgProcessing.toFixed(2)}ms | ` +
           `JPEG Size: ${(jpegBuffer.length / 1024).toFixed(1)}KB`
@@ -296,5 +321,125 @@ export class FrameGrabber {
    */
   public getCameraId(): string {
     return this.streamCapture.getCameraId();
+  }
+
+  /**
+   * Start frame flow health monitoring
+   * Checks every 2 seconds for frame flow issues
+   */
+  private startFrameFlowMonitoring(): void {
+    this.frameFlowCheckInterval = setInterval(() => {
+      this.checkFrameFlow();
+    }, 2000); // Check every 2 seconds
+  }
+
+  /**
+   * Check frame flow and escalate if needed
+   * State transitions:
+   * - healthy → warning (5s no frames)
+   * - warning → critical (10s no frames)
+   * - warning/critical → healthy (frames resume)
+   */
+  private async checkFrameFlow(): Promise<void> {
+    const now = Date.now();
+    const timeSinceLastFrame = now - this.lastFrameTime;
+
+    if (timeSinceLastFrame >= 10000 && this.frameFlowState !== 'critical') {
+      // 10+ seconds without frames - CRITICAL
+      this.frameFlowState = 'critical';
+      await this.emitFrameFlowCritical();
+      await this.restartStream();
+    } else if (timeSinceLastFrame >= 5000 && this.frameFlowState === 'healthy') {
+      // 5-10 seconds without frames - WARNING
+      this.frameFlowState = 'warning';
+      await this.emitFrameFlowWarning();
+    }
+  }
+
+  /**
+   * Emit warning event when frames stop for 5 seconds
+   */
+  private async emitFrameFlowWarning(): Promise<void> {
+    const cameraId = this.streamCapture.getCameraId();
+    const cameraName = this.streamCapture.getCameraName();
+    console.warn(
+      `[FrameGrabber ${cameraId}, ${cameraName}] ⚠️ WARNING: No frames received for 5 seconds`
+    );
+
+    await raiseEvent({
+      type: 'warning',
+      message: `System has not recieved frames from camera "${cameraName}" with id ${cameraId} for over 5 seconds.`,
+      system: 'cameraIngestion:frameFlow'
+    });
+  }
+
+  /**
+   * Emit critical event when frames stop for 10 seconds
+   */
+  private async emitFrameFlowCritical(): Promise<void> {
+    const cameraId = this.streamCapture.getCameraId();
+    const cameraName = this.streamCapture.getCameraName();
+    console.error(
+      `[FrameGrabber ${cameraId}, ${cameraName}] ⚠️ WARNING: No frames received for over 10 seconds, restarting stream...`
+    );
+
+    await raiseEvent({
+      type: 'warning',
+      message: `System has not recieved frames from camera "${cameraName}" with id ${cameraId} for over 10 seconds... attempting to restart the stream.`,
+      system: 'cameraIngestion:frameFlow'
+    });
+  }
+
+  /**
+   * Emit recovery event when frames resume after warning/critical state
+   */
+  private async emitFrameFlowRecovery(previousState: 'warning' | 'critical', time: number): Promise<void> {
+    const cameraId = this.streamCapture.getCameraId();
+    const cameraName = this.streamCapture.getCameraName();
+    const downtimeMs = this.lastFrameTime - time;
+    const downtimeHuman = ms(downtimeMs, { long: true });
+
+    console.log(
+      `[FrameGrabber ${cameraId}, ${cameraName}] ✓ Frame flow recovered from ${previousState} state`
+    );
+
+    await raiseEvent({
+      type: 'info',
+      message: `Camera "${cameraName}" has recovered and is now sending frames again after being offline for ${downtimeHuman}.`,
+      system: 'cameraIngestion:frameFlow',
+    });
+  }
+
+  /**
+   * Restart the stream when frame flow is critical
+   */
+  private async restartStream(): Promise<void> {
+    const cameraId = this.streamCapture.getCameraId();
+    const cameraName = this.streamCapture.getCameraName();
+    console.log(`[FrameGrabber ${cameraId}] Restarting stream due to frame flow failure...`);
+
+    try {
+      // Stop everything
+      await this.stop();
+
+      // Wait a moment before restarting
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Restart everything
+      await this.start();
+
+      console.log(`[FrameGrabber ${cameraId}] Stream restarted successfully`);
+    } catch (error) {
+      console.error(
+        `[FrameGrabber ${cameraId}] Failed to restart stream:`,
+        error
+      );
+
+      await raiseEvent({
+        type: 'critical',
+        message: `Camera "${cameraName}" stream failed to restart after not receiving frames for over 10 seconds...please investigate the camera.`,
+        system: 'cameraIngestion:frameFlow'
+      });
+    }
   }
 }
