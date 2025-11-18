@@ -1,12 +1,18 @@
 import { Repository, Schema } from "redis-om";
 import { redis } from "./index";
 
+export enum CameraProtocol {
+  UDP = "udp",
+  RTSP = "rtsp",
+}
+
 const cameraSchema = new Schema("cameras", {
   name: { type: "string" },
   externalID: { type: "string" },
   building: { type: "string" },
   ipAddress: { type: "string" },
   port: { type: "number" },
+  protocol: { type: "string" }, // "udp" or "rtsp"
   macAddress: { type: "string" },
   temperature: { type: "number" },
   voltage: { type: "number" },
@@ -24,6 +30,7 @@ export interface Camera {
   building?: string;
   ipAddress?: string;
   port: number;
+  protocol?: CameraProtocol; // Defaults to UDP if not specified
   macAddress?: string;
   temperature?: number;
   voltage?: number;
