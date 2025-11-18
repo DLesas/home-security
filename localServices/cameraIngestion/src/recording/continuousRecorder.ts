@@ -6,22 +6,24 @@ import {
   RETENTION_DAYS,
   SEGMENT_DURATION_SECONDS,
 } from "../config";
+import { getEncoderArgs } from "../utils/hardwareEncoder";
 
 /**
  * ContinuousRecorder manages video recording for a single camera
  *
  * Features:
- * - Records JPEG frames to video segments using FFmpeg
+ * - Records JPEG frames to HLS video segments using FFmpeg
+ * - Hardware-accelerated H.264 encoding (auto-detects: VideoToolbox, NVENC, QSV, etc.)
  * - Automatic segment rotation every N seconds (default: 10 minutes)
  * - Automatic cleanup of old recordings (default: 7 days retention)
- * - Uses FFmpeg's segment muxer to write directly to disk
- * - No re-encoding (JPEG frames are muxed into MKV container)
+ * - HLS format enables seamless scrubbing across segments in web players
  *
  * Directory structure:
  * /recordings/
  *   ├── camera1/
- *   │   ├── 2023-11-11_14-30-00.mkv
- *   │   ├── 2023-11-11_14-40-00.mkv
+ *   │   ├── playlist.m3u8
+ *   │   ├── segment-00001.ts
+ *   │   ├── segment-00002.ts
  *   │   └── ...
  *   └── camera2/
  *       └── ...
@@ -31,7 +33,6 @@ export class ContinuousRecorder {
   private cameraDir: string;
   private fps: number;
   private ffmpegProcess: FFmpegProcess;
-  private cleanupInterval: NodeJS.Timeout | null = null;
 
   constructor(cameraId: string, fps: number = 30) {
     this.cameraId = cameraId;
@@ -48,7 +49,16 @@ export class ContinuousRecorder {
         super(cameraId);
       }
 
-      protected buildFFmpegArgs(): string[] {
+      protected async buildFFmpegArgs(): Promise<string[]> {
+        // Get hardware encoder arguments (auto-detected at startup)
+        const encoderArgs = await getEncoderArgs();
+
+        // Calculate max segments to keep (based on retention days)
+        // Example: 7 days * 24 hours * 6 segments/hour = 1008 segments
+        const maxSegments = Math.ceil(
+          (RETENTION_DAYS * 24 * 60 * 60) / SEGMENT_DURATION_SECONDS
+        );
+
         return [
           // Input from stdin (JPEG frames at variable rate)
           "-f", "image2pipe",
@@ -58,17 +68,20 @@ export class ContinuousRecorder {
           // Use fps filter to maintain constant frame rate (duplicates/drops frames as needed)
           "-vf", `fps=${this.fps}`,
 
-          // Output options - mux JPEGs into MKV segments without re-encoding
-          "-c:v", "mjpeg",                   // Output as MJPEG (required when using filter)
-          "-f", "segment",                   // Enable segmentation
-          "-segment_time", `${SEGMENT_DURATION_SECONDS}`, // Rotate every N seconds (auto rotation)
-          "-segment_format", "matroska",     // Use MKV container
-          "-segment_atclocktime", "1",       // Align segments to clock time
-          "-strftime", "1",                  // Enable strftime in output filename
-          "-reset_timestamps", "1",          // Reset timestamps for each segment
+          // Hardware-accelerated H.264 encoding
+          ...encoderArgs,
 
-          // Output filename pattern with timestamp - FFmpeg creates new files automatically
-          path.join(this.cameraDir, "%Y-%m-%d_%H-%M-%S.mkv"),
+          // HLS output options
+          "-f", "hls",                                    // HLS format
+          "-hls_time", `${SEGMENT_DURATION_SECONDS}`,    // Segment duration (10 min)
+          "-hls_list_size", `${maxSegments}`,            // Max segments to keep in playlist
+          "-hls_flags", "delete_segments",               // Auto-delete segments when limit reached
+          "-hls_segment_type", "mpegts",                 // Use MPEG-TS containers
+          "-hls_segment_filename", path.join(this.cameraDir, "segment-%05d.ts"), // Segment naming
+          "-strftime", "0",                              // Don't use strftime (use sequential numbers)
+
+          // Output playlist file
+          path.join(this.cameraDir, "playlist.m3u8"),
         ];
       }
 
@@ -111,8 +124,7 @@ export class ContinuousRecorder {
       // Start FFmpeg process
       await this.ffmpegProcess.start();
 
-      // Start cleanup task (runs every hour)
-      this.startCleanupTask();
+      // Note: FFmpeg handles cleanup automatically via -hls_list_size and -hls_flags delete_segments
     } catch (error) {
       console.error(`[Recorder ${this.cameraId}] Failed to start recording:`, error);
       throw error;
@@ -144,12 +156,6 @@ export class ContinuousRecorder {
   async stop(): Promise<void> {
     console.log(`[Recorder ${this.cameraId}] Stopping recording...`);
 
-    // Stop cleanup task
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
-      this.cleanupInterval = null;
-    }
-
     // Close stdin to signal end of input, then stop
     const stdin = (this.ffmpegProcess as any).ffmpegProcess?.stdin;
     if (stdin) {
@@ -164,58 +170,16 @@ export class ContinuousRecorder {
   }
 
   /**
-   * Start periodic cleanup of old recordings
+   * Note: Cleanup is handled automatically by FFmpeg
+   *
+   * FFmpeg configuration:
+   * - hls_list_size: Limits playlist to N most recent segments
+   * - hls_flags delete_segments: Auto-deletes old segment files
+   *
+   * When a new segment is created and the limit is reached,
+   * FFmpeg automatically removes the oldest segment file and
+   * updates the playlist accordingly.
    */
-  private startCleanupTask(): void {
-    // Run cleanup immediately
-    this.cleanupOldRecordings().catch((err) =>
-      console.error(`[Recorder ${this.cameraId}] Cleanup failed:`, err)
-    );
-
-    // Run cleanup every hour
-    this.cleanupInterval = setInterval(() => {
-      this.cleanupOldRecordings().catch((err) =>
-        console.error(`[Recorder ${this.cameraId}] Cleanup failed:`, err)
-      );
-    }, 60 * 60 * 1000);
-  }
-
-  /**
-   * Delete recordings older than RETENTION_DAYS
-   */
-  private async cleanupOldRecordings(): Promise<void> {
-    try {
-      const files = await fs.promises.readdir(this.cameraDir);
-      const now = Date.now();
-      const retentionMs = RETENTION_DAYS * 24 * 60 * 60 * 1000;
-
-      let deletedCount = 0;
-
-      for (const file of files) {
-        // Only process video files
-        if (!file.endsWith(".mkv")) {
-          continue;
-        }
-
-        const filePath = path.join(this.cameraDir, file);
-        const stats = await fs.promises.stat(filePath);
-
-        // Delete if older than retention period
-        if (now - stats.mtimeMs > retentionMs) {
-          await fs.promises.unlink(filePath);
-          deletedCount++;
-        }
-      }
-
-      if (deletedCount > 0) {
-        console.log(
-          `[Recorder ${this.cameraId}] Cleanup: deleted ${deletedCount} old recording(s)`
-        );
-      }
-    } catch (error) {
-      console.error(`[Recorder ${this.cameraId}] Cleanup error:`, error);
-    }
-  }
 
   /**
    * Check if recorder is currently recording
