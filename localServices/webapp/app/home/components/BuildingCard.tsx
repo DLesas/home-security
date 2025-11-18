@@ -2,12 +2,12 @@
 
 import { useState } from 'react'
 import { Card, CardHeader, CardBody } from '@nextui-org/card'
-import { Button } from '@nextui-org/button'
 import { Divider } from '@nextui-org/divider'
 import { useDisclosure } from '@nextui-org/modal'
 import { useSocket } from '../../socketInitializer'
 import { SensorModal } from './SensorModal'
 import { ArmWarningModal } from './ArmWarningModal'
+import { ArmDisarmButtons } from '../../../components/ArmDisarmButtons'
 import { SecurityData, BuildingStatus, ArmStatus } from '../../types'
 
 interface BuildingCardProps {
@@ -97,31 +97,20 @@ export function BuildingCard({
           <Divider />
 
           {/* Action Buttons */}
-          <div className="flex gap-3" onClick={(e) => e.stopPropagation()}>
-            <Button
-              variant={armStatus === 'Armed' ? 'solid' : 'bordered'}
-              color="danger"
-              className="flex-1 min-h-[44px]"
-              isLoading={armLoading}
-              onPress={() => {
+          <div onClick={(e) => e.stopPropagation()}>
+            <ArmDisarmButtons
+              isArmed={armStatus === 'Armed'}
+              armLoading={armLoading}
+              disarmLoading={disarmLoading}
+              onArm={() => {
                 setArmLoading(true)
                 armBuilding(buildingName, buildingOpen, false)
               }}
-            >
-              {armStatus === 'Armed' ? 'Armed' : 'Arm'}
-            </Button>
-            <Button
-              variant={armStatus === 'Disarmed' ? 'solid' : 'bordered'}
-              color="success"
-              className="flex-1 min-h-[44px]"
-              isLoading={disarmLoading}
-              onPress={() => {
+              onDisarm={() => {
                 setDisarmLoading(true)
                 disarmBuilding(buildingName)
               }}
-            >
-              {armStatus === 'Disarmed' ? 'Disarmed' : 'Disarm'}
-            </Button>
+            />
           </div>
         </CardBody>
       </Card>

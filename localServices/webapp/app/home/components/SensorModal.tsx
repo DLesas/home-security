@@ -2,14 +2,11 @@
 
 import { useState } from 'react'
 import { Modal, ModalContent, ModalHeader, ModalBody, useDisclosure } from '@nextui-org/modal'
-import { Button } from '@nextui-org/button'
-import { Divider } from '@nextui-org/divider'
-import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useSocket } from '../../socketInitializer'
 import { useSocketData } from '../../socketData'
-import { StatusPill } from './StatusPill'
 import { ArmWarningModal } from './ArmWarningModal'
+import { SensorRow } from './SensorRow'
 import { SecurityData, LogStatus } from '../../types'
 
 interface SensorModalProps {
@@ -82,14 +79,14 @@ export function SensorModal({
         classNames={{
           wrapper: "items-end",
           base: "m-0 sm:m-0 rounded-t-lg w-full max-w-full max-h-[80vh]",
-          body: "py-6"
+          body: "py-6 background-default-900",
         }}
       >
         <ModalContent>
           {(onClose) => (
             <>
               <ModalHeader>
-                <h3 className="font-volkorn text-xl">{buildingName} - Sensors</h3>
+                <h3 className="font-volkorn text-xl">{buildingName}</h3>
               </ModalHeader>
               <ModalBody>
                 <div className="space-y-3">
@@ -100,64 +97,26 @@ export function SensorModal({
                       const sensorArmed = sensorData?.armed ?? false
                       const sensorStatus: LogStatus = sensorData?.status ?? 'unknown'
 
+                      // Find sensor to get externalID
+                      const sensor = sensors.find(s => s.name === sensorName && s.building === buildingName)
+
                       return (
-                        <motion.div
+                        <SensorRow
                           key={sensorName}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: index * 0.05 }}
-                          className="border border-default-200 dark:border-default-100 rounded-lg p-4 space-y-3"
-                        >
-                          {/* Sensor Name and Status */}
-                          <div className="flex items-center justify-between">
-                            <Button
-                              variant="light"
-                              onPress={() => {
-                                handleSensorClick(sensorName)
-                                onClose()
-                              }}
-                              className="text-left justify-start p-0 h-auto min-w-0"
-                            >
-                              <span className="font-medium">{sensorName}</span>
-                            </Button>
-
-                            <div className="flex gap-2 flex-wrap justify-end">
-                              {sensorArmed && <StatusPill type="armed">Armed</StatusPill>}
-
-                              {sensorStatus === 'open' ? (
-                                <StatusPill type="open">Open</StatusPill>
-                              ) : sensorStatus === 'closed' ? (
-                                <StatusPill type="closed">Closed</StatusPill>
-                              ) : (
-                                <StatusPill type="unknown">Unknown</StatusPill>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Individual Arm/Disarm Buttons */}
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant={sensorArmed ? 'solid' : 'bordered'}
-                              color="danger"
-                              className="flex-1"
-                              isLoading={sensorLoadingStates[sensorName]?.arm}
-                              onPress={() => armSensor(sensorName, sensorStatus, false)}
-                            >
-                              {sensorArmed ? 'Armed' : 'Arm'}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant={!sensorArmed ? 'solid' : 'bordered'}
-                              color="success"
-                              className="flex-1"
-                              isLoading={sensorLoadingStates[sensorName]?.disarm}
-                              onPress={() => disarmSensor(sensorName)}
-                            >
-                              {!sensorArmed ? 'Disarmed' : 'Disarm'}
-                            </Button>
-                          </div>
-                        </motion.div>
+                          sensorName={sensorName}
+                          sensorExternalID={sensor?.externalID || ''}
+                          sensorArmed={sensorArmed}
+                          sensorStatus={sensorStatus}
+                          index={index}
+                          armLoading={sensorLoadingStates[sensorName]?.arm}
+                          disarmLoading={sensorLoadingStates[sensorName]?.disarm}
+                          onSensorClick={() => {
+                            handleSensorClick(sensorName)
+                            onClose()
+                          }}
+                          onArm={() => armSensor(sensorName, sensorStatus, false)}
+                          onDisarm={() => disarmSensor(sensorName)}
+                        />
                       )
                     })}
                 </div>
