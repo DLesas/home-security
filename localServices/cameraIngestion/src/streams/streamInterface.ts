@@ -15,6 +15,7 @@ export interface FrameData {
  */
 export interface StreamConfig {
   cameraId: string;
+  cameraName: string;
   streamUrl: string;  // URL or connection string (e.g., "udp://192.168.1.100:9000" or "rtsp://...")
   fps?: number;       // Target frame rate (default: 30)
   width?: number;     // Target width (optional, for resizing)
@@ -65,6 +66,13 @@ export abstract class StreamCapture extends EventEmitter {
   }
 
   /**
+   * Get the camera name
+   */
+  public getCameraName(): string {
+    return this.config.cameraName;
+  }
+
+  /**
    * Get the stream URL
    */
   public getStreamUrl(): string {
@@ -77,15 +85,15 @@ export abstract class StreamCapture extends EventEmitter {
  * @param config - Stream configuration
  * @returns StreamCapture implementation (UDP, RTSP, etc.)
  */
-export function createStreamCapture(config: StreamConfig): StreamCapture {
+export async function createStreamCapture(config: StreamConfig): Promise<StreamCapture> {
   const url = config.streamUrl.toLowerCase();
 
   if (url.startsWith("udp://")) {
     // Dynamically import to avoid circular dependencies
-    const { UDPStreamCapture } = require("./udpStreamCapture");
+    const { UDPStreamCapture } = await import("./udpStreamCapture.js");
     return new UDPStreamCapture(config);
   } else if (url.startsWith("rtsp://") || url.startsWith("rtsps://")) {
-    const { RTSPStreamCapture } = require("./rtspStreamCapture");
+    const { RTSPStreamCapture } = await import("./rtspStreamCapture.js");
     return new RTSPStreamCapture(config);
   } else {
     throw new Error(

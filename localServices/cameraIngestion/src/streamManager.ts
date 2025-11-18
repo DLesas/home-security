@@ -79,6 +79,7 @@ export class StreamManager {
       // Create stream config (defaults to 720p @ 30 FPS for performance)
       const streamConfig: StreamConfig = {
         cameraId: camera.externalID,
+        cameraName: camera.name,
         streamUrl,
         fps: DEFAULT_STREAM_FPS,
         width: DEFAULT_STREAM_WIDTH,
@@ -86,7 +87,7 @@ export class StreamManager {
       };
 
       // Create stream capture (UDP or RTSP based on URL)
-      const streamCapture = createStreamCapture(streamConfig);
+      const streamCapture = await createStreamCapture(streamConfig);
 
       // Create frame grabber
       const frameGrabber = new FrameGrabber(streamCapture);
@@ -170,10 +171,10 @@ export class StreamManager {
           switch (event.action) {
             case "add":
             case "update":
-              // Fetch camera from Redis
-              const camera = await cameraRepository.fetch(event.cameraId);
-              if (camera) {
-                await this.updateCamera(camera as Camera);
+              // Search for camera by id field (not entity ID)
+              const cameras = await cameraRepository.search().where("externalID").eq(event.cameraId).return.all();
+              if (cameras.length > 0) {
+                await this.updateCamera(cameras[0] as Camera);
               }
               break;
 
