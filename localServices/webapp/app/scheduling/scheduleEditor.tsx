@@ -93,12 +93,20 @@ export function ScheduleEditor({
           active: schedule.active,
         })
       } else {
+        // armDateTime and disarmDateTime are already Date objects, convert to ISO string
+        const armDate = schedule.armDateTime instanceof Date
+          ? schedule.armDateTime
+          : new Date(schedule.armDateTime)
+        const disarmDate = schedule.disarmDateTime instanceof Date
+          ? schedule.disarmDateTime
+          : new Date(schedule.disarmDateTime)
+
         setScheduleData({
           type: 'oneTime',
           name: schedule.name,
           sensorIds: schedule.sensorIDs,
-          armDateTime: schedule.armDateTime.toISOString(),
-          disarmDateTime: schedule.disarmDateTime.toISOString(),
+          armDateTime: armDate.toISOString(),
+          disarmDateTime: disarmDate.toISOString(),
         })
       }
     } else {
@@ -210,7 +218,7 @@ export function ScheduleEditor({
     const disarmMin = parseInt(data.disarmTime.split(':')[1])
 
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-6">
         <Input
           label="Schedule name"
           isRequired
@@ -219,6 +227,9 @@ export function ScheduleEditor({
             setScheduleData({ ...data, name: e.target.value })
           }
           placeholder="Evening Security Schedule"
+          classNames={{
+            label: 'font-medium',
+          }}
         />
 
         <Select
@@ -229,40 +240,45 @@ export function ScheduleEditor({
             const value = Array.from(keys)[0] as 'Daily' | 'Weekly'
             setScheduleData({ ...data, recurrence: value })
           }}
+          classNames={{
+            label: 'font-medium',
+          }}
         >
           <SelectItem key="Daily">Daily</SelectItem>
           <SelectItem key="Weekly">Weekly</SelectItem>
         </Select>
 
         {data.recurrence === 'Weekly' && (
-          <CheckboxGroup
-            label="Select days"
-            orientation="horizontal"
-            value={data.days}
-            onValueChange={(value) =>
-              setScheduleData({ ...data, days: value })
-            }
-          >
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Checkbox value="Monday">Mon</Checkbox>
-              <Checkbox value="Tuesday">Tue</Checkbox>
-              <Checkbox value="Wednesday">Wed</Checkbox>
-              <Checkbox value="Thursday">Thu</Checkbox>
-              <Checkbox value="Friday">Fri</Checkbox>
-              <Checkbox value="Saturday">Sat</Checkbox>
-              <Checkbox value="Sunday">Sun</Checkbox>
-            </div>
-          </CheckboxGroup>
+          <div>
+            <p className="mb-3 text-sm font-medium">Select days</p>
+            <CheckboxGroup
+              value={data.days}
+              onValueChange={(value) =>
+                setScheduleData({ ...data, days: value })
+              }
+              orientation="horizontal"
+            >
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <Checkbox value="Monday" size="sm">Mon</Checkbox>
+                <Checkbox value="Tuesday" size="sm">Tue</Checkbox>
+                <Checkbox value="Wednesday" size="sm">Wed</Checkbox>
+                <Checkbox value="Thursday" size="sm">Thu</Checkbox>
+                <Checkbox value="Friday" size="sm">Fri</Checkbox>
+                <Checkbox value="Saturday" size="sm">Sat</Checkbox>
+                <Checkbox value="Sunday" size="sm">Sun</Checkbox>
+              </div>
+            </CheckboxGroup>
+          </div>
         )}
 
-        <Card>
-          <CardBody className="gap-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Chip color="success" size="sm">ARM</Chip>
-              <span className="text-small font-medium">Arm Configuration</span>
+        <Card className="shadow-sm">
+          <CardBody className="gap-4 p-4">
+            <div className="flex items-center gap-2">
+              <Chip color="success" size="sm" variant="flat">ARM</Chip>
+              <span className="text-base font-medium">Arm Configuration</span>
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <TimeInput
                 label="Arm Time"
                 isRequired
@@ -276,6 +292,9 @@ export function ScheduleEditor({
                 }}
                 granularity="minute"
                 hideTimeZone
+                classNames={{
+                  label: 'font-medium',
+                }}
               />
 
               <Select
@@ -286,25 +305,28 @@ export function ScheduleEditor({
                   const value = parseInt(Array.from(keys)[0] as string)
                   setScheduleData({ ...data, armDayOffset: value })
                 }}
+                classNames={{
+                  label: 'font-medium',
+                }}
               >
                 <SelectItem key="0">Same day</SelectItem>
                 <SelectItem key="1">Next day</SelectItem>
               </Select>
             </div>
-            <p className="text-tiny text-default-500">
+            <p className="text-sm text-gray-600">
               When to arm the sensors (e.g., evening before bedtime)
             </p>
           </CardBody>
         </Card>
 
-        <Card>
-          <CardBody className="gap-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Chip color="warning" size="sm">DISARM</Chip>
-              <span className="text-small font-medium">Disarm Configuration</span>
+        <Card className="shadow-sm">
+          <CardBody className="gap-4 p-4">
+            <div className="flex items-center gap-2">
+              <Chip color="warning" size="sm" variant="flat">DISARM</Chip>
+              <span className="text-base font-medium">Disarm Configuration</span>
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <TimeInput
                 label="Disarm Time"
                 isRequired
@@ -318,6 +340,9 @@ export function ScheduleEditor({
                 }}
                 granularity="minute"
                 hideTimeZone
+                classNames={{
+                  label: 'font-medium',
+                }}
               />
 
               <Select
@@ -328,12 +353,15 @@ export function ScheduleEditor({
                   const value = parseInt(Array.from(keys)[0] as string)
                   setScheduleData({ ...data, disarmDayOffset: value })
                 }}
+                classNames={{
+                  label: 'font-medium',
+                }}
               >
                 <SelectItem key="0">Same day</SelectItem>
                 <SelectItem key="1">Next day</SelectItem>
               </Select>
             </div>
-            <p className="text-tiny text-default-500">
+            <p className="text-sm text-gray-600">
               When to disarm the sensors (e.g., morning after waking up)
             </p>
           </CardBody>
@@ -365,7 +393,7 @@ export function ScheduleEditor({
     }
 
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-6">
         <Input
           label="Schedule name"
           isRequired
@@ -374,16 +402,19 @@ export function ScheduleEditor({
             setScheduleData({ ...data, name: e.target.value })
           }
           placeholder="Vacation Security"
+          classNames={{
+            label: 'font-medium',
+          }}
         />
 
-        <Card>
-          <CardBody className="gap-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Chip color="success" size="sm">ARM</Chip>
-              <span className="text-small font-medium">Arm Date & Time</span>
+        <Card className="shadow-sm">
+          <CardBody className="gap-4 p-4">
+            <div className="flex items-center gap-2">
+              <Chip color="success" size="sm" variant="flat">ARM</Chip>
+              <span className="text-base font-medium">Arm Date & Time</span>
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <DatePicker
                 label="Arm Date"
                 isRequired
@@ -397,6 +428,9 @@ export function ScheduleEditor({
                   }
                 }}
                 granularity="day"
+                classNames={{
+                  label: 'font-medium',
+                }}
               />
 
               <TimeInput
@@ -412,22 +446,25 @@ export function ScheduleEditor({
                 }}
                 granularity="minute"
                 hideTimeZone
+                classNames={{
+                  label: 'font-medium',
+                }}
               />
             </div>
-            <p className="text-tiny text-default-500">
+            <p className="text-sm text-gray-600">
               When to arm the sensors
             </p>
           </CardBody>
         </Card>
 
-        <Card>
-          <CardBody className="gap-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Chip color="warning" size="sm">DISARM</Chip>
-              <span className="text-small font-medium">Disarm Date & Time</span>
+        <Card className="shadow-sm">
+          <CardBody className="gap-4 p-4">
+            <div className="flex items-center gap-2">
+              <Chip color="warning" size="sm" variant="flat">DISARM</Chip>
+              <span className="text-base font-medium">Disarm Date & Time</span>
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <DatePicker
                 label="Disarm Date"
                 isRequired
@@ -441,6 +478,9 @@ export function ScheduleEditor({
                   }
                 }}
                 granularity="day"
+                classNames={{
+                  label: 'font-medium',
+                }}
               />
 
               <TimeInput
@@ -456,9 +496,12 @@ export function ScheduleEditor({
                 }}
                 granularity="minute"
                 hideTimeZone
+                classNames={{
+                  label: 'font-medium',
+                }}
               />
             </div>
-            <p className="text-tiny text-default-500">
+            <p className="text-sm text-gray-600">
               When to disarm the sensors
             </p>
           </CardBody>
@@ -474,19 +517,24 @@ export function ScheduleEditor({
       size="2xl"
       scrollBehavior="inside"
       classNames={{
-        base: 'max-h-[90vh]',
-        body: 'overflow-y-auto',
+        base: 'max-h-[90vh] mx-4',
+        body: 'overflow-y-auto px-6 py-6',
+        header: 'border-b border-divider',
+        footer: 'border-t border-divider',
       }}
     >
       <ModalContent>
         {(onClose) => (
           <>
-            <ModalHeader className="flex flex-col gap-1">
+            <ModalHeader className="flex flex-col gap-2 py-4">
               <div className="flex items-center justify-between">
-                <span>{schedule ? `Edit Schedule` : 'New Schedule'}</span>
+                <h2 className="text-2xl font-volkorn font-semibold">
+                  {schedule ? 'Edit Schedule' : 'New Schedule'}
+                </h2>
                 <Chip
                   color={scheduleType === 'recurring' ? 'primary' : 'secondary'}
                   size="sm"
+                  variant="flat"
                 >
                   {scheduleType === 'recurring' ? 'Recurring' : 'One-Time'}
                 </Chip>
@@ -494,15 +542,36 @@ export function ScheduleEditor({
             </ModalHeader>
 
             <ModalBody>
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-6">
+                {/* Schedule Type Selection for new schedules */}
+                {!schedule && (
+                  <div>
+                    <Select
+                      label="Schedule Type"
+                      isRequired
+                      selectedKeys={[scheduleType]}
+                      onSelectionChange={(keys) => {
+                        const value = Array.from(keys)[0] as 'recurring' | 'oneTime'
+                        handleScheduleTypeChange(value)
+                      }}
+                      classNames={{
+                        label: 'font-medium',
+                      }}
+                    >
+                      <SelectItem key="recurring">Recurring Schedule</SelectItem>
+                      <SelectItem key="oneTime">One-Time Schedule</SelectItem>
+                    </Select>
+                  </div>
+                )}
+
                 {/* Sensor Selection */}
-                <Card>
-                  <CardBody className="gap-3">
+                <Card className="shadow-sm">
+                  <CardBody className="gap-3 p-4">
                     <div>
-                      <p className="mb-2 text-small font-medium">
-                        Select Sensors (required)
+                      <p className="mb-2 text-base font-medium">
+                        Select Sensors
                       </p>
-                      <p className="mb-3 text-tiny text-default-500">
+                      <p className="mb-4 text-sm text-gray-600">
                         Choose which sensors this schedule will control
                       </p>
                       <CheckboxGroup
@@ -519,7 +588,7 @@ export function ScheduleEditor({
                         }
                         isInvalid={scheduleData.sensorIds.length === 0}
                       >
-                        <div className="grid grid-cols-1 gap-3">
+                        <div className="grid grid-cols-1 gap-4">
                           {/* Group sensors by building */}
                           {Object.entries(
                             sensors.reduce(
@@ -535,16 +604,17 @@ export function ScheduleEditor({
                           ).map(([building, buildingSensors]) => (
                             <div
                               key={building}
-                              className="rounded-lg border p-3"
+                              className="rounded-lg border border-divider p-3 bg-content2/50"
                             >
-                              <h4 className="mb-2 text-small font-medium">
+                              <h4 className="mb-3 text-sm font-semibold">
                                 {building}
                               </h4>
-                              <div className="grid grid-cols-2 gap-2">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 {buildingSensors.map((sensor) => (
                                   <Checkbox
                                     key={sensor.externalID}
                                     value={sensor.externalID}
+                                    size="sm"
                                   >
                                     {sensor.name}
                                   </Checkbox>
@@ -558,26 +628,6 @@ export function ScheduleEditor({
                   </CardBody>
                 </Card>
 
-                {/* Schedule Type Selection for new schedules */}
-                {!schedule && (
-                  <Card>
-                    <CardBody>
-                      <Select
-                        label="Schedule Type"
-                        isRequired
-                        selectedKeys={[scheduleType]}
-                        onSelectionChange={(keys) => {
-                          const value = Array.from(keys)[0] as 'recurring' | 'oneTime'
-                          handleScheduleTypeChange(value)
-                        }}
-                      >
-                        <SelectItem key="recurring">Recurring Schedule</SelectItem>
-                        <SelectItem key="oneTime">One-Time Schedule</SelectItem>
-                      </Select>
-                    </CardBody>
-                  </Card>
-                )}
-
                 {/* Render appropriate form based on schedule type */}
                 {scheduleData.type === 'recurring'
                   ? renderRecurringScheduleForm(scheduleData)
@@ -585,7 +635,7 @@ export function ScheduleEditor({
               </div>
             </ModalBody>
 
-            <ModalFooter className="flex justify-between">
+            <ModalFooter className="flex flex-col sm:flex-row justify-between gap-3 py-4">
               <div>
                 {schedule && (
                   <Button
@@ -593,13 +643,19 @@ export function ScheduleEditor({
                     variant="flat"
                     onPress={handleDelete}
                     isLoading={loading}
+                    className="w-full sm:w-auto min-h-[44px]"
                   >
                     Delete Schedule
                   </Button>
                 )}
               </div>
-              <div className="flex gap-2">
-                <Button color="default" variant="light" onPress={onClose}>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Button
+                  color="default"
+                  variant="light"
+                  onPress={onClose}
+                  className="flex-1 sm:flex-none min-h-[44px]"
+                >
                   Cancel
                 </Button>
                 <Button
@@ -607,8 +663,9 @@ export function ScheduleEditor({
                   onPress={handleSave}
                   isLoading={loading}
                   isDisabled={scheduleData.sensorIds.length === 0 || !scheduleData.name}
+                  className="flex-1 sm:flex-none min-h-[44px]"
                 >
-                  {schedule ? 'Update' : 'Create'} Schedule
+                  {schedule ? 'Update' : 'Create'}
                 </Button>
               </div>
             </ModalFooter>

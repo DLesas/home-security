@@ -1,138 +1,80 @@
 'use client'
 
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableColumn,
-  TableRow,
-  TableCell,
-  getKeyValue,
-} from '@nextui-org/table'
-import {
-  Dropdown,
-  DropdownTrigger,
-  DropdownMenu,
-  DropdownSection,
-  DropdownItem,
-} from '@nextui-org/dropdown'
-import {
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
-  useDisclosure,
-} from '@nextui-org/modal'
-import { CheckboxGroup, Checkbox } from '@nextui-org/checkbox'
+import { useDisclosure } from '@nextui-org/modal'
 import { useSocketData, type schedule as scheduleType } from '../socketData'
-import { Button } from '@nextui-org/button'
-import { SlOptionsVertical } from 'react-icons/sl'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { motion } from 'framer-motion'
 import { ScheduleEditor } from './scheduleEditor'
+import { ScheduleCard } from './components/ScheduleCard'
+import { SchedulePageHeader } from './components/SchedulePageHeader'
+import { FloatingActionButton } from './components/FloatingActionButton'
+import { EmptyScheduleState } from './components/EmptyScheduleState'
 
-export default function App() {
-  const { data, schedules, isConnected } = useSocketData()
+export default function SchedulingPage() {
+  const { schedules } = useSocketData()
   const { isOpen, onOpen, onClose } = useDisclosure()
-  const [selectedSchedule, setSelectedSchedule] = useState<scheduleType | null>(
-    null
-  )
-  console.log(schedules)
-  let cols = [
-    'name',
-    'building',
-    'action',
-    'time',
-    'recurrence',
-    'actions',
-    'date',
-    'days',
-  ]
+  const [selectedSchedule, setSelectedSchedule] = useState<scheduleType | null>(null)
+
+  // Calculate schedule counts
+  const activeSchedules = schedules.filter(s => s.type === 'recurring' ? s.active : true)
+  const inactiveSchedules = schedules.filter(s => s.type === 'recurring' ? !s.active : false)
+
+  const handleOpenNew = () => {
+    setSelectedSchedule(null)
+    onOpen()
+  }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-row">
-        <h1>current Schedules</h1>{' '}
-        <Button
-          onPress={() => {
-            setSelectedSchedule(null)
-            onOpen()
-          }}
-        >
-          New
-        </Button>
-      </div>
-      <Table
-        className="overflow-x-auto"
-        removeWrapper
-        aria-label="Schedules table"
+    <div className="w-full max-w-2xl mx-auto px-4 py-8 md:py-12">
+      {/* Header Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="mb-12"
       >
-        <TableHeader>
-          {cols.map((column) => (
-            <TableColumn key={column}>{column}</TableColumn>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {schedules.map((schedule, index) => (
-            <TableRow key={`${index}_${schedule.name}`}>
-              {(columnKey) =>
-                columnKey === 'actions' ? (
-                  <TableCell>
-                    <ScheduleActions
-                      schedule={schedule}
-                      setSelectedSchedule={setSelectedSchedule}
-                      onOpen={onOpen}
-                    />
-                  </TableCell>
-                ) : (
-                  <TableCell>{getKeyValue(schedule, columnKey)}</TableCell>
-                )
-              }
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+        <SchedulePageHeader
+          activeCount={activeSchedules.length}
+          inactiveCount={inactiveSchedules.length}
+        />
+      </motion.div>
+
+      {/* Schedule Cards - Responsive Grid */}
+      <div className="space-y-4">
+        {schedules.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            <EmptyScheduleState />
+          </motion.div>
+        ) : (
+          schedules.map((schedule, index) => (
+            <motion.div
+              key={schedule.id || `${index}_${schedule.name}`}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.05 }}
+            >
+              <ScheduleCard
+                schedule={schedule}
+                setSelectedSchedule={setSelectedSchedule}
+                onOpen={onOpen}
+              />
+            </motion.div>
+          ))
+        )}
+      </div>
+
+      {/* Floating Action Button */}
+      <FloatingActionButton onPress={handleOpenNew} label="New Schedule" />
+
+      {/* Schedule Editor Modal */}
       <ScheduleEditor
         schedule={selectedSchedule}
         isOpen={isOpen}
         onClose={onClose}
       />
     </div>
-  )
-}
-
-function ScheduleActions({
-  schedule,
-  setSelectedSchedule,
-  onOpen,
-}: {
-  schedule: scheduleType
-  setSelectedSchedule: (schedule: scheduleType | null) => void
-  onOpen: () => void
-}) {
-  const name = schedule.name
-
-  return (
-    <Dropdown>
-      <DropdownTrigger>
-        <Button isIconOnly variant="light">
-          <SlOptionsVertical></SlOptionsVertical>
-        </Button>
-      </DropdownTrigger>
-      <DropdownMenu aria-label="Schedule Actions">
-        <DropdownItem
-          key="edit"
-          onPress={() => {
-            setSelectedSchedule(schedule)
-            onOpen()
-          }}
-        >
-          Ammend
-        </DropdownItem>
-        <DropdownItem key="delete" className="text-danger" color="danger">
-          Delete
-        </DropdownItem>
-      </DropdownMenu>
-    </Dropdown>
   )
 }
