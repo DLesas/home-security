@@ -1,5 +1,6 @@
 import { spawn, ChildProcess } from "child_process";
 import { EventEmitter } from "events";
+// import { raiseEvent } from "../utils/events";
 
 /**
  * Base class for managing FFmpeg processes
@@ -18,6 +19,12 @@ export abstract class FFmpegProcess extends EventEmitter {
   protected reconnectAttempts: number = 0;
   protected processId: string;
 
+  // Process liveness monitoring
+  private lastActivityTime: number = 0;
+  private livenessCheckInterval: NodeJS.Timeout | null = null;
+  private readonly LIVENESS_CHECK_INTERVAL = 30000; // Check every 30 seconds
+  private readonly LIVENESS_TIMEOUT = 120000; // 2 minutes without activity
+
   constructor(processId: string) {
     super();
     this.processId = processId;
@@ -26,8 +33,9 @@ export abstract class FFmpegProcess extends EventEmitter {
   /**
    * Build FFmpeg arguments for this process
    * Must be implemented by subclasses
+   * Can be async to support runtime detection (e.g., hardware encoders)
    */
-  protected abstract buildFFmpegArgs(): string[];
+  protected abstract buildFFmpegArgs(): string[] | Promise<string[]>;
 
   /**
    * Get reconnect delay in milliseconds based on attempt number
@@ -74,14 +82,14 @@ export abstract class FFmpegProcess extends EventEmitter {
       return;
     }
 
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       try {
         console.log(
           `[FFmpegProcess ${this.processId}] Starting FFmpeg process`
         );
 
-        // Build FFmpeg arguments from subclass
-        const ffmpegArgs = this.buildFFmpegArgs();
+        // Build FFmpeg arguments from subclass (may be async)
+        const ffmpegArgs = await this.buildFFmpegArgs();
 
         // Spawn FFmpeg process
         this.ffmpegProcess = spawn("ffmpeg", ffmpegArgs);
@@ -96,11 +104,13 @@ export abstract class FFmpegProcess extends EventEmitter {
 
         // Handle stdout data
         this.ffmpegProcess.stdout?.on("data", (chunk: Buffer) => {
+          this.lastActivityTime = Date.now(); // Track activity
           this.handleStdout(chunk);
         });
 
         // Handle stderr (FFmpeg logs)
         this.ffmpegProcess.stderr?.on("data", (chunk: Buffer) => {
+          this.lastActivityTime = Date.now(); // Track activity
           stderrData += chunk.toString();
           this.handleStderr(chunk);
         });
@@ -109,6 +119,11 @@ export abstract class FFmpegProcess extends EventEmitter {
         this.ffmpegProcess.on("spawn", () => {
           this.isRunning = true;
           this.reconnectAttempts = 0; // Reset on successful start
+
+          // Start liveness monitoring
+          this.lastActivityTime = Date.now();
+          this.startLivenessMonitoring();
+
           this.emit("started");
           resolve();
         });
@@ -211,6 +226,12 @@ export abstract class FFmpegProcess extends EventEmitter {
 
     console.log(`[FFmpegProcess ${this.processId}] Stopping process...`);
 
+    // Stop liveness monitoring
+    if (this.livenessCheckInterval) {
+      clearInterval(this.livenessCheckInterval);
+      this.livenessCheckInterval = null;
+    }
+
     return new Promise((resolve) => {
       if (this.ffmpegProcess) {
         this.ffmpegProcess.kill("SIGKILL");
@@ -237,5 +258,43 @@ export abstract class FFmpegProcess extends EventEmitter {
    */
   public getProcessId(): string {
     return this.processId;
+  }
+
+  /**
+   * Start liveness monitoring
+   * Checks every 30 seconds for process activity
+   */
+  private startLivenessMonitoring(): void {
+    this.livenessCheckInterval = setInterval(() => {
+      this.checkLiveness();
+    }, this.LIVENESS_CHECK_INTERVAL);
+  }
+
+  /**
+   * Check if process is still alive based on stdout/stderr activity
+   * If no activity for 2 minutes, force restart
+   */
+  private async checkLiveness(): Promise<void> {
+    if (!this.isRunning) {
+      return; // Process already stopped
+    }
+
+    const now = Date.now();
+    const timeSinceActivity = now - this.lastActivityTime;
+
+    if (timeSinceActivity >= this.LIVENESS_TIMEOUT) {
+      console.error(
+        `[FFmpegProcess ${this.processId}] 🔴 Process frozen - no activity for ${timeSinceActivity / 1000}s - forcing restart`
+      );
+
+      // await raiseEvent({
+      //   type: 'info',
+      //   message: `FFmpeg process ${this.processId} frozen (no activity for ${Math.floor(timeSinceActivity / 1000)}s) - forcing restart`,
+      //   system: 'cameraIngestion:processLiveness'
+      // });
+
+      // Force stop and let auto-restart handle it
+      await this.stop();
+    }
   }
 }
