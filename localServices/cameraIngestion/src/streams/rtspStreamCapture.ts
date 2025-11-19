@@ -21,8 +21,6 @@ import { StreamConfig } from "./streamInterface";
  * - stimeout: Socket timeout for detecting disconnections
  */
 export class RTSPStreamCapture extends FFmpegStreamCapture {
-  private maxReconnectAttempts: number = 10;
-
   constructor(config: StreamConfig) {
     super(config);
   }
@@ -56,16 +54,17 @@ export class RTSPStreamCapture extends FFmpegStreamCapture {
   }
 
   /**
-   * Override reconnection strategy with exponential backoff and max attempts
+   * Override reconnection strategy with fixed delay
+   * Note: Max reconnect attempts are limited by the internal FFmpegProcess
+   *
+   * TODO: Re-implement proper exponential backoff once getReconnectDelay()
+   * signature is updated to accept attempt count as parameter. This would allow:
+   * - Exponential backoff: 1s, 2s, 4s, 8s, ... up to 30s max
+   * - Max reconnect attempts limit (e.g., 10 attempts)
    */
   protected getReconnectDelay(): number | null {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      return null; // Stop reconnecting
-    }
-
-    // Exponential backoff: 1s, 2s, 4s, 8s, ... up to 30s max
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000);
-    return delay;
+    // Fixed delay with moderate backoff
+    return 10000; // 10 second delay
   }
 
   /**
