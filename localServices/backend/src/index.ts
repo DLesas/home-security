@@ -49,7 +49,7 @@ await createAlarmIndex();
 await createScheduleIndexes();
 await setDefaultConfig();
 await runMigrations();
-// await runCustomSQL();
+await runCustomSQL();
 // on startup might want to consider setting all sensors
 // to unknown as to not trigger false alarms
 // as previous state of sensors will stay in redis

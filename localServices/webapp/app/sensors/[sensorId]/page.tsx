@@ -274,7 +274,7 @@ export default function SensorDetail() {
             <div className="space-y-2">
               {recentActivity.map((update) => (
                 <div
-                  key={update.id}
+                  key={update.dateTime}
                   className="flex flex-col gap-2 border-b py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
                 >
                   {/* Left side: Time and Status */}
