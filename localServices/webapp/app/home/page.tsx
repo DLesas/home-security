@@ -127,12 +127,12 @@ export default function Index() {
           ) : armed === 'Partially armed' ? (
             <span className="text-warning-600">Partially Armed</span>
           ) : (
-            <span className="text-gray-600">Unknown</span>
+            <span className="text-default-600">Unknown</span>
           )}
         </h1>
 
         {/* Alarm Status */}
-        <p className="text-base text-gray-600">
+        <p className="text-base text-default-600">
           Alarm is{' '}
           {data.alarm ? (
             <span className="text-danger-600 font-medium">playing</span>
