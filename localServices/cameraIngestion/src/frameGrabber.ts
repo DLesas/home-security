@@ -12,7 +12,7 @@ import {
 } from "./config";
 import { cpuMonitor } from "./cpuMonitor";
 import { ContinuousRecorder } from "./recording/continuousRecorder";
-import { raiseEvent } from "./utils/events";
+import { raiseEvent } from "./shared/events/notify";
 
 /**
  * FrameGrabber orchestrates frame capture, compression, and distribution
