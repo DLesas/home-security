@@ -16,7 +16,7 @@ export const eventTypeEnum = pgEnum("eventType", [
 ]);
 
 
-type SystemPrefix = "backend" | "advertisementService" | "eventService";
+type SystemPrefix = "backend" | "advertisementService" | "eventService" | "cameraIngestion";
 
 // Use it in the template literal type
 type SystemFormat = `${SystemPrefix}:${string}`;
