@@ -1,13 +1,15 @@
 'use client'
 
-import { Button } from '@nextui-org/button'
 import { motion } from 'framer-motion'
 import { Divider } from '@nextui-org/divider'
+import { Button } from '@nextui-org/button'
 import { StatusPill } from './StatusPill'
 import { ArmDisarmButtons } from '../../../components/ArmDisarmButtons'
 import { LogStatus } from '../../types'
 import { useSensorUpdatesQuery } from '../../../hooks/queries/useSensorUpdatesQuery'
+import { useArmSensorMutation, useDisarmSensorMutation } from '../../../hooks/mutations/useSensorMutations'
 import { MdAccessTime } from 'react-icons/md'
+import { IoChevronForward } from 'react-icons/io5'
 
 interface SensorRowProps {
   sensorName: string
@@ -15,11 +17,7 @@ interface SensorRowProps {
   sensorArmed: boolean
   sensorStatus: LogStatus
   index: number
-  armLoading: boolean
-  disarmLoading: boolean
   onSensorClick: () => void
-  onArm: () => void
-  onDisarm: () => void
 }
 
 export function SensorRow({
@@ -28,12 +26,11 @@ export function SensorRow({
   sensorArmed,
   sensorStatus,
   index,
-  armLoading,
-  disarmLoading,
   onSensorClick,
-  onArm,
-  onDisarm,
 }: SensorRowProps) {
+  const armMutation = useArmSensorMutation()
+  const disarmMutation = useDisarmSensorMutation()
+
   // Fetch last open update for this sensor (limit 1, filter by state=open)
   const { data } = useSensorUpdatesQuery(sensorExternalID, 1, 0, 'open', !!sensorExternalID)
 
@@ -72,18 +69,26 @@ export function SensorRow({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
-      className={`border bg-default-100 border-default-200 dark:border-default-100 rounded-lg overflow-hidden ${getBorderColor()} border-l-4`}
+      className={`border bg-default-100 border-default-200 rounded-lg overflow-hidden ${getBorderColor()} border-l-4`}
     >
       {/* Header Section */}
       <div className="p-4 pb-3">
-        <div className="flex items-start justify-between mb-3">
-          <Button
-            variant="light"
-            onPress={onSensorClick}
-            className="text-left justify-start p-0 h-auto min-w-0"
-          >
-            <span className="font-medium">{sensorName}</span>
-          </Button>
+        <div
+          onClick={onSensorClick}
+          className="flex items-start justify-between mb-3 cursor-pointer active:bg-default-200/50 -mx-2 px-2 py-1.5 rounded-lg transition-colors"
+        >
+          <div className="flex items-center gap-1">
+            <span className="font-medium leading-none">{sensorName}</span>
+            <Button
+              isIconOnly
+              variant={'undefined' as any}
+              size="sm"
+              aria-label="View Sensor Details"
+              onClick={onSensorClick}
+            >
+              <IoChevronForward/>
+            </Button>
+          </div>
 
           <div className="flex gap-2 flex-wrap justify-end">
             {sensorArmed && <StatusPill type="armed">Armed</StatusPill>}
@@ -100,7 +105,7 @@ export function SensorRow({
 
         {/* Last Open Time with Icon */}
         {lastOpenText && (
-          <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-3">
+          <div className="flex items-center gap-1.5 text-xs text-default-500 mb-3">
             <MdAccessTime className="text-sm" />
             <span>Last opened {lastOpenText}</span>
           </div>
@@ -113,10 +118,12 @@ export function SensorRow({
       <div className="p-4 pt-3">
         <ArmDisarmButtons
           isArmed={sensorArmed}
-          armLoading={armLoading}
-          disarmLoading={disarmLoading}
-          onArm={onArm}
-          onDisarm={onDisarm}
+          currentState={sensorStatus}
+          entityName={sensorName}
+          armLoading={armMutation.isPending}
+          disarmLoading={disarmMutation.isPending}
+          onArm={() => armMutation.mutate(sensorExternalID)}
+          onDisarm={() => disarmMutation.mutate(sensorExternalID)}
           className="gap-2"
           buttonClassName="text-sm h-9"
         />
