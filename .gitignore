@@ -30,7 +30,7 @@ backend/src/db/drizzle
 *.pem
 
 # environment variables
-.env*
+.env
 !.env.example
 config.env
 !config.env.example
