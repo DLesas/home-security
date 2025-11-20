@@ -7,6 +7,7 @@ import { Input } from '@nextui-org/input'
 import { Select, SelectItem } from '@nextui-org/select'
 import { useSocketData } from '../socketData'
 import { useBuildingsQuery } from '@/hooks/useBuildingsQuery'
+import Link from 'next/link'
 
 // Building
 // router.post("/new", async (req, res) => {
@@ -60,6 +61,9 @@ const StorageListenerComponent: React.FC = () => {
         new building
       </button>
       <button onClick={() => setShowNewAlarm(!showNewAlarm)}>new alarm</button>
+      <Link href="/debug-devices" className="text-sm text-blue-500 hover:underline">
+        Debug Device Creation (Custom IDs)
+      </Link>
       {showNewSensor && <NewSensorComponent />}
       {showNewBuilding && <NewBuildingComponent />}
       {showNewAlarm && <NewAlarmComponent />}

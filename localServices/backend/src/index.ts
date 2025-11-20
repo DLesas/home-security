@@ -9,6 +9,7 @@ import buildingRoutes from "./express/routes/Buildings";
 import alarmRoutes from "./express/routes/Alarms";
 import logsRoutes from "./express/routes/logs";
 import scheduleRoutes from "./express/routes/Schedules";
+import debugRoutes from "./express/routes/Debug";
 import setupSocketHandlers from "./express/socketHandler";
 import { runMigrations, runCustomSQL } from "./db/db";
 import { connectRedis } from "./redis/index";
@@ -74,6 +75,8 @@ app.use("/api/v1/buildings", buildingRoutes);
 app.use("/api/v1/alarms", alarmRoutes);
 app.use("/api/v1/logs", logsRoutes);
 app.use("/api/v1/schedules", scheduleRoutes);
+//TODO: remove debug routes in production
+app.use("/api/v1/debug", debugRoutes);
 
 // Error handling middleware
 app.use(errorHandler);
