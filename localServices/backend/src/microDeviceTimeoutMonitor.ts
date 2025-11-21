@@ -47,6 +47,10 @@ export class SensorTimeoutMonitor {
   private isRunningFlag: boolean = false;
   /** Set tracking which alarms have received critical timeout alerts */
   private alarmCriticalAlertsSent = new Set<string>();
+  /** Set of sensor IDs that have pinged at least once */
+  private seenSensorIds: Set<string> = new Set();
+  /** Set of alarm IDs that have pinged at least once */
+  private seenAlarmIds: Set<string> = new Set();
 
   constructor() {
     // No initialization needed - monitor starts in stopped state
@@ -114,6 +118,11 @@ export class SensorTimeoutMonitor {
       clearInterval(intervalId);
     });
     this.alarmIntervalIds = [];
+
+    // Clear tracking sets
+    this.seenSensorIds.clear();
+    this.seenAlarmIds.clear();
+    this.alarmCriticalAlertsSent.clear();
 
     this.isRunningFlag = false;
     console.log("SensorTimeoutMonitor stopped");
@@ -273,8 +282,12 @@ export class SensorTimeoutMonitor {
         .returnFirst()) as doorSensor | null;
       if (!fresh) return;
 
-      // Skip timeout check if monitoring hasn't started yet (waiting for first update)
-      if (!fresh.timeoutMonitoringStarted) return;
+      // Skip timeout check if this is the first time we've seen this sensor
+      // Add it to the seen set and wait for next interval
+      if (!this.seenSensorIds.has(fresh.externalID)) {
+        this.seenSensorIds.add(fresh.externalID);
+        return;
+      }
 
       // Get current timestamp
       const now = new Date();
@@ -360,8 +373,12 @@ export class SensorTimeoutMonitor {
         .returnFirst()) as Alarm | null;
       if (!fresh) return;
 
-      // Skip timeout check if monitoring hasn't started yet (waiting for first update)
-      if (!fresh.timeoutMonitoringStarted) return;
+      // Skip timeout check if this is the first time we've seen this alarm
+      // Add it to the seen set and wait for next interval
+      if (!this.seenAlarmIds.has(fresh.externalID)) {
+        this.seenAlarmIds.add(fresh.externalID);
+        return;
+      }
 
       // Get current timestamp
       const now = new Date();
