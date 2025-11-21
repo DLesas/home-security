@@ -184,6 +184,7 @@ export async function DoorSensorUpdate({
   currentState.voltage = voltage ? voltage : undefined;
   currentState.frequency = frequency ? frequency : undefined;
   currentState.lastUpdated = new Date();
+  currentState.timeoutMonitoringStarted = true;
   await doorSensorRepository.save(currentState);
   // Log sensor update to PostgreSQL
   await db.insert(sensorUpdatesTable).values({

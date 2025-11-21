@@ -114,6 +114,7 @@ router.post("/new", async (req, res, next) => {
     port: port,
     autoTurnOffSeconds: autoTurnOffSeconds,
     lastUpdated: new Date(),
+    timeoutMonitoringStarted: false,
   } as Alarm);
   await emitNewData();
   await raiseEvent({
@@ -384,6 +385,7 @@ router.post("/update", async (req, res, next) => {
     voltage,
     frequency,
     lastUpdated: new Date(),
+    timeoutMonitoringStarted: true,
   });
   await emitNewData();
 

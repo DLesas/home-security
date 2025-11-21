@@ -24,6 +24,7 @@ backend/src/db/drizzle
 
 # production
 */build
+*/dist
 
 # misc
 .DS_Store

@@ -273,6 +273,9 @@ export class SensorTimeoutMonitor {
         .returnFirst()) as doorSensor | null;
       if (!fresh) return;
 
+      // Skip timeout check if monitoring hasn't started yet (waiting for first update)
+      if (!fresh.timeoutMonitoringStarted) return;
+
       // Get current timestamp
       const now = new Date();
 
@@ -356,6 +359,9 @@ export class SensorTimeoutMonitor {
         .eq(alarm.externalID)
         .returnFirst()) as Alarm | null;
       if (!fresh) return;
+
+      // Skip timeout check if monitoring hasn't started yet (waiting for first update)
+      if (!fresh.timeoutMonitoringStarted) return;
 
       // Get current timestamp
       const now = new Date();
