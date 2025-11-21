@@ -14,6 +14,7 @@ const doorSensorSchema = new Schema("doorSensors", {
   frequency: { type: "number" },
   expectedSecondsUpdated: { type: "number" },
   lastUpdated: { type: "date" },
+  timeoutMonitoringStarted: { type: "boolean" },
 });
 
 export interface doorSensor {
@@ -29,6 +30,7 @@ export interface doorSensor {
   frequency?: number;
   expectedSecondsUpdated: number;
   lastUpdated: Date;
+  timeoutMonitoringStarted?: boolean;
 }
 
 export const doorSensorRepository = new Repository(
