@@ -123,13 +123,6 @@ router.post("/sensors/new", async (req, res, next) => {
     lastUpdated: new Date(),
   } as doorSensor);
 
-  await raiseEvent({
-    type: "info",
-    message: `DEBUG: New sensor ${newSensor.name} in ${building} with custom id ${newSensor.id} added`,
-    system: "backend:debug",
-    title: `DEBUG - Sensor Added: ${newSensor.name} in ${building}`,
-  });
-
   await writePostgresCheckpoint();
   await writeRedisCheckpoint();
   await emitNewData();
@@ -278,13 +271,6 @@ router.post("/alarms/new", async (req, res, next) => {
     autoTurnOffSeconds: autoTurnOffSeconds,
     lastUpdated: new Date(),
   } as Alarm);
-
-  await raiseEvent({
-    type: "info",
-    message: `DEBUG: New alarm ${newAlarm.name} in ${building} with custom id ${newAlarm.id} added`,
-    system: "backend:debug",
-    title: `DEBUG - Alarm Added: ${newAlarm.name} in ${building}`,
-  });
 
   await writePostgresCheckpoint();
   await writeRedisCheckpoint();

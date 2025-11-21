@@ -348,7 +348,6 @@ router.post("/new", async (req, res, next) => {
     temperature: 0,
     expectedSecondsUpdated,
     lastUpdated: new Date(),
-    timeoutMonitoringStarted: false,
   } as doorSensor);
   await raiseEvent({
     type: "info",
