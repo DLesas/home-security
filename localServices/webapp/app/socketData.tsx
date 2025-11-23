@@ -9,20 +9,24 @@ import React, {
 } from 'react'
 import { useSocket } from './socketInitializer' // Assuming you have a custom hook to get the socket instance
 import { useRouter } from 'next/navigation'
-import { SecurityData, DoorEntries, DoorValues, LogStatus, Issue } from './types'
+import { SecurityData, DoorEntries, DoorValues, LogStatus, FormattedEvent } from './types'
 
-interface Alarm {
-  name: string
-  externalID: string
-  playing: boolean
-  building: string
-  ipAddress?: string
-  macAddress?: string
-  temperature?: number
-  voltage?: number
-  frequency?: number
-  expectedSecondsUpdated: number
-  lastUpdated: Date
+export interface Alarm {
+  name: string;
+  externalID: string;
+  playing: boolean;
+  building: string;
+  state: string;
+  ipAddress?: string;
+  port: number;
+  macAddress?: string;
+  temperature?: number;
+  voltage?: number;
+  frequency?: number;
+  expectedSecondsUpdated: number;
+  lastUpdated: Date;
+  cooldownUntil?: Date;
+  autoTurnOffSeconds?: number; // Individual timeout setting (0 = no timeout)
 }
 
 interface doorSensor {
@@ -182,7 +186,6 @@ function formatData(sensors: doorSensor[], alarms: Alarm[]): Data {
   return {
     alarm: alarms.some((alarm) => alarm.playing),
     logs: logs,
-    issues: [],
   }
 }
 
@@ -288,6 +291,9 @@ interface SocketDataContextProps {
   sensors: doorSensor[]
   alarms: Alarm[]
   socket: any | null
+  notifications: FormattedEvent[]
+  dismissNotification: (timestamp: number) => void
+  clearAllNotifications: () => void
 }
 
 const SocketDataContext = createContext<SocketDataContextProps>({
@@ -297,6 +303,9 @@ const SocketDataContext = createContext<SocketDataContextProps>({
   sensors: [],
   alarms: [],
   socket: null,
+  notifications: [],
+  dismissNotification: () => {},
+  clearAllNotifications: () => {},
 })
 
 export const useSocketData = (): SocketDataContextProps =>
@@ -308,8 +317,19 @@ export const SocketDataProvider: React.FC<SocketDataProps> = ({ children }) => {
   const [isConnected, setIsConnected] = useState<boolean>(false)
   const [sensors, setSensors] = useState<doorSensor[]>([])
   const [alarms, setAlarms] = useState<Alarm[]>([])
+  const [notifications, setNotifications] = useState<FormattedEvent[]>([])
   const { socket } = useSocket() // Assuming you have a custom hook to get the socket instance
   const router = useRouter()
+
+  // Function to dismiss a notification
+  const dismissNotification = (timestamp: number) => {
+    setNotifications((prev) => prev.filter((notification) => notification.timestamp !== timestamp))
+  }
+
+  // Function to clear all notifications
+  const clearAllNotifications = () => {
+    setNotifications([])
+  }
 
   // Function to reformat data (useful when sensor order changes)
   const reformatData = () => {
@@ -323,7 +343,6 @@ export const SocketDataProvider: React.FC<SocketDataProps> = ({ children }) => {
     console.log(socket)
     function onConnect() {
       setIsConnected(true)
-      console.log('connected')
     }
 
     function onDisconnect() {
@@ -345,10 +364,15 @@ export const SocketDataProvider: React.FC<SocketDataProps> = ({ children }) => {
       }
     }
 
+    function onEvent(event: FormattedEvent) {
+      setNotifications((prev) => [event, ...prev])
+    }
+
     if (socket) {
       socket.on('connect', onConnect)
       socket.on('disconnect', onDisconnect)
       socket.on('data', onData)
+      socket.on('event', onEvent)
     }
 
     return () => {
@@ -356,6 +380,7 @@ export const SocketDataProvider: React.FC<SocketDataProps> = ({ children }) => {
         socket.off('connect', onConnect)
         socket.off('disconnect', onDisconnect)
         socket.off('data', onData)
+        socket.off('event', onEvent)
       }
     }
   }, [socket])
@@ -396,6 +421,9 @@ export const SocketDataProvider: React.FC<SocketDataProps> = ({ children }) => {
         sensors,
         alarms,
         socket,
+        notifications,
+        dismissNotification,
+        clearAllNotifications,
       }}
     >
       {children}

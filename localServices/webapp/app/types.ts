@@ -9,10 +9,16 @@ export interface DoorEntries {
   [key: string]: DoorValues
 }
 
-export interface Issue {
-  msg: string
-  time: Date
-  id: string
+export type EventType = "debug" | "info" | "warning" | "critical";
+
+export interface FormattedEvent {
+  timestamp: number;
+  data: {
+    type: EventType;
+    message: string;
+    system: string;
+    title: string;
+  };
 }
 
 export interface SecurityData {
@@ -20,7 +26,6 @@ export interface SecurityData {
   logs: {
     [key: string]: DoorEntries
   }
-  issues: Issue[]
 }
 
 export type BuildingStatus = 'open' | 'closed' | 'unknown'
