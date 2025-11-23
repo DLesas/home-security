@@ -11,98 +11,12 @@ import {
   NavbarMenu,
   NavbarMenuItem,
 } from '@nextui-org/navbar'
-import { Badge } from '@nextui-org/badge'
 import { Button } from '@nextui-org/button'
-import { MdNotifications } from 'react-icons/md'
 import { HiOutlineMoon, HiOutlineSun } from 'react-icons/hi2'
-import { Popover, PopoverTrigger, PopoverContent } from '@nextui-org/popover'
 import { useTheme } from 'next-themes'
-import { useSocket } from './socketInitializer'
-import { useSocketData } from './socketData'
 import NextLink from 'next/link'
 import { Link as NextUILink } from '@nextui-org/link'
-
-interface Issue {
-  msg: string
-  time: Date
-  id: string
-}
-
-interface Data {
-  alarm: boolean
-  logs: {
-    [key: string]: any
-  }
-  issues: Issue[] | []
-}
-
-function dismiss(socket: any, callback: () => void, subject: string) {
-  if (socket) {
-    socket.timeout(5000).emit('dismiss', subject, callback)
-  }
-}
-
-function Notifications({ data }: { data: Data }) {
-  const { socket } = useSocket()
-
-  return (
-    <Badge
-      content={data.issues?.length > 0 ? data.issues.length : undefined}
-      shape="circle"
-      color="danger"
-      size="sm"
-    >
-      <Popover placement="bottom-end" showArrow offset={10}>
-        <PopoverTrigger>
-          <Button
-            isIconOnly
-            radius="full"
-            variant="light"
-            size="sm"
-            aria-label="Notifications"
-          >
-            <MdNotifications size={20} />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-80 p-0">
-          <div className="px-4 py-3 border-b border-default-200 dark:border-default-100">
-            <p className="text-sm font-semibold">Notifications</p>
-          </div>
-          <div className="max-h-96 overflow-y-auto">
-            {data.issues?.length > 0 ? (
-              <div className="divide-y divide-default-200 dark:divide-default-100">
-                {data.issues.map((issue) => (
-                  <div
-                    key={issue.id}
-                    className="px-4 py-3 hover:bg-default-100 dark:hover:bg-default-50 transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="text-sm text-default-700 dark:text-default-600 flex-1">
-                        {issue.msg}
-                      </p>
-                      <Button
-                        size="sm"
-                        variant="flat"
-                        onPress={() => dismiss(socket, () => {}, issue.id)}
-                        className="shrink-0"
-                      >
-                        Dismiss
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="px-4 py-8 text-center">
-                <p className="text-sm text-default-500">No notifications</p>
-              </div>
-            )}
-          </div>
-        </PopoverContent>
-      </Popover>
-    </Badge>
-  )
-}
+import NotificationsPopover from '../components/NotificationsPopover'
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme()
@@ -136,7 +50,6 @@ function ThemeToggle() {
 
 export default function AppNavbar() {
   const pathname = usePathname()
-  const { data } = useSocketData()
   const [isMenuOpen, setIsMenuOpen] = React.useState(false)
 
   const menuItems = [
@@ -197,7 +110,7 @@ export default function AppNavbar() {
           <ThemeToggle />
         </NavbarItem>
         <NavbarItem>
-          <Notifications data={data} />
+          <NotificationsPopover />
         </NavbarItem>
       </NavbarContent>
 
