@@ -1,6 +1,7 @@
 import { type Alarm, alarmRepository } from "./redis/alarms";
 import { alarmTimeoutManager } from "./alarmTimeoutManager";
 import { ALARM_COOLDOWN_SECONDS } from "./config";
+import { Result, ok, err, ResultAsync } from "neverthrow";
 
 /**
  * Alarm Functions with Cooldown Protection
@@ -30,58 +31,68 @@ interface AlarmResponse {
  *
  * @param {Alarm[] | []} alarms - The array of alarms to change the state of.
  * @param {"on" | "off"} state - The state to change the alarms to.
- * @return {Boolean[]} - A promise that resolves to an array of results from the promises of sending the http requests to trigger the alarms.
+ * @return {ResultAsync<boolean[], string>} - A ResultAsync that resolves to an array of results from the promises of sending the http requests to trigger the alarms.
  */
-export async function changeAlarmState(
+export function changeAlarmState(
   alarms: Alarm[] | [],
   state: "on" | "off"
-) {
-  const triggerPromises = [];
-  for (let index = 0; index < alarms.length; index++) {
-    const element = alarms[index];
-    if (element.ipAddress && element.port) {
-      // Check cooldown for turning alarms on
-      if (state === "on") {
-        const now = new Date();
-        if (element.cooldownUntil && now < element.cooldownUntil) {
-          const remainingSeconds = Math.ceil(
-            (element.cooldownUntil.getTime() - now.getTime()) / 1000
-          );
-          console.log(
-            `[COOLDOWN] Alarm ${element.name} is in cooldown. Cannot turn on for ${remainingSeconds} more seconds.`
-          );
-          continue; // Skip this alarm
+): ResultAsync<boolean[], string> {
+  return ResultAsync.fromPromise(
+    (async () => {
+      const triggerPromises: Promise<Result<boolean, string>>[] = [];
+
+      for (let index = 0; index < alarms.length; index++) {
+        const element = alarms[index];
+        if (element.ipAddress && element.port) {
+          // Check cooldown for turning alarms on
+          if (state === "on") {
+            const now = new Date();
+            if (element.cooldownUntil && now < element.cooldownUntil) {
+              const remainingSeconds = Math.ceil(
+                (element.cooldownUntil.getTime() - now.getTime()) / 1000
+              );
+              console.log(
+                `[COOLDOWN] Alarm ${element.name} is in cooldown. Cannot turn on for ${remainingSeconds} more seconds.`
+              );
+              continue; // Skip this alarm
+            }
+          }
+
+          const ipaddr = `http://${element.ipAddress}:${element.port}`;
+          const url = state === "on" ? `${ipaddr}/on` : `${ipaddr}/off`;
+
+          const promise = fetch(url, { method: "POST" })
+            .then(async (response): Promise<Result<boolean, string>> => {
+              if (!response.ok) {
+                return err(
+                  `Failed to trigger alarm ${element.name}. Status: ${response.status}`
+                );
+              }
+              const alarmResponse = (await response.json()) as AlarmResponse;
+              const saved = await saveAlarmState(element, alarmResponse, state);
+              return ok(saved);
+            })
+            .catch((error): Result<boolean, string> => {
+              return err(`Network error triggering alarm ${element.name}: ${error}`);
+            });
+
+          triggerPromises.push(promise);
         }
       }
 
-      const ipaddr = `http://${element.ipAddress}:${element.port}`;
-      const url = state === "on" ? `${ipaddr}/on` : `${ipaddr}/off`;
-      const promise: Promise<Boolean> = fetch(url, { method: "POST" }).then(
-        async (response) => {
-          if (!response.ok) {
-            // raiseEvent({
-            //   type: "error",
-            //   message: `Failed to trigger alarm ${element.name}. Status: ${response.status}`,
-            //   system: "backend:alarmFuncs",
-            //   title: `Alarm Error: ${element.name}`,
-            // });
-            throw new Error(
-              `Failed to trigger alarm ${element.name}. Status: ${response.status}`
-            );
-          }
-          const alarmResponse = (await response.json()) as AlarmResponse;
-          const saved = await saveAlarmState(element, alarmResponse, state);
-          return saved;
-        }
-      );
-      triggerPromises.push(promise);
-    }
-  }
-  const res = await Promise.all(triggerPromises);
-  return res;
-  // const triggerRes = await Promise.all(triggerPromises);
-  // const results = saveRes.concat(triggerRes);
-  // return results;
+      const results = await Promise.all(triggerPromises);
+
+      // Check if any failed
+      const failures = results.filter((r) => r.isErr());
+      if (failures.length > 0) {
+        const errorMessages = failures.map((r) => r.isErr() ? r.error : "").join(", ");
+        return err(errorMessages) as any;
+      }
+
+      return results.map((r) => r.isOk() ? r.value : false);
+    })(),
+    (error) => String(error)
+  );
 }
 
 /**

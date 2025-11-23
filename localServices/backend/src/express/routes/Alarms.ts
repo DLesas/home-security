@@ -2,7 +2,7 @@ import express from "express";
 import { z } from "zod";
 import { db, writePostgresCheckpoint } from "../../db/db";
 import { buildingTable } from "../../db/schema/buildings";
-import { eq } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { raiseEvent } from "../../events/notify";
 import { emitNewData } from "../socketHandler";
 import { alarmsTable } from "../../db/schema/alarms";
@@ -15,6 +15,8 @@ import { alarmUpdatesTable } from "../../db/schema/alarmUpdates";
 import { writeRedisCheckpoint } from "../../redis/index";
 import { identifyDevice } from "../../utils/deviceIdentification";
 import { sensorTimeoutMonitor } from "../../microDeviceTimeoutMonitor";
+import { changeAlarmState } from "../../alarmFuncs";
+import { retryWithExponentialBackoff } from "../../utils/index";
 
 const router = express.Router();
 
@@ -402,6 +404,157 @@ router.post("/update", async (req, res, next) => {
   });
 
   res.json({ status: "success", message: "update acknowledged" });
+});
+
+/**
+ * @route POST /:alarmId/test
+ * @description Tests an alarm by turning it on for 0.75 seconds then turning it off
+ * @param {express.Request} req - The request object
+ * @param {express.Response} res - The response object
+ * @returns {void}
+ * @requires {string} alarmId - The ID of the alarm to test
+ */
+router.post("/:alarmId/test", async (req, res, next) => {
+  const { alarmId } = req.params;
+
+  const alarm = (await alarmRepository
+    .search()
+    .where("externalID")
+    .eq(alarmId)
+    .returnFirst()) as Alarm | null;
+
+  if (!alarm) {
+    next(raiseError(404, "Alarm not found"));
+    return;
+  }
+
+  // Turn alarm on
+  const turnOnResult = await changeAlarmState([alarm], "on");
+
+  if (turnOnResult.isErr()) {
+    next(raiseError(500, `Failed to turn on alarm: ${turnOnResult.error}`));
+    return;
+  }
+
+  await emitNewData();
+
+  await raiseEvent({
+    type: "info",
+    message: `Testing alarm ${alarm.name} in ${alarm.building}`,
+    system: "backend:alarms",
+  });
+
+  // Wait 750ms
+  await new Promise((resolve) => setTimeout(resolve, 650));
+
+  // Turn alarm off with exponential backoff retries
+  const turnOffResult = await retryWithExponentialBackoff(
+    () => changeAlarmState([alarm], "off"),
+    5, // max retries
+    100, // initial delay
+    1000 // max delay
+  );
+
+  if (turnOffResult.isErr()) {
+    await raiseEvent({
+      type: "critical",
+      message: `Failed to turn off alarm ${alarm.name} after test: ${turnOffResult.error}`,
+      system: "backend:alarms",
+    });
+    next(raiseError(500, `Failed to turn off alarm: ${turnOffResult.error}`));
+    return;
+  }
+
+  await emitNewData();
+
+  await raiseEvent({
+    type: "info",
+    message: `Test completed for alarm ${alarm.name} in ${alarm.building}`,
+    system: "backend:alarms",
+  });
+
+  res.status(200).json({
+    status: "success",
+    message: "Alarm test completed successfully",
+  });
+});
+
+/**
+ * @route GET /:alarmId/updates
+ * @description Gets paginated updates for an alarm
+ * @param {express.Request} req - The request object
+ * @param {express.Response} res - The response object
+ * @returns {void}
+ * @urlparam {string} alarmId - The ID of the alarm
+ * @queryparam {number} limit - Number of updates per page (default: 100, max: 1000)
+ * @queryparam {number} offset - Number of updates to skip (default: 0)
+ */
+router.get("/:alarmId/updates", async (req, res, next) => {
+  const { alarmId } = req.params;
+
+  // Validate query parameters
+  const querySchema = z.object({
+    limit: z
+      .string()
+      .optional()
+      .transform((val) => (val ? parseInt(val) : 100))
+      .refine((val) => !isNaN(val) && val > 0 && val <= 1000, {
+        message: "limit must be a number between 1 and 1000",
+      }),
+    offset: z
+      .string()
+      .optional()
+      .transform((val) => (val ? parseInt(val) : 0))
+      .refine((val) => !isNaN(val) && val >= 0, {
+        message: "offset must be a non-negative number",
+      }),
+  });
+
+  const result = querySchema.safeParse(req.query);
+  if (!result.success) {
+    next(raiseError(400, JSON.stringify(result.error.errors)));
+    return;
+  }
+
+  const { limit, offset } = result.data;
+
+  // Verify alarm exists
+  const alarm = (await alarmRepository
+    .search()
+    .where("externalID")
+    .eq(alarmId)
+    .returnFirst()) as Alarm | null;
+
+  if (!alarm) {
+    next(raiseError(404, "Alarm not recognized"));
+    return;
+  }
+
+  // Build where conditions
+  const whereConditions = [eq(alarmUpdatesTable.alarmId, alarmId)];
+
+  // Get the paginated updates for this alarm
+  const updates = await db
+    .select()
+    .from(alarmUpdatesTable)
+    .where(and(...whereConditions))
+    .orderBy(desc(alarmUpdatesTable.dateTime))
+    .limit(limit)
+    .offset(offset);
+
+  // Map the updates to include playing boolean based on state
+  const mappedUpdates = updates.map((update) => ({
+    ...update,
+    playing: update.state === "on",
+  }));
+
+  res.json({
+    status: "success",
+    limit,
+    offset,
+    count: mappedUpdates.length,
+    updates: mappedUpdates,
+  });
 });
 
 export default router;

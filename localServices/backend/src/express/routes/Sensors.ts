@@ -427,15 +427,33 @@ router.delete("/:sensorId", async (req, res, next) => {
  */
 router.get("/:sensorId/updates", async (req, res, next) => {
   const { sensorId } = req.params;
-  const limit = Math.min(
-    parseInt(req.query.limit as string) || 100,
-    1000
-  );
-  const offset = Math.max(
-    parseInt(req.query.offset as string) || 0,
-    0
-  );
-  const stateFilter = req.query.state as string | undefined;
+
+  // Validate query parameters
+  const querySchema = z.object({
+    limit: z
+      .string()
+      .optional()
+      .transform((val) => (val ? parseInt(val) : 100))
+      .refine((val) => !isNaN(val) && val > 0 && val <= 1000, {
+        message: "limit must be a number between 1 and 1000",
+      }),
+    offset: z
+      .string()
+      .optional()
+      .transform((val) => (val ? parseInt(val) : 0))
+      .refine((val) => !isNaN(val) && val >= 0, {
+        message: "offset must be a non-negative number",
+      }),
+    state: z.enum(["open", "closed", "unknown"]).optional(),
+  });
+
+  const result = querySchema.safeParse(req.query);
+  if (!result.success) {
+    next(raiseError(400, JSON.stringify(result.error.errors)));
+    return;
+  }
+
+  const { limit, offset, state: stateFilter } = result.data;
 
   // Verify sensor exists
   const sensor = (await doorSensorRepository
@@ -452,8 +470,8 @@ router.get("/:sensorId/updates", async (req, res, next) => {
   // Build where conditions
   const whereConditions = [eq(sensorUpdatesTable.sensorId, sensorId)];
 
-  if (stateFilter && ['open', 'closed', 'unknown'].includes(stateFilter)) {
-    whereConditions.push(eq(sensorUpdatesTable.state, stateFilter as 'open' | 'closed' | 'unknown'));
+  if (stateFilter) {
+    whereConditions.push(eq(sensorUpdatesTable.state, stateFilter));
   }
 
   // Get the paginated updates for this sensor
