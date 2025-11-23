@@ -1,5 +1,6 @@
 import { uuidv7 } from "uuidv7";
 import { Request } from "express";
+import { ResultAsync } from "neverthrow";
 
 /**
  * Generates a UUID v7 without hyphens.
@@ -95,4 +96,44 @@ export const truncateFromBeginning = (
   }
 
   return prefix + truncatedText;
+};
+
+/**
+ * Retries a function with exponential backoff delay.
+ *
+ * @template T - The success type of the Result
+ * @template E - The error type of the Result
+ * @param {() => ResultAsync<T, E>} fn - The function to retry that returns a ResultAsync
+ * @param {number} maxRetries - Maximum number of retry attempts (default: 5)
+ * @param {number} initialDelayMs - Initial delay in milliseconds (default: 100)
+ * @param {number} maxDelayMs - Maximum delay in milliseconds (default: 10000)
+ * @returns {ResultAsync<T, E>} The result of the function after retries
+ */
+export function retryWithExponentialBackoff<T, E>(
+  fn: () => ResultAsync<T, E>,
+  maxRetries: number = 5,
+  initialDelayMs: number = 100,
+  maxDelayMs: number = 10000
+): ResultAsync<T, E> {
+  const attemptWithBackoff = async (
+    attempt: number
+  ): Promise<ResultAsync<T, E>> => {
+    const result = await fn();
+
+    if (result.isOk() || attempt >= maxRetries) {
+      return result;
+    }
+
+    // Calculate exponential backoff delay: initialDelay * 2^attempt
+    const delay = Math.min(initialDelayMs * Math.pow(2, attempt), maxDelayMs);
+
+    await new Promise((resolve) => setTimeout(resolve, delay));
+
+    return attemptWithBackoff(attempt + 1);
+  };
+
+  return ResultAsync.fromPromise(
+    attemptWithBackoff(0),
+    (error) => error as E
+  ).andThen((result) => result);
 };
