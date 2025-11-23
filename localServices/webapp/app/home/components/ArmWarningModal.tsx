@@ -23,7 +23,9 @@ export function ArmWarningModal({
   confirmText,
 }: ArmWarningModalProps) {
   return (
-    <Modal isOpen={isOpen} onClose={onCancel} onOpenChange={onOpenChange}>
+    <Modal placement='bottom' classNames={{
+          base: "m-0 sm:m-0 rounded-t-lg w-full max-w-full",
+        }} isOpen={isOpen} onClose={onCancel} onOpenChange={onOpenChange}>
       <ModalContent>
         {(onClose) => (
           <>

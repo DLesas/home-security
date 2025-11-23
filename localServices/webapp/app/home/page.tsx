@@ -1,7 +1,7 @@
 'use client'
 
 import { FaCircle, FaRegCircle } from 'react-icons/fa6'
-import { useSocketData } from '../socketData'
+import { useSocketData, type Alarm } from '../socketData'
 import { motion } from 'framer-motion'
 import { BuildingCard } from './components/BuildingCard'
 import { StatusPill } from './components/StatusPill'
@@ -89,7 +89,7 @@ function checkArmedState({
 }
 
 export default function Index() {
-  const { data, isConnected } = useSocketData()
+  const { data, isConnected, alarms } = useSocketData()
   const armed = checkArmedState(countDoorEntries(data))
 
   const publicVapidKey = process.env.VAPID_PUBLIC!
@@ -161,6 +161,9 @@ export default function Index() {
                 ).length
               : 0
 
+            // Filter alarms for this building
+            const buildingAlarms = alarms.filter(alarm => alarm.building === key)
+
             return (
               <motion.div
                 key={key}
@@ -177,6 +180,7 @@ export default function Index() {
                   openCount={openCount}
                   unknownCount={unknownCount}
                   buildingOpen={checkBuildingOpen(data, key)}
+                  alarms={buildingAlarms}
                 />
               </motion.div>
             )

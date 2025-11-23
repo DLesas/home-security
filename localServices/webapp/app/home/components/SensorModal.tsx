@@ -1,9 +1,11 @@
 'use client'
 
 import { Modal, ModalContent, ModalHeader, ModalBody } from '@nextui-org/modal'
+import { Divider } from '@nextui-org/divider'
 import { useRouter } from 'next/navigation'
-import { useSocketData } from '../../socketData'
+import { useSocketData, type Alarm } from '../../socketData'
 import { SensorRow } from './SensorRow'
+import { AlarmRow } from './AlarmRow'
 import { SecurityData, LogStatus } from '../../types'
 
 interface SensorModalProps {
@@ -11,6 +13,7 @@ interface SensorModalProps {
   onOpenChange: () => void
   buildingName: string
   data: SecurityData
+  alarms: Alarm[]
 }
 
 export function SensorModal({
@@ -18,6 +21,7 @@ export function SensorModal({
   onOpenChange,
   buildingName,
   data,
+  alarms,
 }: SensorModalProps) {
   const router = useRouter()
   const { sensors } = useSocketData()
@@ -29,6 +33,10 @@ export function SensorModal({
     if (sensor) {
       router.push(`/sensors/${sensor.externalID}`)
     }
+  }
+
+  function handleAlarmClick(alarmExternalID: string) {
+    router.push(`/alarms/${alarmExternalID}`)
   }
 
   return (
@@ -52,6 +60,7 @@ export function SensorModal({
               </ModalHeader>
               <ModalBody>
                 <div className="space-y-3">
+                  {/* Sensors Section */}
                   {data.logs[buildingName] &&
                     Object.keys(data.logs[buildingName]).map((sensorName: string, index: number) => {
                       const buildingData = data.logs[buildingName]
@@ -77,6 +86,23 @@ export function SensorModal({
                         />
                       )
                     })}
+
+                  {/* Divider between sensors and alarms */}
+                  {data.logs[buildingName] && Object.keys(data.logs[buildingName]).length > 0 && alarms.length > 0 && (
+                    <div className="py-4" />
+                  )}
+
+                  {/* Alarms Section */}
+                  {alarms.length > 0 && (
+                    <AlarmRow
+                      alarms={alarms}
+                      index={Object.keys(data.logs[buildingName] || {}).length}
+                      onAlarmClick={(alarmId) => {
+                        handleAlarmClick(alarmId)
+                        onClose()
+                      }}
+                    />
+                  )}
                 </div>
               </ModalBody>
             </>
