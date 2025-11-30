@@ -1,6 +1,7 @@
 import express from "express";
 import { z } from "zod";
 import { doorSensorRepository, type doorSensor } from "../../redis/doorSensors";
+import { redis } from "../../redis/index";
 import { changeSensorStatus, DoorSensorUpdate } from "../../sensorFuncs";
 import { db, writePostgresCheckpoint } from "../../db/db";
 import { sensorsTable } from "../../db/schema/sensors";
@@ -8,7 +9,6 @@ import { buildingTable } from "../../db/schema/buildings";
 import { eq, and, desc } from "drizzle-orm";
 import { raiseEvent } from "../../events/notify";
 import { emitNewData } from "../socketHandler";
-import { EntityId } from "redis-om";
 import { raiseError } from "../../events/notify";
 import { makeID, truncateFromBeginning } from "../../utils/index";
 import { sensorLogsTable } from "../../db/schema/sensorLogs";
@@ -386,12 +386,17 @@ router.delete("/:sensorId", async (req, res, next) => {
     next(raiseError(404, "Sensor not recognized"));
     return;
   }
-  const entityId = (sensor as any)[EntityId] as string;
+
+  // Hard delete in PostgreSQL
   await db
-    .update(sensorsTable)
-    .set({ deleted: true })
+    .delete(sensorsTable)
     .where(eq(sensorsTable.id, sensorId));
-  await doorSensorRepository.remove(entityId);
+
+  // Remove sensor directly from Redis using the key format: doorSensors:{sensorId}
+  const sensorKey = `doorSensors:${sensorId}`;
+  const deleted = await redis.del(sensorKey);
+  console.log(`[SensorDelete] Deleted key ${sensorKey}: ${deleted} keys removed`);
+
   await raiseEvent({
     type: "warning",
     message: `Sensor ${sensor.name} in ${sensor.building} deleted`,

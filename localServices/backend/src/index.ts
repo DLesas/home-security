@@ -9,6 +9,8 @@ import buildingRoutes from "./express/routes/Buildings";
 import alarmRoutes from "./express/routes/Alarms";
 import logsRoutes from "./express/routes/logs";
 import scheduleRoutes from "./express/routes/Schedules";
+import debugRoutes from "./express/routes/Debug";
+import cameraRoutes from "./express/routes/Cameras";
 import setupSocketHandlers from "./express/socketHandler";
 import { runMigrations, runCustomSQL } from "./db/db";
 import { connectRedis } from "./redis/index";
@@ -20,6 +22,7 @@ import {
 import { createConfigIndex, setDefaultConfig } from "./redis/config";
 import { createAlarmIndex } from "./redis/alarms";
 import { createScheduleIndexes } from "./redis/schedules";
+import { createCameraIndex } from "./redis/cameras";
 import { setSensorStatusUnknown } from "./sensorFuncs";
 import { SocketEventSubscriber } from "./express/socketEventSubscriber";
 import { sensorTimeoutMonitor } from "./microDeviceTimeoutMonitor";
@@ -47,9 +50,10 @@ await createDoorSensorIndex();
 await createConfigIndex();
 await createAlarmIndex();
 await createScheduleIndexes();
+await createCameraIndex();
 await setDefaultConfig();
 await runMigrations();
-// await runCustomSQL();
+await runCustomSQL();
 // on startup might want to consider setting all sensors
 // to unknown as to not trigger false alarms
 // as previous state of sensors will stay in redis
@@ -72,13 +76,17 @@ app.get("/health", (req, res) => {
 app.use("/api/v1/sensors", sensorRoutes);
 app.use("/api/v1/buildings", buildingRoutes);
 app.use("/api/v1/alarms", alarmRoutes);
+app.use("/api/v1/cameras", cameraRoutes);
 app.use("/api/v1/logs", logsRoutes);
 app.use("/api/v1/schedules", scheduleRoutes);
+//TODO: remove debug routes in production
+app.use("/api/v1/debug", debugRoutes);
 
 // Error handling middleware
 app.use(errorHandler);
 
-setupSocketHandlers(io);
+// Setup Socket.IO with Redis adapter before starting the server
+await setupSocketHandlers(io);
 
 // Initialize the Socket Event Subscriber
 const socketEventSubscriber = new SocketEventSubscriber();
@@ -89,8 +97,12 @@ server.listen(port, async () => {
   // Start the Socket Event Subscriber
   await socketEventSubscriber.start();
 
-  // Start the Sensor Timeout Monitor (using the singleton instance)
-  await sensorTimeoutMonitor.start();
+  // Start the Sensor Timeout Monitor after a 2-minute delay to allow devices to connect
+  const TIMEOUT_MONITOR_STARTUP_DELAY_MS = 2 * 60 * 1000; // 2 minutes
+  setTimeout(async () => {
+    console.log("Starting Sensor Timeout Monitor after startup delay...");
+    await sensorTimeoutMonitor.start();
+  }, TIMEOUT_MONITOR_STARTUP_DELAY_MS);
 
   // Initialize and start the Alarm Timeout Manager
   alarmTimeoutManager.setAlarmStateChangeCallback(changeAlarmState);

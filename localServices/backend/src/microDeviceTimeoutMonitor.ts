@@ -15,6 +15,14 @@ import { setSensorStatusUnknown } from "./sensorFuncs";
  * device's `lastUpdated` timestamp and marks the device as "unknown" if
  * it hasn't reported within the expected timeframe.
  *
+ * Alarm timeout behavior:
+ * - At 1x expectedSecondsUpdated: Send warning alert once, set state to "unknown"
+ * - At 2x expectedSecondsUpdated: Send critical alert once (tracked in map to prevent duplicates)
+ * - On recovery: Clear from critical alerts map and send recovery info event
+ *
+ * Sensor timeout behavior:
+ * - At 1x expectedSecondsUpdated: Send warning alert, set state to "unknown"
+ * - On recovery: Send recovery info event
  *
  * @example
  * ```typescript
@@ -37,6 +45,12 @@ export class SensorTimeoutMonitor {
   private alarmIntervalIds: ReturnType<typeof setInterval>[] = [];
   /** Flag indicating whether the monitor is currently running */
   private isRunningFlag: boolean = false;
+  /** Set tracking which alarms have received critical timeout alerts */
+  private alarmCriticalAlertsSent = new Set<string>();
+  /** Set of sensor IDs that have pinged at least once */
+  private seenSensorIds: Set<string> = new Set();
+  /** Set of alarm IDs that have pinged at least once */
+  private seenAlarmIds: Set<string> = new Set();
 
   constructor() {
     // No initialization needed - monitor starts in stopped state
@@ -104,6 +118,11 @@ export class SensorTimeoutMonitor {
       clearInterval(intervalId);
     });
     this.alarmIntervalIds = [];
+
+    // Clear tracking sets
+    this.seenSensorIds.clear();
+    this.seenAlarmIds.clear();
+    this.alarmCriticalAlertsSent.clear();
 
     this.isRunningFlag = false;
     console.log("SensorTimeoutMonitor stopped");
@@ -263,6 +282,13 @@ export class SensorTimeoutMonitor {
         .returnFirst()) as doorSensor | null;
       if (!fresh) return;
 
+      // Skip timeout check if this is the first time we've seen this sensor
+      // Add it to the seen set and wait for next interval
+      if (!this.seenSensorIds.has(fresh.externalID)) {
+        this.seenSensorIds.add(fresh.externalID);
+        return;
+      }
+
       // Get current timestamp
       const now = new Date();
 
@@ -327,8 +353,11 @@ export class SensorTimeoutMonitor {
    * Check if a specific alarm has timed out.
    *
    * Compares the current time against the alarm's `lastUpdated` timestamp
-   * and marks the alarm as "unknown" if it has exceeded its `expectedSecondsUpdated`
-   * threshold. Also handles recovery detection when alarms come back online.
+   * and sends appropriate alerts based on timeout duration:
+   * - 1x expectedSecondsUpdated: Warning alert (once)
+   * - 2x expectedSecondsUpdated: Critical alert (once, tracked to prevent duplicates)
+   *
+   * Also handles recovery detection when alarms come back online.
    *
    * @private
    * @param {Alarm} alarm - The alarm to check for timeout
@@ -344,6 +373,13 @@ export class SensorTimeoutMonitor {
         .returnFirst()) as Alarm | null;
       if (!fresh) return;
 
+      // Skip timeout check if this is the first time we've seen this alarm
+      // Add it to the seen set and wait for next interval
+      if (!this.seenAlarmIds.has(fresh.externalID)) {
+        this.seenAlarmIds.add(fresh.externalID);
+        return;
+      }
+
       // Get current timestamp
       const now = new Date();
 
@@ -351,15 +387,60 @@ export class SensorTimeoutMonitor {
       const timeSinceLastUpdate =
         (now.getTime() - fresh.lastUpdated.getTime()) / 1000;
 
-      // Check if alarm has timed out
-      if (timeSinceLastUpdate > fresh.expectedSecondsUpdated) {
-        // Alarm has timed out - mark as unknown
+      const hasSentCritical = this.alarmCriticalAlertsSent.has(fresh.externalID);
+
+      // Check if alarm has timed out at 2x threshold (critical)
+      if (timeSinceLastUpdate > fresh.expectedSecondsUpdated * 2) {
+        // Only send critical alert if we haven't already sent one
+        if (!hasSentCritical) {
+          console.log(
+            `Alarm ${fresh.externalID} critically timed out (${timeSinceLastUpdate.toFixed(
+              0
+            )}s since last update, 2x threshold: ${fresh.expectedSecondsUpdated * 2}s)`
+          );
+
+          // Mark as unknown if not already
+          if (fresh.state !== "unknown") {
+            await alarmRepository.save(fresh.externalID, {
+              ...fresh,
+              state: "unknown",
+              lastUpdated: new Date(),
+            });
+            await db.insert(alarmUpdatesTable).values({
+              alarmId: fresh.externalID,
+              state: "unknown",
+              temperature: null,
+              voltage: null,
+              frequency: null,
+            });
+          }
+
+          // Send critical alert
+          await raiseEvent({
+            type: "critical",
+            message: `Alarm ${fresh.name} in ${
+              fresh.building
+            } is currently in an unknown state as we expected a signal from it but did not receive one (${timeSinceLastUpdate.toFixed(
+              0
+            )}s since last update and we expect a signal every ${fresh.expectedSecondsUpdated}s). We can't guarantee that the alarm is still connected to the network hence unsure if it will trigger when needed.`,
+            system: "backend:sensorTimeoutMonitor",
+          });
+
+          // Track that we've sent critical alert
+          this.alarmCriticalAlertsSent.add(fresh.externalID);
+          await emitNewData();
+        }
+      }
+      // Check if alarm has timed out at 1x threshold (warning)
+      else if (timeSinceLastUpdate > fresh.expectedSecondsUpdated) {
+        // Only send warning alert if state is not already unknown
         if (fresh.state !== "unknown") {
           console.log(
             `Alarm ${fresh.externalID} timed out (${timeSinceLastUpdate.toFixed(
               0
             )}s since last update)`
           );
+
           // Update alarm using explicit ID to avoid duplicates
           await alarmRepository.save(fresh.externalID, {
             ...fresh,
@@ -373,13 +454,15 @@ export class SensorTimeoutMonitor {
             voltage: null,
             frequency: null,
           });
+
+          // Send warning alert
           await raiseEvent({
-            type: "critical",
+            type: "warning",
             message: `Alarm ${fresh.name} in ${
               fresh.building
-            } is currently in an unknown state as we expected a signal from it but did not recieve one (${timeSinceLastUpdate.toFixed(
+            } marked as unknown as we expected a signal from it but did not receive one (${timeSinceLastUpdate.toFixed(
               0
-            )}s since last update and we expect a signal every ${fresh.expectedSecondsUpdated}s). We can't guarantee that the alarm is still connected to the network hence unsure if it will trigger when needed.`,
+            )}s since last update and we expect a signal every ${fresh.expectedSecondsUpdated}s). We can't guarantee that the alarm is still connected to the network.`,
             system: "backend:sensorTimeoutMonitor",
           });
           await emitNewData();
@@ -390,6 +473,10 @@ export class SensorTimeoutMonitor {
           console.log(
             `Alarm ${fresh.name} in ${fresh.building} recovered from unknown state`
           );
+
+          // Clear critical alert tracking on recovery
+          this.alarmCriticalAlertsSent.delete(fresh.externalID);
+
           await raiseEvent({
             type: "info",
             message: `Alarm ${fresh.name} in ${fresh.building} recovered from unknown state and is now back online`,

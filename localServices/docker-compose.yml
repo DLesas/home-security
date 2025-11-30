@@ -81,6 +81,7 @@ services:
       - BONJOUR_PORT=${BONJOUR_PORT:-4000}
       - BONJOUR_BROADCASTING_INTERVAL=${BONJOUR_BROADCASTING_INTERVAL:-10000}
       - ALARM_COOLDOWN_SECONDS=${ALARM_COOLDOWN_SECONDS:-30}
+      - CAMERA_CONFIG_CHANNEL=${CAMERA_CONFIG_CHANNEL:-camera:config}
     ports:
       - "${SERVER_PORT:-8080}:${SERVER_PORT:-8080}"
     depends_on:
@@ -103,6 +104,50 @@ services:
       retries: 5
       start_period: 30s
       timeout: 5s
+    networks:
+      - backend
+
+  camera-ingestion:
+    profiles: ["core"]
+    build:
+      context: .
+      dockerfile: ./cameraIngestion/Dockerfile
+    environment:
+      - DOCKER_ENV=true
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - EVENTS_CHANNEL=${EVENTS_CHANNEL}
+      - SERVER_PORT=8082
+      - RECORDING_PATH=/recordings
+      - RETENTION_DAYS=${RETENTION_DAYS:-7}
+      - SEGMENT_DURATION_SECONDS=${SEGMENT_DURATION_SECONDS:-600}
+      - AI_SAMPLING_RATE=${AI_SAMPLING_RATE:-3}
+      # Adaptive JPEG quality (adjusts based on CPU load)
+      - JPEG_QUALITY_MIN=${JPEG_QUALITY_MIN:-50}
+      - JPEG_QUALITY_MAX=${JPEG_QUALITY_MAX:-80}
+      - CPU_THRESHOLD_HIGH=${CPU_THRESHOLD_HIGH:-80}
+      - CPU_THRESHOLD_LOW=${CPU_THRESHOLD_LOW:-50}
+      - DEFAULT_STREAM_FPS=${DEFAULT_STREAM_FPS:-30}
+      - DEFAULT_STREAM_WIDTH=${DEFAULT_STREAM_WIDTH:-1280}
+      - DEFAULT_STREAM_HEIGHT=${DEFAULT_STREAM_HEIGHT:-720}
+      - CAMERA_CONFIG_CHANNEL=${CAMERA_CONFIG_CHANNEL:-camera:config}
+    ports:
+      - "8082:8082"
+    volumes:
+      - camera_recordings:/recordings
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
     networks:
       - backend
 
@@ -202,6 +247,37 @@ services:
   #   volumes:
   #     - ./video_processing/data:/data
 
+  motion-detection:
+    profiles: ["core"]
+    build:
+      context: ./motionDetection
+      args:
+        USE_GPU: ${USE_GPU:-false}
+    environment:
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_DB=${REDIS_DB:-0}
+      - CONSUMER_GROUP=${CONSUMER_GROUP:-motion-detectors}
+      - LOG_LEVEL=${MOTION_DETECTION_LOG_LEVEL:-DEBUG}
+      # Default motion detection settings (used when camera doesn't specify)
+      - DEFAULT_MIN_CONTOUR_AREA=${DEFAULT_MIN_CONTOUR_AREA:-1500}
+      - DEFAULT_MOTION_THRESHOLD=${DEFAULT_MOTION_THRESHOLD:-1.0}
+      - CAMERA_CONFIG_CHANNEL=${CAMERA_CONFIG_CHANNEL:-camera:config}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: always
+    networks:
+      - backend
+    # Uncomment below if USE_GPU=true in .env (requires Linux + NVIDIA GPU)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
   caddy:
     profiles: ["core"]
     build:
@@ -240,4 +316,6 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  camera_recordings:
     driver: local

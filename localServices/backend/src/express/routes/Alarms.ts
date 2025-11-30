@@ -7,7 +7,7 @@ import { raiseEvent } from "../../events/notify";
 import { emitNewData } from "../socketHandler";
 import { alarmsTable } from "../../db/schema/alarms";
 import { type Alarm, alarmRepository } from "../../redis/alarms";
-import { EntityId } from "redis-om";
+import { redis } from "../../redis/index";
 import { raiseError } from "../../events/notify";
 import { makeID, truncateFromBeginning } from "../../utils/index";
 import { alarmLogsTable } from "../../db/schema/alarmLogs";
@@ -148,16 +148,21 @@ router.delete("/:alarmId", async (req, res, next) => {
     next(raiseError(404, "Alarm not found"));
     return;
   }
-  const entityId = (alarm as any)[EntityId] as string;
+
+  // Hard delete in PostgreSQL
   await db
-    .update(alarmsTable)
-    .set({ deleted: true })
+    .delete(alarmsTable)
     .where(eq(alarmsTable.id, alarmId));
-  await alarmRepository.remove(entityId);
+
+  // Remove alarm directly from Redis using the key format: alarms:{alarmId}
+  const alarmKey = `alarms:${alarmId}`;
+  const deleted = await redis.del(alarmKey);
+  console.log(`[AlarmDelete] Deleted key ${alarmKey}: ${deleted} keys removed`);
+
   await emitNewData();
   await raiseEvent({
     type: "warning",
-    message: `Alarm ${alarm.name} in ${alarm.building} with id ${alarm.id} deleted`,
+    message: `Alarm ${alarm.name} in ${alarm.building} deleted`,
     system: "backend:alarms",
   });
   await writePostgresCheckpoint();

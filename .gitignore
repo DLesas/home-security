@@ -24,13 +24,14 @@ backend/src/db/drizzle
 
 # production
 */build
+*/dist
 
 # misc
 .DS_Store
 *.pem
 
 # environment variables
-.env*
+.env
 !.env.example
 config.env
 !config.env.example
