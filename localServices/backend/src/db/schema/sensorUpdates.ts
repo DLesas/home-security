@@ -8,7 +8,7 @@ export const sensorUpdatesTable = pgTable("sensorUpdates", {
 	id: bigserial("id", { mode: "number" }).notNull(),
 	sensorId: text("sensorId")
 		.notNull()
-		.references(() => sensorsTable.id, { onDelete: "cascade" }),
+		.references(() => sensorsTable.id, { onDelete: 'set null' }),
 	state: doorSensorStateEnum("state").notNull(),
 	temperature: numeric("temperature", { precision: 5, scale: 2 }),
 	voltage: numeric("voltage", { precision: 5, scale: 2 }),

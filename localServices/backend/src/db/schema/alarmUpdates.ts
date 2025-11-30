@@ -17,7 +17,7 @@ export const alarmUpdatesTable = pgTable("alarmUpdates", {
   id: bigserial("id", { mode: "number" }).notNull(),
   alarmId: text("alarmId")
     .notNull()
-    .references(() => alarmsTable.id, { onDelete: "cascade" }),
+    .references(() => alarmsTable.id, { onDelete: 'set null' }),
   state: alarmStateEnum("state").notNull(),
   temperature: numeric("temperature", { precision: 5, scale: 2 }),
   voltage: numeric("voltage", { precision: 5, scale: 2 }),

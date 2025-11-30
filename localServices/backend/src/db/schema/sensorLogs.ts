@@ -6,7 +6,7 @@ export const sensorLogsTable = pgTable("sensorLogs", {
 	id: bigserial("id", { mode: "number" }).notNull(),
 	sensorId: text("sensorId")
 		.notNull()
-		.references(() => sensorsTable.id, { onDelete: "cascade" }),
+		.references(() => sensorsTable.id, { onDelete: 'set null' }),
 	dateTime: timestamp("dateTime", { withTimezone: true }).notNull(),
     class: varchar("class", { length: 255 }).notNull(),
     function: varchar("function", { length: 255 }).notNull(),

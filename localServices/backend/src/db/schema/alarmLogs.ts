@@ -6,7 +6,7 @@ export const alarmLogsTable = pgTable("alarmLogs", {
 	id: bigserial("id", { mode: "number" }).notNull(),
 	alarmId: text("alarmId")
 		.notNull()
-		.references(() => alarmsTable.id, { onDelete: "cascade" }),
+		.references(() => alarmsTable.id, { onDelete: 'set null' }),
 	dateTime: timestamp("dateTime", { withTimezone: true }).notNull(),
     class: varchar("class", { length: 255 }).notNull(),
     function: varchar("function", { length: 255 }).notNull(),
