@@ -133,6 +133,10 @@ export class ContinuousRecorder {
 
   /**
    * Write a JPEG frame to the recording
+   *
+   * Note: If write() returns false, Node.js is signaling backpressure
+   * (FFmpeg can't keep up). We log a warning but continue - Node.js
+   * will buffer the data. In practice, H.264 encoding usually keeps up.
    */
   writeFrame(jpegBuffer: Buffer): void {
     if (!this.ffmpegProcess.running()) {
@@ -140,8 +144,7 @@ export class ContinuousRecorder {
     }
 
     try {
-      // Access the underlying FFmpeg process's stdin
-      const stdin = (this.ffmpegProcess as any).ffmpegProcess?.stdin;
+      const stdin = this.ffmpegProcess.getStdin();
       if (stdin) {
         stdin.write(jpegBuffer);
       }
@@ -157,7 +160,7 @@ export class ContinuousRecorder {
     console.log(`[Recorder ${this.cameraId}] Stopping recording...`);
 
     // Close stdin to signal end of input, then stop
-    const stdin = (this.ffmpegProcess as any).ffmpegProcess?.stdin;
+    const stdin = this.ffmpegProcess.getStdin();
     if (stdin) {
       stdin.end();
     }
@@ -167,6 +170,22 @@ export class ContinuousRecorder {
 
     // Stop the process
     await this.ffmpegProcess.stop();
+  }
+
+  /**
+   * Permanently dispose the recorder (prevents restarts)
+   */
+  async dispose(): Promise<void> {
+    console.log(`[Recorder ${this.cameraId}] Disposing (permanent removal)`);
+
+    // Close stdin to signal end of input
+    const stdin = this.ffmpegProcess.getStdin();
+    if (stdin) {
+      stdin.end();
+    }
+
+    // Dispose the process (cancels any pending restarts)
+    await this.ffmpegProcess.dispose();
   }
 
   /**

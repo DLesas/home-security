@@ -8,6 +8,9 @@ import { sensorLogsTable } from "./sensorLogs";
 import { alarmLogsTable } from "./alarmLogs";
 import { alarmUpdatesTable, alarmStateEnum } from "./alarmUpdates";
 import { alarmsTable } from "./alarms";
+import { camerasTable } from "./cameras";
+import { cameraSettingsTable } from "./cameraSettings";
+import { motionZonesTable } from "./motionZones";
 import {
   scheduleExecutionsTable,
   scheduleActionEnum,
@@ -34,6 +37,9 @@ export const buildingTable = buildingsTable;
 export const alarmLogTable = alarmLogsTable;
 export const alarmUpdateTable = alarmUpdatesTable;
 export const alarmTable = alarmsTable;
+export const cameraTable = camerasTable;
+export const cameraSettingTable = cameraSettingsTable;
+export const motionZoneTable = motionZonesTable;
 export const scheduleExecutionTable = scheduleExecutionsTable;
 
 export const db = {
@@ -54,5 +60,8 @@ export const db = {
   doorSensorTable,
   buildingTable,
   alarmTable,
+  cameraTable,
+  cameraSettingTable,
+  motionZoneTable,
   scheduleExecutionTable,
 };

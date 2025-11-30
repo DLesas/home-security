@@ -6,6 +6,7 @@ import {
   type RecurringSchedule,
   type OneTimeSchedule,
 } from "../../redis/schedules";
+import { redis } from "../../redis/index";
 import { raiseEvent } from "../../events/notify";
 import { raiseError } from "../../events/notify";
 import { emitNewData } from "../socketHandler";
@@ -361,13 +362,15 @@ router.delete("/:scheduleId", async (req, res, next) => {
       return;
     }
 
-    // Delete the schedule
+    // Delete the schedule directly from Redis using the key format
     if (isRecurring) {
-      await recurringScheduleRepository.remove(scheduleId);
-      console.log(`Deleted recurring schedule: ${scheduleId}`);
+      const scheduleKey = `recurringSchedules:${scheduleId}`;
+      const deleted = await redis.del(scheduleKey);
+      console.log(`[ScheduleDelete] Deleted key ${scheduleKey}: ${deleted} keys removed`);
     } else {
-      await oneTimeScheduleRepository.remove(scheduleId);
-      console.log(`Deleted one-time schedule: ${scheduleId}`);
+      const scheduleKey = `oneTimeSchedules:${scheduleId}`;
+      const deleted = await redis.del(scheduleKey);
+      console.log(`[ScheduleDelete] Deleted key ${scheduleKey}: ${deleted} keys removed`);
     }
 
     await raiseEvent({

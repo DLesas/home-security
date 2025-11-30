@@ -82,4 +82,33 @@ export function emitFrame(
   });
 }
 
+/**
+ * Camera stats for frontend monitoring
+ */
+export interface CameraStats {
+  cameraId: string;
+  cameraName: string;
+  state: string;
+  frameCount: number;
+  fps: number;
+  avgProcessingMs: number;
+  jpegQuality: number;
+  jpegSizeMB: number;
+  frameFlowState: string;
+  motionProcessingMs: number | null;
+}
+
+/**
+ * Emits camera stats to all clients subscribed to this camera
+ * Called every 100 frames (~3.3 seconds at 30fps)
+ */
+export function emitStats(stats: CameraStats): void {
+  if (!ioInstance) {
+    return;
+  }
+
+  const roomName = `camera:${stats.cameraId}`;
+  ioInstance.to(roomName).emit("camera:stats", stats);
+}
+
 export default setupSocketHandlers;

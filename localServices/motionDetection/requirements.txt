@@ -1,0 +1,13 @@
+# Motion Detection Service Dependencies
+# Note: opencv-python is NOT in this file - it's installed conditionally in Dockerfile
+# - CPU build (USE_GPU=false): Installs opencv-python from PyPI
+# - GPU build (USE_GPU=true): Uses pre-installed OpenCV with CUDA from base image
+
+# Redis client
+redis>=5.0.0
+
+# NumPy for array operations
+numpy>=2.0.0
+
+# Pydantic for config validation
+pydantic>=2.10.0

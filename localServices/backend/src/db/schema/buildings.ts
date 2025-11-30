@@ -3,7 +3,7 @@ import { pgTable, serial, varchar, timestamp, text } from "drizzle-orm/pg-core";
 
 export const buildingTable = pgTable("buildings", {
   id: text("id").primaryKey(),
-  name: varchar("name", { length: 256 }),
+  name: varchar("name", { length: 256 }).notNull(),
   createdAt: timestamp("createdAt").defaultNow(),
 });
 

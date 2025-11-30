@@ -18,39 +18,28 @@ import { StreamConfig } from "./streamInterface";
  *
  * FFmpeg options optimized for RTSP:
  * - rtsp_transport tcp: Use TCP instead of UDP for reliability
- * - stimeout: Socket timeout for detecting disconnections
+ * - timeout: Socket timeout for detecting disconnections
  */
 export class RTSPStreamCapture extends FFmpegStreamCapture {
   constructor(config: StreamConfig) {
     super(config);
   }
 
-  protected buildFFmpegArgs(): string[] {
-    const args = [
-      // Input options for RTSP
+  protected getLogPrefix(): string {
+    return "[RTSPStreamCapture]";
+  }
+
+  /**
+   * Build RTSP-specific FFmpeg input arguments
+   * Optimized for reliable TCP transport and low latency
+   */
+  protected buildProtocolSpecificInputArgs(): string[] {
+    return [
       "-rtsp_transport", "tcp",         // Use TCP for reliability (vs UDP)
-      "-stimeout", "5000000",           // Socket timeout: 5 seconds (in microseconds)
-      "-fflags", "nobuffer",            // Don't buffer input
-      "-flags", "low_delay",            // Optimize for low latency
-      "-strict", "experimental",
-      // Input source
-      "-i", this.config.streamUrl,
-      // Output options
-      "-f", "image2pipe",               // Output as image stream
-      "-pix_fmt", "rgb24",              // RGB24 pixel format
-      "-vcodec", "rawvideo",            // Raw video output
-      "-r", `${this.config.fps || 30}`, // Frame rate
+      "-timeout", "10000000",           // Socket timeout: 10 seconds (in microseconds)
+      "-max_delay", "500000",           // Maximum demux delay: 0.5 seconds
+      "-reorder_queue_size", "0",       // Disable packet reordering for lower latency
     ];
-
-    // Apply resolution if specified
-    if (this.config.width && this.config.height) {
-      args.push("-s", `${this.config.width}x${this.config.height}`);
-    }
-
-    // Output to stdout
-    args.push("pipe:1");
-
-    return args;
   }
 
   /**
