@@ -10,6 +10,7 @@ import alarmRoutes from "./express/routes/Alarms";
 import logsRoutes from "./express/routes/logs";
 import scheduleRoutes from "./express/routes/Schedules";
 import debugRoutes from "./express/routes/Debug";
+import cameraRoutes from "./express/routes/Cameras";
 import setupSocketHandlers from "./express/socketHandler";
 import { runMigrations, runCustomSQL } from "./db/db";
 import { connectRedis } from "./redis/index";
@@ -21,6 +22,7 @@ import {
 import { createConfigIndex, setDefaultConfig } from "./redis/config";
 import { createAlarmIndex } from "./redis/alarms";
 import { createScheduleIndexes } from "./redis/schedules";
+import { createCameraIndex } from "./redis/cameras";
 import { setSensorStatusUnknown } from "./sensorFuncs";
 import { SocketEventSubscriber } from "./express/socketEventSubscriber";
 import { sensorTimeoutMonitor } from "./microDeviceTimeoutMonitor";
@@ -48,6 +50,7 @@ await createDoorSensorIndex();
 await createConfigIndex();
 await createAlarmIndex();
 await createScheduleIndexes();
+await createCameraIndex();
 await setDefaultConfig();
 await runMigrations();
 await runCustomSQL();
@@ -73,6 +76,7 @@ app.get("/health", (req, res) => {
 app.use("/api/v1/sensors", sensorRoutes);
 app.use("/api/v1/buildings", buildingRoutes);
 app.use("/api/v1/alarms", alarmRoutes);
+app.use("/api/v1/cameras", cameraRoutes);
 app.use("/api/v1/logs", logsRoutes);
 app.use("/api/v1/schedules", scheduleRoutes);
 //TODO: remove debug routes in production

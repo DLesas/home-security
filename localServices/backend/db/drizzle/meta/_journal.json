@@ -85,6 +85,34 @@
       "when": 1763587100795,
       "tag": "0012_petite_wrecking_crew",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1764347465006,
+      "tag": "0013_condemned_sway",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1764422460446,
+      "tag": "0014_brave_cable",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1764430080785,
+      "tag": "0015_breezy_medusa",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1764524675706,
+      "tag": "0016_material_master_chief",
+      "breakpoints": true
     }
   ]
 }

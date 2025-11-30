@@ -1,16 +1,28 @@
-import { boolean, integer, text, timestamp } from "drizzle-orm/pg-core";
-import { pgTable, serial, varchar } from "drizzle-orm/pg-core";
+import { integer, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { pgTable } from "drizzle-orm/pg-core";
 import { buildingTable } from "./buildings";
 import { InferInsertModel, InferSelectModel } from "drizzle-orm";
-    
+
 export const camerasTable = pgTable("cameras", {
+  // Primary identifier (matches Redis externalID)
   id: text("id").primaryKey(),
-  name: varchar("name", { length: 256 }),
+  name: varchar("name", { length: 256 }).notNull(),
   buildingId: text("buildingId")
     .references(() => buildingTable.id, { onDelete: "cascade" }),
-  createdAt: timestamp("createdAt").defaultNow(),
+
+  // Network configuration
+  ipAddress: varchar("ipAddress", { length: 45 }), // IPv6 max length
   port: integer("port").notNull(),
-  deleted: boolean("deleted").default(false),
+  protocol: varchar("protocol", { length: 10 }).default("udp"), // "udp" or "rtsp"
+
+  // RTSP authentication (optional)
+  username: varchar("username", { length: 256 }),
+  password: varchar("password", { length: 256 }),
+  streamPath: varchar("streamPath", { length: 512 }),
+
+  // Timestamps
+  createdAt: timestamp("createdAt").defaultNow(),
+  lastUpdated: timestamp("lastUpdated").defaultNow(),
 });
 
 export type selectCamera = InferSelectModel<typeof camerasTable>;
