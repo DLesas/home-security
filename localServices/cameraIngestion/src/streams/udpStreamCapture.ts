@@ -18,31 +18,21 @@ export class UDPStreamCapture extends FFmpegStreamCapture {
     super(config);
   }
 
-  protected buildFFmpegArgs(): string[] {
-    const args = [
-      // Input options for low-latency UDP
+  protected getLogPrefix(): string {
+    return "[UDPStreamCapture]";
+  }
+
+  /**
+   * Build UDP-specific FFmpeg input arguments
+   * Optimized for low-latency streaming with minimal buffering
+   */
+  protected buildProtocolSpecificInputArgs(): string[] {
+    return [
       "-fflags", "nobuffer",
       "-flags", "low_delay",
       "-strict", "experimental",
       "-analyzeduration", "0",
       "-probesize", "32",
-      // Input source
-      "-i", this.config.streamUrl,
-      // Output options
-      "-f", "image2pipe",               // Output as image stream
-      "-pix_fmt", "rgb24",              // RGB24 pixel format
-      "-vcodec", "rawvideo",            // Raw video output
-      "-r", `${this.config.fps || 30}`, // Frame rate
     ];
-
-    // Apply resolution if specified
-    if (this.config.width && this.config.height) {
-      args.push("-s", `${this.config.width}x${this.config.height}`);
-    }
-
-    // Output to stdout
-    args.push("pipe:1");
-
-    return args;
   }
 }

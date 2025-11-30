@@ -11,6 +11,16 @@ export interface FrameData {
 }
 
 /**
+ * Stream properties detected by probing
+ */
+export interface StreamProperties {
+  width: number;
+  height: number;
+  fps: number;
+  codec?: string;
+}
+
+/**
  * Stream capture configuration
  */
 export interface StreamConfig {
@@ -52,6 +62,12 @@ export abstract class StreamCapture extends EventEmitter {
   abstract stop(): Promise<void>;
 
   /**
+   * Permanently dispose the stream capture (prevents restarts)
+   * Called when camera is deleted from the system
+   */
+  abstract dispose(): Promise<void>;
+
+  /**
    * Check if the stream is currently running
    */
   public running(): boolean {
@@ -77,6 +93,21 @@ export abstract class StreamCapture extends EventEmitter {
    */
   public getStreamUrl(): string {
     return this.config.streamUrl;
+  }
+
+  /**
+   * Get the current config
+   */
+  public getConfig(): StreamConfig {
+    return this.config;
+  }
+
+  /**
+   * Update stream configuration (called after re-probing on reconnect)
+   * Subclasses should override to recalculate derived values
+   */
+  public updateConfig(newConfig: Partial<StreamConfig>): void {
+    this.config = { ...this.config, ...newConfig };
   }
 }
 

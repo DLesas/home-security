@@ -1,6 +1,5 @@
 import { spawn, ChildProcess } from "child_process";
 import { EventEmitter } from "events";
-//import { raiseEvent } from "../shared/events/notify";
 
 /**
  * Base class for managing FFmpeg processes
@@ -16,12 +15,14 @@ import { EventEmitter } from "events";
 export abstract class FFmpegProcess extends EventEmitter {
   protected ffmpegProcess: ChildProcess | null = null;
   protected isRunning: boolean = false;
+  protected isDisposed: boolean = false; // Prevents auto-restart after disposal
   protected reconnectAttempts: number = 0;
   protected processId: string;
 
   // Process liveness monitoring
   private lastActivityTime: number = 0;
   private livenessCheckInterval: NodeJS.Timeout | null = null;
+  private pendingRestartTimeout: NodeJS.Timeout | null = null;
   private readonly LIVENESS_CHECK_INTERVAL = 30000; // Check every 30 seconds
   private readonly LIVENESS_TIMEOUT = 120000; // 2 minutes without activity
 
@@ -75,6 +76,13 @@ export abstract class FFmpegProcess extends EventEmitter {
    * Start the FFmpeg process
    */
   async start(): Promise<void> {
+    if (this.isDisposed) {
+      console.warn(
+        `[FFmpegProcess ${this.processId}] Cannot start - disposed`
+      );
+      return;
+    }
+
     if (this.isRunning) {
       console.warn(
         `[FFmpegProcess ${this.processId}] Already running, ignoring start request`
@@ -155,8 +163,8 @@ export abstract class FFmpegProcess extends EventEmitter {
           this.isRunning = false;
           this.emit("stopped");
 
-          // Auto-restart if process crashed unexpectedly
-          if (wasRunning && code !== 0) {
+          // Auto-restart if process crashed unexpectedly (only if not disposed)
+          if (wasRunning && code !== 0 && !this.isDisposed) {
             this.reconnectAttempts++;
             const delay = this.getReconnectDelay();
 
@@ -165,8 +173,10 @@ export abstract class FFmpegProcess extends EventEmitter {
                 `[FFmpegProcess ${this.processId}] Attempting auto-restart ${this.reconnectAttempts} in ${delay}ms...`
               );
 
-              setTimeout(() => {
-                if (!this.isRunning) {
+              // Track the timeout so we can cancel it on dispose
+              this.pendingRestartTimeout = setTimeout(() => {
+                this.pendingRestartTimeout = null;
+                if (!this.isRunning && !this.isDisposed) {
                   this.start().catch((e) =>
                     console.error(
                       `[FFmpegProcess ${this.processId}] Auto-restart failed:`,
@@ -247,6 +257,22 @@ export abstract class FFmpegProcess extends EventEmitter {
   }
 
   /**
+   * Dispose the process permanently (cancels pending restarts)
+   */
+  async dispose(): Promise<void> {
+    console.log(`[FFmpegProcess ${this.processId}] Disposing (permanent removal)`);
+    this.isDisposed = true;
+
+    // Cancel any pending restart timeout
+    if (this.pendingRestartTimeout) {
+      clearTimeout(this.pendingRestartTimeout);
+      this.pendingRestartTimeout = null;
+    }
+
+    await this.stop();
+  }
+
+  /**
    * Check if process is running
    */
   public running(): boolean {
@@ -258,6 +284,16 @@ export abstract class FFmpegProcess extends EventEmitter {
    */
   public getProcessId(): string {
     return this.processId;
+  }
+
+  /**
+   * Get stdin stream for writing data to FFmpeg process
+   * Used by recorders to pipe frame data to FFmpeg
+   *
+   * @returns Writable stream or undefined if process not running
+   */
+  public getStdin(): NodeJS.WritableStream | undefined {
+    return this.ffmpegProcess?.stdin ?? undefined;
   }
 
   /**
@@ -284,14 +320,8 @@ export abstract class FFmpegProcess extends EventEmitter {
 
     if (timeSinceActivity >= this.LIVENESS_TIMEOUT) {
       console.error(
-        `[FFmpegProcess ${this.processId}] 🔴 Process frozen - no activity for ${timeSinceActivity / 1000}s - forcing restart`
+        `[FFmpegProcess ${this.processId}] Process frozen - no activity for ${timeSinceActivity / 1000}s - forcing restart`
       );
-
-      // await raiseEvent({
-      //   type: 'info',
-      //   message: `FFmpeg process ${this.processId} frozen (no activity for ${Math.floor(timeSinceActivity / 1000)}s) - forcing restart`,
-      //   system: 'cameraIngestion:processLiveness'
-      // });
 
       // Force stop and let auto-restart handle it
       await this.stop();
