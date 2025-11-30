@@ -81,6 +81,7 @@ services:
       - BONJOUR_PORT=${BONJOUR_PORT:-4000}
       - BONJOUR_BROADCASTING_INTERVAL=${BONJOUR_BROADCASTING_INTERVAL:-10000}
       - ALARM_COOLDOWN_SECONDS=${ALARM_COOLDOWN_SECONDS:-30}
+      - CAMERA_CONFIG_CHANNEL=${CAMERA_CONFIG_CHANNEL:-camera:config}
     ports:
       - "${SERVER_PORT:-8080}:${SERVER_PORT:-8080}"
     depends_on:
@@ -134,6 +135,7 @@ services:
       - DEFAULT_STREAM_FPS=${DEFAULT_STREAM_FPS:-30}
       - DEFAULT_STREAM_WIDTH=${DEFAULT_STREAM_WIDTH:-1280}
       - DEFAULT_STREAM_HEIGHT=${DEFAULT_STREAM_HEIGHT:-720}
+      - CAMERA_CONFIG_CHANNEL=${CAMERA_CONFIG_CHANNEL:-camera:config}
     ports:
       - "8082:8082"
     volumes:
@@ -142,6 +144,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      backend:
         condition: service_healthy
     restart: unless-stopped
     networks:
@@ -242,6 +246,37 @@ services:
   #     - backend
   #   volumes:
   #     - ./video_processing/data:/data
+
+  motion-detection:
+    profiles: ["core"]
+    build:
+      context: ./motionDetection
+      args:
+        USE_GPU: ${USE_GPU:-false}
+    environment:
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_DB=${REDIS_DB:-0}
+      - CONSUMER_GROUP=${CONSUMER_GROUP:-motion-detectors}
+      - LOG_LEVEL=${MOTION_DETECTION_LOG_LEVEL:-DEBUG}
+      # Default motion detection settings (used when camera doesn't specify)
+      - DEFAULT_MIN_CONTOUR_AREA=${DEFAULT_MIN_CONTOUR_AREA:-1500}
+      - DEFAULT_MOTION_THRESHOLD=${DEFAULT_MOTION_THRESHOLD:-1.0}
+      - CAMERA_CONFIG_CHANNEL=${CAMERA_CONFIG_CHANNEL:-camera:config}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: always
+    networks:
+      - backend
+    # Uncomment below if USE_GPU=true in .env (requires Linux + NVIDIA GPU)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
 
   caddy:
     profiles: ["core"]
