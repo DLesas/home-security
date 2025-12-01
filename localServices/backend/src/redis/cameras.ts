@@ -1,5 +1,6 @@
 import { Repository, Schema } from "redis-om";
 import { redis } from "./index";
+import { makeID } from "../utils/index";
 
 export enum CameraProtocol {
   UDP = "udp",
@@ -86,7 +87,7 @@ export const createCameraIndex = async () => {
  * Used when creating new cameras with motion detection enabled.
  */
 export const createDefaultMotionZone = (): MotionZone => ({
-  id: 'default',
+  id: makeID(),
   name: 'Full Frame',
   points: [], // Empty = full frame
   minContourArea: 1500,
