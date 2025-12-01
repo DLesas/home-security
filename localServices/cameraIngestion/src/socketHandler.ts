@@ -96,6 +96,12 @@ export interface CameraStats {
   jpegSizeMB: number;
   frameFlowState: string;
   motionProcessingMs: number | null;
+
+  // FFmpeg timing metrics
+  decodeMs: number;       // Average frame-to-frame interval from decoder
+  encodeMs: number;       // Average write callback delay to encoder
+  decoderType: string;    // "nvdec" | "videotoolbox" | "software" etc
+  encoderType: string;    // "h264_nvenc" | "libx264" etc
 }
 
 /**

@@ -15,6 +15,9 @@ import { raiseEvent } from "../shared/events/notify";
 import { redis } from "../shared/redis/index";
 import { createClient, RedisClientType } from "redis";
 import { cpuMonitor } from "../cpuMonitor";
+import { RollingAverage } from "../utils/rollingAverage";
+import { getCameraDecoder } from "../utils/hardwareDecoder";
+import { getCameraEncoder } from "../utils/hardwareEncoder";
 import {
   JPEG_QUALITY_MIN,
   JPEG_QUALITY_MAX,
@@ -104,7 +107,7 @@ export class CameraController extends EventEmitter {
   private frameCount: number = 0;
   private currentJpegQuality: number = JPEG_QUALITY_MAX;
   private lastQualityAdjustment: number = 0;
-  private frameProcessingTimes: number[] = [];
+  private frameProcessingTimes = new RollingAverage(100);
 
   // Frame flow monitoring
   private lastFrameTime: number = 0;
@@ -113,7 +116,7 @@ export class CameraController extends EventEmitter {
   private restartRequestedAt: number = 0; // Prevents duplicate restart requests
 
   // Motion detection stats (updated via Redis pub/sub)
-  private motionProcessingTimes: number[] = [];
+  private motionProcessingTimes = new RollingAverage(100);
   private motionSubscriber: RedisClientType | null = null;
 
   constructor(private config: CameraConfig) {
@@ -582,9 +585,16 @@ export class CameraController extends EventEmitter {
         const fps = this.getCurrentFPS();
         const jpegSizeMB = jpegBuffer.length / 1024 / 1024;
 
+        // Get FFmpeg timing metrics from stream capture and recorder
+        const decodeMs = this.streamCapture?.getAverageDecodeMs() ?? 0;
+        const encodeMs = this.recorder?.getAverageEncodeMs() ?? 0;
+        const decoder = getCameraDecoder(this.config.cameraId);
+        const encoder = getCameraEncoder(this.config.cameraId);
+
         console.log(
           `${this.logPrefix} Frame ${this.frameCount} | ` +
-            `FPS: ${fps.toFixed(1)} | Avg: ${avgProcessing.toFixed(2)}ms | ` +
+            `FPS: ${fps.toFixed(1)} | Proc: ${avgProcessing.toFixed(1)}ms | ` +
+            `Dec: ${decodeMs.toFixed(1)}ms | Enc: ${encodeMs.toFixed(1)}ms | ` +
             `JPEG: ${(jpegBuffer.length / 1024).toFixed(1)}KB`
         );
 
@@ -600,6 +610,10 @@ export class CameraController extends EventEmitter {
           jpegSizeMB,
           frameFlowState: this.frameFlowState,
           motionProcessingMs: this.getAverageMotionProcessingTime(),
+          decodeMs,
+          encodeMs,
+          decoderType: decoder?.name ?? "software",
+          encoderType: encoder?.name ?? "libx264",
         });
       }
     } catch (error) {
@@ -709,7 +723,7 @@ export class CameraController extends EventEmitter {
         try {
           const data: MotionDetectionResult = JSON.parse(message);
           if (data.processing_time_ms !== undefined) {
-            this.motionProcessingTimes.push(data.processing_time_ms);
+            this.motionProcessingTimes.add(data.processing_time_ms);
           }
         } catch {
           // Ignore parse errors
@@ -738,14 +752,12 @@ export class CameraController extends EventEmitter {
   }
 
   /**
-   * Get average motion processing time and clear the buffer
+   * Get average motion processing time (rolling average, not cleared)
    */
   private getAverageMotionProcessingTime(): number | null {
-    if (this.motionProcessingTimes.length === 0) return null;
-    const sum = this.motionProcessingTimes.reduce((a, b) => a + b, 0);
-    const avg = sum / this.motionProcessingTimes.length;
-    this.motionProcessingTimes = [];
-    return avg;
+    const count = this.motionProcessingTimes.getCount();
+    if (count === 0) return null;
+    return this.motionProcessingTimes.getAverage();
   }
 
   // ==================== FRAME FLOW MONITORING ====================
@@ -864,24 +876,19 @@ export class CameraController extends EventEmitter {
   }
 
   private trackPerformance(processingTime: number): void {
-    this.frameProcessingTimes.push(processingTime);
-    if (this.frameProcessingTimes.length > 100) {
-      this.frameProcessingTimes.shift();
-    }
+    this.frameProcessingTimes.add(processingTime);
   }
 
   private getAverageProcessingTime(): number {
-    if (this.frameProcessingTimes.length === 0) return 0;
-    const sum = this.frameProcessingTimes.reduce((a, b) => a + b, 0);
-    return sum / this.frameProcessingTimes.length;
+    return this.frameProcessingTimes.getAverage();
   }
 
   private getCurrentFPS(): number {
-    if (this.frameProcessingTimes.length < 2) return 0;
-    const recentFrames = Math.min(30, this.frameProcessingTimes.length);
-    const timeWindow = this.frameProcessingTimes
-      .slice(-recentFrames)
-      .reduce((a, b) => a + b, 0);
+    const count = this.frameProcessingTimes.getCount();
+    if (count < 2) return 0;
+    const recentFrames = Math.min(30, count);
+    const recentTimes = this.frameProcessingTimes.getRecent(recentFrames);
+    const timeWindow = recentTimes.reduce((a, b) => a + b, 0);
     return (recentFrames / timeWindow) * 1000;
   }
 

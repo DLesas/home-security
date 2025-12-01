@@ -6,7 +6,15 @@ import {
   RETENTION_DAYS,
   SEGMENT_DURATION_SECONDS,
 } from "../config";
-import { getEncoderArgs } from "../utils/hardwareEncoder";
+import {
+  assignEncoder,
+  getEncoderArgs,
+  releaseEncoder,
+  onNvencFailure,
+  isNvencFailure,
+  getCameraEncoder,
+} from "../utils/hardwareEncoder";
+import { RollingAverage } from "../utils/rollingAverage";
 
 /**
  * ContinuousRecorder manages video recording for a single camera
@@ -34,10 +42,16 @@ export class ContinuousRecorder {
   private fps: number;
   private ffmpegProcess: FFmpegProcess;
 
+  // Encode timing metrics (write callback delay)
+  private encodeMetrics = new RollingAverage(100);
+
   constructor(cameraId: string, fps: number = 30) {
     this.cameraId = cameraId;
     this.fps = fps;
     this.cameraDir = path.join(RECORDING_PATH, cameraId);
+
+    // Assign encoder for this camera (handles NVENC slot tracking)
+    assignEncoder(cameraId);
 
     // Create FFmpeg process for recording
     this.ffmpegProcess = new (class extends FFmpegProcess {
@@ -49,10 +63,7 @@ export class ContinuousRecorder {
         super(cameraId);
       }
 
-      protected async buildFFmpegArgs(): Promise<string[]> {
-        // Get hardware encoder arguments (auto-detected at startup)
-        const encoderArgs = await getEncoderArgs();
-
+      protected buildFFmpegArgs(): string[] {
         // Calculate max segments to keep (based on retention days)
         // Example: 7 days * 24 hours * 6 segments/hour = 1008 segments
         const maxSegments = Math.ceil(
@@ -68,8 +79,8 @@ export class ContinuousRecorder {
           // Use fps filter to maintain constant frame rate (duplicates/drops frames as needed)
           "-vf", `fps=${this.fps}`,
 
-          // Hardware-accelerated H.264 encoding
-          ...encoderArgs,
+          // Hardware-accelerated H.264 encoding (per-camera assignment)
+          ...getEncoderArgs(cameraId),
 
           // HLS output options
           "-f", "hls",                                    // HLS format
@@ -93,6 +104,14 @@ export class ContinuousRecorder {
         }
       }
     })(cameraId, this.cameraDir, this.fps);
+
+    // Handle NVENC failures before restart
+    this.ffmpegProcess.on("beforeRestart", (stderrData: string) => {
+      const encoder = getCameraEncoder(this.cameraId);
+      if (encoder?.name === "h264_nvenc" && isNvencFailure(stderrData)) {
+        onNvencFailure(this.cameraId);
+      }
+    });
 
     // Forward events
     this.ffmpegProcess.on("started", () => {
@@ -146,7 +165,11 @@ export class ContinuousRecorder {
     try {
       const stdin = this.ffmpegProcess.getStdin();
       if (stdin) {
-        stdin.write(jpegBuffer);
+        const startTime = Date.now();
+        stdin.write(jpegBuffer, () => {
+          // Callback fires when write buffer is flushed to FFmpeg
+          this.encodeMetrics.add(Date.now() - startTime);
+        });
       }
     } catch (error) {
       console.error(`[Recorder ${this.cameraId}] Failed to write frame:`, error);
@@ -168,6 +191,9 @@ export class ContinuousRecorder {
     // Give FFmpeg time to finish writing
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
+    // Clear metrics
+    this.encodeMetrics.clear();
+
     // Stop the process
     await this.ffmpegProcess.stop();
   }
@@ -177,6 +203,12 @@ export class ContinuousRecorder {
    */
   async dispose(): Promise<void> {
     console.log(`[Recorder ${this.cameraId}] Disposing (permanent removal)`);
+
+    // Release NVENC slot if applicable
+    releaseEncoder(this.cameraId);
+
+    // Clear metrics
+    this.encodeMetrics.clear();
 
     // Close stdin to signal end of input
     const stdin = this.ffmpegProcess.getStdin();
@@ -212,5 +244,13 @@ export class ContinuousRecorder {
    */
   public getCameraId(): string {
     return this.cameraId;
+  }
+
+  /**
+   * Get average encode time (write callback delay in ms)
+   * This approximates pipe buffer pressure - higher values indicate FFmpeg encoding is slower
+   */
+  public getAverageEncodeMs(): number {
+    return this.encodeMetrics.getAverage();
   }
 }

@@ -109,6 +109,14 @@ export abstract class StreamCapture extends EventEmitter {
   public updateConfig(newConfig: Partial<StreamConfig>): void {
     this.config = { ...this.config, ...newConfig };
   }
+
+  /**
+   * Get average decode time in milliseconds
+   * Subclasses should override to provide actual timing metrics
+   */
+  public getAverageDecodeMs(): number {
+    return 0;
+  }
 }
 
 /**

@@ -1,5 +1,14 @@
 import { FFmpegProcess } from "./ffmpegProcess";
 import { StreamCapture, StreamConfig, FrameData } from "./streamInterface";
+import {
+  assignDecoder,
+  getDecoderArgs,
+  releaseDecoder,
+  onNvdecFailure,
+  isNvdecFailure,
+  getCameraDecoder,
+} from "../utils/hardwareDecoder";
+import { RollingAverage } from "../utils/rollingAverage";
 
 /**
  * Base class for FFmpeg-based stream capture
@@ -22,6 +31,10 @@ export abstract class FFmpegStreamCapture extends StreamCapture {
   private frameSize: number;
   private bufferWarningLogged: boolean = false;
 
+  // Decode timing metrics (frame-to-frame interval)
+  private decodeMetrics = new RollingAverage(100);
+  private lastFrameEmitTime: number = 0;
+
   constructor(config: StreamConfig) {
     super(config);
 
@@ -30,6 +43,9 @@ export abstract class FFmpegStreamCapture extends StreamCapture {
       (this.config.width || 1920) *
       (this.config.height || 1080) *
       3;
+
+    // Assign decoder for this camera (handles NVDEC slot tracking)
+    assignDecoder(config.cameraId);
 
     // Create FFmpeg process wrapper
     this.ffmpegProcess = new (class extends FFmpegProcess {
@@ -56,6 +72,14 @@ export abstract class FFmpegStreamCapture extends StreamCapture {
         this.parent.handleFrameData(chunk);
       }
     })(config.cameraId, this);
+
+    // Handle NVDEC failures before restart
+    this.ffmpegProcess.on("beforeRestart", (stderrData: string) => {
+      const decoder = getCameraDecoder(config.cameraId);
+      if (decoder?.name === "nvdec" && isNvdecFailure(stderrData)) {
+        onNvdecFailure(config.cameraId);
+      }
+    });
 
     // Forward events from FFmpeg process to stream
     this.ffmpegProcess.on("started", () => {
@@ -106,13 +130,14 @@ export abstract class FFmpegStreamCapture extends StreamCapture {
 
   /**
    * Build complete FFmpeg arguments using template method pattern
-   * Combines protocol-specific input args with common output args
+   * Combines hardware decoder args, protocol-specific input args, and output args
    *
    * Subclasses typically only need to implement buildProtocolSpecificInputArgs()
    * Override this method entirely for completely custom FFmpeg pipelines
    */
   protected buildFFmpegArgs(): string[] {
     return [
+      ...getDecoderArgs(this.config.cameraId), // Hardware decoder (must be before -i)
       ...this.buildProtocolSpecificInputArgs(),
       "-i", this.config.streamUrl,
       ...this.buildCommonOutputArgs(),
@@ -169,12 +194,19 @@ export abstract class FFmpegStreamCapture extends StreamCapture {
       const frame = this.frameBuffer.subarray(0, this.frameSize);
       this.frameBuffer = this.frameBuffer.subarray(this.frameSize);
 
+      const now = Date.now();
       const frameData: FrameData = {
         frame: Buffer.from(frame), // Create new buffer from subarray
-        timestamp: Date.now(),
+        timestamp: now,
         width: this.config.width,
         height: this.config.height,
       };
+
+      // Track decode timing (frame-to-frame interval)
+      if (this.lastFrameEmitTime > 0) {
+        this.decodeMetrics.add(now - this.lastFrameEmitTime);
+      }
+      this.lastFrameEmitTime = now;
 
       this.emit("frame", frameData);
 
@@ -189,11 +221,16 @@ export abstract class FFmpegStreamCapture extends StreamCapture {
 
   async stop(): Promise<void> {
     this.frameBuffer = Buffer.alloc(0); // Clear frame buffer
+    this.decodeMetrics.clear();
+    this.lastFrameEmitTime = 0;
     return this.ffmpegProcess.stop();
   }
 
   async dispose(): Promise<void> {
-    this.frameBuffer = Buffer.alloc(0); // Clear frame buffer
+    releaseDecoder(this.config.cameraId); // Free NVDEC slot if applicable
+    this.frameBuffer = Buffer.alloc(0);
+    this.decodeMetrics.clear();
+    this.lastFrameEmitTime = 0;
     return this.ffmpegProcess.dispose();
   }
 
@@ -209,7 +246,17 @@ export abstract class FFmpegStreamCapture extends StreamCapture {
       (this.config.height || 1080) *
       3;
 
-    // Clear frame buffer since frameSize may have changed
+    // Clear frame buffer and metrics since frameSize may have changed
     this.frameBuffer = Buffer.alloc(0);
+    this.decodeMetrics.clear();
+    this.lastFrameEmitTime = 0;
+  }
+
+  /**
+   * Get average decode time (frame-to-frame interval in ms)
+   * This represents the time between complete frames arriving from FFmpeg
+   */
+  public getAverageDecodeMs(): number {
+    return this.decodeMetrics.getAverage();
   }
 }
