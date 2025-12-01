@@ -3,26 +3,29 @@
 import { Modal, ModalContent, ModalHeader, ModalBody } from '@nextui-org/modal'
 import { Divider } from '@nextui-org/divider'
 import { useRouter } from 'next/navigation'
-import { useSocketData, type Alarm } from '../../socketData'
+import { useSocketData, type Alarm, type Camera } from '../../socketData'
 import { SensorRow } from './SensorRow'
 import { AlarmRow } from './AlarmRow'
+import { CameraFeedGrid } from './CameraFeedGrid'
 import { SecurityData, LogStatus } from '../../types'
 
-interface SensorModalProps {
+interface BuildingOverviewModalProps {
   isOpen: boolean
   onOpenChange: () => void
   buildingName: string
   data: SecurityData
   alarms: Alarm[]
+  cameras: Camera[]
 }
 
-export function SensorModal({
+export function BuildingOverviewModal({
   isOpen,
   onOpenChange,
   buildingName,
   data,
   alarms,
-}: SensorModalProps) {
+  cameras,
+}: BuildingOverviewModalProps) {
   const router = useRouter()
   const { sensors } = useSocketData()
 
@@ -37,6 +40,10 @@ export function SensorModal({
 
   function handleAlarmClick(alarmExternalID: string) {
     router.push(`/alarms/${alarmExternalID}`)
+  }
+
+  function handleCameraClick(cameraExternalID: string) {
+    router.push(`/cameras/${cameraExternalID}`)
   }
 
   return (
@@ -59,6 +66,15 @@ export function SensorModal({
                 <h3 className="font-volkorn text-xl">{buildingName}</h3>
               </ModalHeader>
               <ModalBody>
+                {/* Cameras Section */}
+                <CameraFeedGrid
+                  cameras={cameras}
+                  onCameraClick={(cameraId) => {
+                    handleCameraClick(cameraId)
+                    onClose()
+                  }}
+                />
+
                 <div className="space-y-3">
                   {/* Sensors Section */}
                   {data.logs[buildingName] &&

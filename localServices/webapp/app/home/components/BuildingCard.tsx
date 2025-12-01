@@ -3,12 +3,12 @@
 import { Card, CardHeader, CardBody } from '@nextui-org/card'
 import { Divider } from '@nextui-org/divider'
 import { useDisclosure } from '@nextui-org/modal'
-import { SensorModal } from './SensorModal'
+import { BuildingOverviewModal } from './BuildingOverviewModal'
 import { StatusPill } from './StatusPill'
 import { ArmDisarmButtons } from '../../../components/ArmDisarmButtons'
 import { useArmBuildingMutation, useDisarmBuildingMutation } from '../../../hooks/mutations/useBuildingMutations'
 import { SecurityData, BuildingStatus, ArmStatus } from '../../types'
-import { type Alarm } from '../../socketData'
+import { type Alarm, type Camera } from '../../socketData'
 
 interface BuildingCardProps {
   buildingName: string
@@ -20,6 +20,7 @@ interface BuildingCardProps {
   unknownCount: number
   buildingOpen: BuildingStatus
   alarms: Alarm[]
+  cameras: Camera[]
 }
 
 export function BuildingCard({
@@ -32,6 +33,7 @@ export function BuildingCard({
   unknownCount,
   buildingOpen,
   alarms,
+  cameras,
 }: BuildingCardProps) {
   const armMutation = useArmBuildingMutation()
   const disarmMutation = useDisarmBuildingMutation()
@@ -40,8 +42,9 @@ export function BuildingCard({
   // Calculate closed sensors count
   const closedCount = sensorCount - openCount - unknownCount
 
-  // Alarm count
+  // Alarm and camera counts
   const alarmCount = alarms.length
+  const cameraCount = cameras.length
 
   return (
     <>
@@ -66,6 +69,12 @@ export function BuildingCard({
                   <>
                     <span className="text-sm text-default-700">•</span>
                     <span className="text-sm text-default-700">{alarmCount} {alarmCount === 1 ? 'alarm' : 'alarms'}</span>
+                  </>
+                )}
+                {cameraCount > 0 && (
+                  <>
+                    <span className="text-sm text-default-700">•</span>
+                    <span className="text-sm text-default-700">{cameraCount} {cameraCount === 1 ? 'camera' : 'cameras'}</span>
                   </>
                 )}
               </div>
@@ -95,13 +104,14 @@ export function BuildingCard({
         </CardBody>
       </Card>
 
-      {/* Sensor Details Modal */}
-      <SensorModal
+      {/* Building Overview Modal */}
+      <BuildingOverviewModal
         isOpen={isSensorModalOpen}
         onOpenChange={onSensorModalOpenChange}
         buildingName={buildingName}
         data={data}
         alarms={alarms}
+        cameras={cameras}
       />
     </>
   )

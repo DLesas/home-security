@@ -29,6 +29,27 @@ export interface Alarm {
   autoTurnOffSeconds?: number; // Individual timeout setting (0 = no timeout)
 }
 
+export interface MotionZone {
+  id: string;
+  name: string;
+  points: [number, number][];
+  minContourArea: number;
+  thresholdPercent: number;
+}
+
+export interface Camera {
+  externalID: string;
+  name: string;
+  building: string;
+  motionDetectionEnabled: boolean;
+  mog2History: number;
+  mog2VarThreshold: number;
+  mog2DetectShadows: boolean;
+  motionZones: MotionZone[];
+  expectedSecondsUpdated: number;
+  lastUpdated: Date;
+}
+
 interface doorSensor {
   name: string
   externalID: string
@@ -84,10 +105,24 @@ interface SocketDataProps {
 
 type Data = SecurityData
 
-function formatData(sensors: doorSensor[], alarms: Alarm[]): Data {
+function formatData(sensors: doorSensor[], alarms: Alarm[], cameras: Camera[]): Data {
   const logs: {
     [building: string]: DoorEntries
   } = {}
+
+  // Initialize buildings from cameras (ensures buildings with only cameras appear)
+  for (const camera of cameras) {
+    if (!logs[camera.building]) {
+      logs[camera.building] = {}
+    }
+  }
+
+  // Initialize buildings from alarms
+  for (const alarm of alarms) {
+    if (!logs[alarm.building]) {
+      logs[alarm.building] = {}
+    }
+  }
 
   // Get and sync sensor order from localStorage
   let sensorOrder: {
@@ -290,6 +325,7 @@ interface SocketDataContextProps {
   isConnected: boolean
   sensors: doorSensor[]
   alarms: Alarm[]
+  cameras: Camera[]
   socket: any | null
   notifications: FormattedEvent[]
   dismissNotification: (timestamp: number) => void
@@ -302,6 +338,7 @@ const SocketDataContext = createContext<SocketDataContextProps>({
   isConnected: false,
   sensors: [],
   alarms: [],
+  cameras: [],
   socket: null,
   notifications: [],
   dismissNotification: () => {},
@@ -317,6 +354,7 @@ export const SocketDataProvider: React.FC<SocketDataProps> = ({ children }) => {
   const [isConnected, setIsConnected] = useState<boolean>(false)
   const [sensors, setSensors] = useState<doorSensor[]>([])
   const [alarms, setAlarms] = useState<Alarm[]>([])
+  const [cameras, setCameras] = useState<Camera[]>([])
   const [notifications, setNotifications] = useState<FormattedEvent[]>([])
   const { socket } = useSocket() // Assuming you have a custom hook to get the socket instance
   const router = useRouter()
@@ -333,15 +371,16 @@ export const SocketDataProvider: React.FC<SocketDataProps> = ({ children }) => {
 
   // Function to reformat data (useful when sensor order changes)
   const reformatData = () => {
-    if (sensors.length > 0 || alarms.length > 0) {
-      const formattedData = formatData(sensors, alarms)
+    if (sensors.length > 0 || alarms.length > 0 || cameras.length > 0) {
+      const formattedData = formatData(sensors, alarms, cameras)
       setData(formattedData)
     }
   }
 
   useEffect(() => {
-    console.log(socket)
+    console.log('Socket instance:', socket)
     function onConnect() {
+      console.log('Socket connected!')
       setIsConnected(true)
     }
 
@@ -353,12 +392,16 @@ export const SocketDataProvider: React.FC<SocketDataProps> = ({ children }) => {
     function onData(value: {
       sensors?: doorSensor[]
       alarms?: Alarm[]
+      cameras?: Camera[]
       schedules?: schedule[]
     }) {
-      const formattedData = formatData(value.sensors || [], value.alarms || [])
+      console.log('Socket received data:', value)
+      const formattedData = formatData(value.sensors || [], value.alarms || [], value.cameras || [])
+      console.log('Formatted data:', formattedData)
       setData(formattedData)
       setSensors(value.sensors || [])
       setAlarms(value.alarms || [])
+      setCameras(value.cameras || [])
       if (value.schedules) {
         setSchedules(value.schedules)
       }
@@ -369,10 +412,13 @@ export const SocketDataProvider: React.FC<SocketDataProps> = ({ children }) => {
     }
 
     if (socket) {
+      console.log('Attaching socket listeners...')
       socket.on('connect', onConnect)
       socket.on('disconnect', onDisconnect)
       socket.on('data', onData)
       socket.on('event', onEvent)
+    } else {
+      console.log('Socket is null/undefined')
     }
 
     return () => {
@@ -420,6 +466,7 @@ export const SocketDataProvider: React.FC<SocketDataProps> = ({ children }) => {
         isConnected,
         sensors,
         alarms,
+        cameras,
         socket,
         notifications,
         dismissNotification,

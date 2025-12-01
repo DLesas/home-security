@@ -1,7 +1,7 @@
 'use client'
 
 import { FaCircle, FaRegCircle } from 'react-icons/fa6'
-import { useSocketData, type Alarm } from '../socketData'
+import { useSocketData, type Alarm, type Camera } from '../socketData'
 import { motion } from 'framer-motion'
 import { BuildingCard } from './components/BuildingCard'
 import { StatusPill } from './components/StatusPill'
@@ -89,11 +89,20 @@ function checkArmedState({
 }
 
 export default function Index() {
-  const { data, isConnected, alarms } = useSocketData()
+  const { data, isConnected, alarms, cameras } = useSocketData()
   const armed = checkArmedState(countDoorEntries(data))
 
   const publicVapidKey = process.env.VAPID_PUBLIC!
   // usePushNotifications(publicVapidKey)
+
+  // Collect all unique building names from sensors, alarms, and cameras
+  const allBuildings = new Set<string>()
+  if (data.logs) {
+    Object.keys(data.logs).forEach(building => allBuildings.add(building))
+  }
+  alarms.forEach(alarm => allBuildings.add(alarm.building))
+  cameras.forEach(camera => allBuildings.add(camera.building))
+  const buildingList = Array.from(allBuildings)
 
   return (
     <div className="w-full max-w-2xl mx-auto px-4 py-8 md:py-12">
@@ -144,47 +153,48 @@ export default function Index() {
 
       {/* Building Cards */}
       <div className="space-y-6">
-        {data.logs &&
-          Object.keys(data.logs).map((key, index) => {
-            const buildingCounts = countDoorEntriesBuilding(data, key)
-            const armStatus = checkArmedState(buildingCounts)
-            const buildingData = data.logs[key]
-            const sensorCount = buildingData ? Object.keys(buildingData).length : 0
-            const openCount = buildingData
-              ? Object.values(buildingData).filter(
-                  (sensor: DoorValues) => sensor.status === 'open'
-                ).length
-              : 0
-            const unknownCount = buildingData
-              ? Object.values(buildingData).filter(
-                  (sensor: DoorValues) => sensor.status === 'unknown'
-                ).length
-              : 0
+        {buildingList.map((buildingName, index) => {
+          const buildingCounts = countDoorEntriesBuilding(data, buildingName)
+          const armStatus = checkArmedState(buildingCounts)
+          const buildingData = data.logs?.[buildingName]
+          const sensorCount = buildingData ? Object.keys(buildingData).length : 0
+          const openCount = buildingData
+            ? Object.values(buildingData).filter(
+                (sensor: DoorValues) => sensor.status === 'open'
+              ).length
+            : 0
+          const unknownCount = buildingData
+            ? Object.values(buildingData).filter(
+                (sensor: DoorValues) => sensor.status === 'unknown'
+              ).length
+            : 0
 
-            // Filter alarms for this building
-            const buildingAlarms = alarms.filter(alarm => alarm.building === key)
+          // Filter alarms and cameras for this building
+          const buildingAlarms = alarms.filter(alarm => alarm.building === buildingName)
+          const buildingCameras = cameras.filter(camera => camera.building === buildingName)
 
-            return (
-              <motion.div
-                key={key}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: index * 0.05 }}
-              >
-                <BuildingCard
-                  buildingName={key}
-                  data={data}
-                  armStatus={armStatus}
-                  sensorCount={sensorCount}
-                  armedCount={buildingCounts.armed}
-                  openCount={openCount}
-                  unknownCount={unknownCount}
-                  buildingOpen={checkBuildingOpen(data, key)}
-                  alarms={buildingAlarms}
-                />
-              </motion.div>
-            )
-          })}
+          return (
+            <motion.div
+              key={buildingName}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.05 }}
+            >
+              <BuildingCard
+                buildingName={buildingName}
+                data={data}
+                armStatus={armStatus}
+                sensorCount={sensorCount}
+                armedCount={buildingCounts.armed}
+                openCount={openCount}
+                unknownCount={unknownCount}
+                buildingOpen={checkBuildingOpen(data, buildingName)}
+                alarms={buildingAlarms}
+                cameras={buildingCameras}
+              />
+            </motion.div>
+          )
+        })}
       </div>
     </div>
   )
