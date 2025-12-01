@@ -10,6 +10,7 @@ import redis
 
 from .config_validator import ConfigValidator
 from models import RedisCameraConfig, MotionDetectionSettings
+from utils import REDIS_RETRY_CONFIG, calculate_backoff_delay, sleep_with_check
 
 logger = logging.getLogger(__name__)
 
@@ -236,7 +237,7 @@ class CameraConfigManager:
         logger.info(f"Subscribed to {CAMERA_CONFIG_CHANNEL}")
 
     def _subscription_loop(self) -> None:
-        """Background thread: listen for pub/sub messages."""
+        """Background thread: listen for pub/sub messages with reconnection."""
         logger.debug("Subscription loop started")
 
         while self._running:
@@ -244,11 +245,59 @@ class CameraConfigManager:
                 message = self._pubsub.get_message(timeout=1.0)
                 if message and message['type'] == 'message':
                     self._handle_message(message['data'])
+            except (redis.ConnectionError, redis.TimeoutError, ConnectionResetError) as e:
+                if self._running:
+                    logger.warning(f"Redis connection lost: {e}")
+                    self._handle_reconnection()
             except Exception as e:
                 if self._running:
                     logger.error(f"Error in subscription loop: {e}", exc_info=True)
 
         logger.debug("Subscription loop ended")
+
+    def _handle_reconnection(self) -> None:
+        """Handle Redis reconnection with exponential backoff."""
+        attempt = 0
+
+        while self._running:
+            attempt += 1
+            delay = calculate_backoff_delay(attempt, REDIS_RETRY_CONFIG)
+
+            logger.info(f"Attempting Redis reconnection (attempt {attempt}) in {delay:.1f}s...")
+
+            # Sleep with periodic checks for stop signal
+            if not sleep_with_check(delay, lambda: not self._running):
+                logger.info("Reconnection cancelled - service stopping")
+                return
+
+            try:
+                # Close existing pubsub if any
+                if self._pubsub:
+                    try:
+                        self._pubsub.close()
+                    except Exception:
+                        pass
+
+                # Test Redis connection with ping
+                self._redis.ping()
+
+                # Create new pubsub and subscribe
+                self._pubsub = self._redis.pubsub()
+                self._pubsub.subscribe(CAMERA_CONFIG_CHANNEL)
+
+                logger.info(f"Redis reconnected successfully after {attempt} attempt(s)")
+
+                # Re-discover cameras to sync state
+                logger.info("Re-discovering cameras after reconnection...")
+                self._discover_cameras()
+                logger.info(f"Camera discovery complete - now tracking {len(self._cameras)} camera(s)")
+
+                return  # Success - exit reconnection loop
+
+            except (redis.ConnectionError, redis.TimeoutError, ConnectionResetError) as e:
+                logger.warning(f"Reconnection attempt {attempt} failed: {e}")
+            except Exception as e:
+                logger.error(f"Unexpected error during reconnection: {e}", exc_info=True)
 
     def _handle_message(self, data: bytes) -> None:
         """Handle a pub/sub message from the camera config channel."""
