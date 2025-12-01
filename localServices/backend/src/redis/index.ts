@@ -1,13 +1,36 @@
 import { createClient, RedisClientType } from "redis";
 
 /**
- * Redis client instance.
+ * Calculate exponential backoff delay with jitter.
+ * @param retries - Number of retries so far
+ * @param baseDelay - Base delay in milliseconds (default: 1000ms)
+ * @param maxDelay - Maximum delay in milliseconds (default: 30000ms)
+ * @returns Delay in milliseconds
+ */
+function calculateBackoff(retries: number, baseDelay = 1000, maxDelay = 30000): number {
+  const delay = Math.min(baseDelay * Math.pow(2, retries), maxDelay);
+  // Add jitter (±25%)
+  const jitter = delay * 0.25 * (Math.random() * 2 - 1);
+  return Math.max(100, delay + jitter);
+}
+
+/**
+ * Redis client instance with automatic reconnection.
  */
 export const redis: RedisClientType = createClient({
-  url: `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`
+  url: `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`,
+  socket: {
+    reconnectStrategy: (retries: number) => {
+      const delay = calculateBackoff(retries);
+      console.log(`Redis reconnecting (attempt ${retries + 1}) in ${Math.round(delay)}ms...`);
+      return delay;
+    },
+  },
 });
 
 redis.on("error", (error: Error) => console.error('Redis Client Error', error));
+redis.on("reconnecting", () => console.log('Redis reconnecting...'));
+redis.on("ready", () => console.log('Redis connection ready'));
 
 /**
  * Attempts to connect to Redis with retry logic.

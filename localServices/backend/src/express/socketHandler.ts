@@ -4,6 +4,7 @@ import { createAdapter } from "@socket.io/redis-adapter";
 import { createClient } from "redis";
 import { type doorSensor, doorSensorRepository } from "../redis/doorSensors";
 import { type Alarm, alarmRepository } from "../redis/alarms";
+import { type Camera, cameraRepository } from "../redis/cameras";
 import {
   type RecurringSchedule,
   type OneTimeSchedule,
@@ -12,16 +13,28 @@ import {
 } from "../redis/schedules";
 
 /**
- * Emits updated sensor, alarm, and schedule data to all connected clients
- * @async
- * @returns {Promise<void>} A promise that resolves when the data has been emitted
- * @throws {Error} If there's an error fetching data from repositories
+ * Fetches all data from repositories and returns formatted payload
  */
-export async function emitNewData() {
+async function getAllData() {
   const sensors = (await doorSensorRepository
     .search()
     .returnAll()) as doorSensor[];
   const alarms = (await alarmRepository.search().returnAll()) as Alarm[];
+  const camerasRaw = (await cameraRepository.search().return.all()) as Camera[];
+
+  // Map cameras to only emit necessary properties
+  const cameras = camerasRaw.map((c) => ({
+    externalID: c.externalID,
+    name: c.name,
+    building: c.building,
+    motionDetectionEnabled: c.motionDetectionEnabled,
+    mog2History: c.mog2History,
+    mog2VarThreshold: c.mog2VarThreshold,
+    mog2DetectShadows: c.mog2DetectShadows,
+    motionZones: c.motionZones,
+    expectedSecondsUpdated: c.expectedSecondsUpdated,
+    lastUpdated: c.lastUpdated,
+  }));
 
   // Fetch schedule data
   const recurringSchedules = (await recurringScheduleRepository
@@ -37,14 +50,19 @@ export async function emitNewData() {
     ...oneTimeSchedules.map((s) => ({ ...s, type: "oneTime" })),
   ];
 
-  io.emit("data", { sensors, alarms, schedules });
+  return { sensors, alarms, cameras, schedules };
+}
+
+/**
+ * Emits updated sensor, alarm, camera, and schedule data to all connected clients
+ */
+export async function emitNewData() {
+  const data = await getAllData();
+  io.emit("data", data);
 }
 
 /**
  * Sets up WebSocket event handlers for the Socket.IO server with Redis adapter for multi-process support
- * @async
- * @param {Server} io - The Socket.IO server instance
- * @returns {Promise<void>} A promise that resolves when setup is complete
  */
 const setupSocketHandlers = async (io: Server) => {
   // Create Redis clients for the Socket.IO adapter
@@ -67,27 +85,22 @@ const setupSocketHandlers = async (io: Server) => {
   io.on("connection", async (socket) => {
     console.log(`Client connected: ${socket.id}`);
 
-    // Send all data including sensors, alarms, and schedules
-    const sensors = (await doorSensorRepository
-      .search()
-      .returnAll()) as doorSensor[];
-    const alarms = (await alarmRepository.search().returnAll()) as Alarm[];
+    const data = await getAllData();
+    socket.emit("data", data);
 
-    // Fetch schedule data
-    const recurringSchedules = (await recurringScheduleRepository
-      .search()
-      .returnAll()) as RecurringSchedule[];
-    const oneTimeSchedules = (await oneTimeScheduleRepository
-      .search()
-      .returnAll()) as OneTimeSchedule[];
+    // Handle camera subscription requests
+    socket.on("subscribe:camera", (cameraId: string) => {
+      const roomName = `camera:${cameraId}`;
+      socket.join(roomName);
+      console.log(`Client ${socket.id} subscribed to ${roomName}`);
+    });
 
-    // Combine schedule data
-    const schedules = [
-      ...recurringSchedules.map((s) => ({ ...s, type: "recurring" })),
-      ...oneTimeSchedules.map((s) => ({ ...s, type: "oneTime" })),
-    ];
-
-    socket.emit("data", { sensors, alarms, schedules });
+    // Handle camera unsubscription requests
+    socket.on("unsubscribe:camera", (cameraId: string) => {
+      const roomName = `camera:${cameraId}`;
+      socket.leave(roomName);
+      console.log(`Client ${socket.id} unsubscribed from ${roomName}`);
+    });
 
     socket.on("disconnect", () => {
       console.log(`Client disconnected: ${socket.id}`);

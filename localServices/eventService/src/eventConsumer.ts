@@ -16,6 +16,19 @@ export class EventConsumer extends EventEmitter {
     super();
     this.redis = redis;
     this.subscriber = this.redis.duplicate();
+
+    // Handle subscriber errors without crashing
+    this.subscriber.on("error", (error: Error) => {
+      console.error("Subscriber Redis error:", error.message);
+    });
+
+    this.subscriber.on("reconnecting", () => {
+      console.log("Subscriber reconnecting to Redis...");
+    });
+
+    this.subscriber.on("ready", () => {
+      console.log("Subscriber Redis connection ready");
+    });
   }
 
   /**

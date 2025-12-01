@@ -14,7 +14,7 @@ import { raiseEvent, raiseError } from "../../events/notify";
 import { emitNewData } from "../socketHandler";
 import { publishCameraConfigChange } from "../../events/cameraConfigEvents";
 import { db } from "../../db/db";
-import { cameraTable, cameraSettingTable, motionZoneTable } from "../../db/schema/index";
+import { cameraTable, cameraSettingTable, motionZoneTable, buildingTable } from "../../db/schema/index";
 import { makeID } from "../../utils/index";
 
 // Zod schema for motion zone validation
@@ -80,16 +80,29 @@ router.post("/", async (req, res, next) => {
       return;
     }
 
+    // Look up building by ID and validate it exists
+    const [building] = await db
+      .select()
+      .from(buildingTable)
+      .where(eq(buildingTable.id, data.building))
+      .limit(1);
+
+    if (!building) {
+      next(raiseError(404, `Building with ID '${data.building}' not found`));
+      return;
+    }
+
     // Use provided zones or create default full-frame zone
     const motionZones: MotionZone[] = data.motionZones && data.motionZones.length > 0
       ? data.motionZones
       : [createDefaultMotionZone()];
 
     // Create camera object for Redis (stores zones as JSON string)
+    // Use building.name for Redis (consistent with sensors), buildingId for PostgreSQL
     const camera: Camera = {
       name: data.name,
       externalID: data.externalID,
-      building: data.building,
+      building: building.name,
       ipAddress: data.ipAddress,
       port: data.port,
       protocol: data.protocol as CameraProtocol,
@@ -272,6 +285,22 @@ router.put("/:externalID", async (req, res, next) => {
 
     const camera = cameras[0];
 
+    // If building is being updated, look up the building name
+    let buildingName: string | undefined;
+    if (updates.building) {
+      const [building] = await db
+        .select()
+        .from(buildingTable)
+        .where(eq(buildingTable.id, updates.building))
+        .limit(1);
+
+      if (!building) {
+        next(raiseError(404, `Building with ID '${updates.building}' not found`));
+        return;
+      }
+      buildingName = building.name;
+    }
+
     // Parse existing motion zones from Redis (stored as JSON string)
     let existingZones: MotionZone[] = [];
     if (camera.motionZones) {
@@ -287,10 +316,11 @@ router.put("/:externalID", async (req, res, next) => {
     // Use updated zones or keep existing
     const motionZones = updates.motionZones ?? existingZones;
 
-    // Build updated camera object
+    // Build updated camera object (use building name for Redis)
     const updatedCamera: Camera = {
       ...camera,
       ...updates,
+      building: buildingName ?? camera.building,
       motionZones,
       lastUpdated: new Date(),
     } as Camera;
