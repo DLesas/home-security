@@ -1,6 +1,5 @@
 import { Repository, Schema } from "redis-om";
 import { redis } from "./index";
-import { makeID } from "../utils/index";
 
 export enum CameraProtocol {
   UDP = "udp",
@@ -82,23 +81,4 @@ export const createCameraIndex = async () => {
   }
 };
 
-/**
- * Create a default full-frame motion zone.
- * Used when creating new cameras with motion detection enabled.
- */
-export const createDefaultMotionZone = (): MotionZone => ({
-  id: makeID(),
-  name: 'Full Frame',
-  points: [], // Empty = full frame
-  minContourArea: 1500,
-  thresholdPercent: 1.0,
-});
 
-/**
- * Default MOG2 settings for new cameras.
- */
-export const defaultMOG2Settings = {
-  mog2History: 500,
-  mog2VarThreshold: 16,
-  mog2DetectShadows: false,
-};

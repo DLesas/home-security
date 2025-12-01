@@ -6,8 +6,6 @@ import {
   CameraProtocol,
   Camera,
   MotionZone,
-  createDefaultMotionZone,
-  defaultMOG2Settings,
 } from "../../redis/cameras";
 import { redis } from "../../redis/index";
 import { raiseEvent, raiseError } from "../../events/notify";
@@ -477,4 +475,25 @@ router.delete("/:externalID", async (req, res, next) => {
   }
 });
 
-export default router;
+export default router;/**
+ * Create a default full-frame motion zone.
+ * Used when creating new cameras with motion detection enabled.
+ */
+
+export const createDefaultMotionZone = (): MotionZone => ({
+  id: makeID(),
+  name: 'Full Frame',
+  points: [], // Empty = full frame
+  minContourArea: 1500,
+  thresholdPercent: 1.0,
+});
+/**
+ * Default MOG2 settings for new cameras.
+ */
+
+export const defaultMOG2Settings = {
+  mog2History: 500,
+  mog2VarThreshold: 16,
+  mog2DetectShadows: false,
+};
+

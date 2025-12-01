@@ -5,7 +5,6 @@ import setupSocketHandlers from "./socketHandler";
 import { StreamManager } from "./streamManager";
 import { connectRedis } from "./shared/redis/index";
 import { createCameraIndex } from "./shared/redis/cameras";
-import { cpuMonitor } from "./cpuMonitor";
 import { detectAvailableDecoders } from "./utils/hardwareDecoder";
 import { detectAvailableEncoders } from "./utils/hardwareEncoder";
 
@@ -27,10 +26,6 @@ io.listen(SERVER_PORT);
 
 console.log(`Camera Ingestion Service running on port ${SERVER_PORT}`);
 
-// Start CPU monitoring for adaptive quality control
-cpuMonitor.start();
-console.log("[Main] CPU monitor started");
-
 // Detect available hardware codecs before starting cameras
 console.log("[Main] Detecting hardware codecs...");
 await detectAvailableDecoders();
@@ -44,9 +39,6 @@ console.log("[Main] Camera Ingestion Service fully initialized");
 
 const shutdown = async () => {
   console.log("Shutting down gracefully...");
-
-  // Stop CPU monitor
-  cpuMonitor.stop();
 
   // Stop stream manager
   await streamManager.stop();

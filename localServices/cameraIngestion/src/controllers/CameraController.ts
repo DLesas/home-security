@@ -1,6 +1,5 @@
 import { EventEmitter } from "events";
 import { spawn, ChildProcess } from "child_process";
-import sharp from "sharp";
 import ms from "ms";
 import {
   StreamCapture,
@@ -14,16 +13,10 @@ import { emitFrame, emitStats } from "../socketHandler";
 import { raiseEvent } from "../shared/events/notify";
 import { redis } from "../shared/redis/index";
 import { createClient, RedisClientType } from "redis";
-import { cpuMonitor } from "../cpuMonitor";
 import { RollingAverage } from "../utils/rollingAverage";
 import { getCameraDecoder } from "../utils/hardwareDecoder";
 import { getCameraEncoder } from "../utils/hardwareEncoder";
 import {
-  JPEG_QUALITY_MIN,
-  JPEG_QUALITY_MAX,
-  AI_SAMPLING_RATE,
-  CPU_THRESHOLD_HIGH,
-  CPU_THRESHOLD_LOW,
   DEFAULT_STREAM_FPS,
   DEFAULT_STREAM_WIDTH,
   DEFAULT_STREAM_HEIGHT,
@@ -105,8 +98,6 @@ export class CameraController extends EventEmitter {
 
   // Frame processing
   private frameCount: number = 0;
-  private currentJpegQuality: number = JPEG_QUALITY_MAX;
-  private lastQualityAdjustment: number = 0;
   private frameProcessingTimes = new RollingAverage(100);
 
   // Frame flow monitoring
@@ -544,6 +535,7 @@ export class CameraController extends EventEmitter {
 
   /**
    * Handle incoming frames from stream capture
+   * Frames arrive as JPEG (from FFmpeg MJPEG output) - no compression needed
    */
   private async handleFrame(frameData: FrameData): Promise<void> {
     const startTime = Date.now();
@@ -561,8 +553,8 @@ export class CameraController extends EventEmitter {
     }
 
     try {
-      // Compress raw RGB24 frame to JPEG
-      const jpegBuffer = await this.compressFrame(frameData);
+      // Frame is already JPEG from FFmpeg - no compression needed!
+      const jpegBuffer = frameData.frame;
 
       // 1. Emit to Socket.IO clients
       emitFrame(this.config.cameraId, jpegBuffer, frameData.timestamp);
@@ -575,7 +567,7 @@ export class CameraController extends EventEmitter {
         await this.publishFrameToRedis(jpegBuffer, frameData.timestamp);
       }
 
-      // Track performance
+      // Track performance (now minimal since no Sharp compression)
       const processingTime = Date.now() - startTime;
       this.trackPerformance(processingTime);
 
@@ -606,7 +598,7 @@ export class CameraController extends EventEmitter {
           frameCount: this.frameCount,
           fps,
           avgProcessingMs: avgProcessing,
-          jpegQuality: this.currentJpegQuality,
+          jpegQuality: 95, // Fixed quality from FFmpeg -q:v 2
           jpegSizeMB,
           frameFlowState: this.frameFlowState,
           motionProcessingMs: this.getAverageMotionProcessingTime(),
@@ -619,58 +611,6 @@ export class CameraController extends EventEmitter {
     } catch (error) {
       console.error(`${this.logPrefix} Error processing frame:`, error);
     }
-  }
-
-  /**
-   * Compress raw RGB24 frame to JPEG
-   */
-  private async compressFrame(frameData: FrameData): Promise<Buffer> {
-    const { frame, width, height } = frameData;
-    const frameWidth = width || 1280;
-    const frameHeight = height || 720;
-
-    const quality = this.getAdaptiveQuality();
-
-    return sharp(frame, {
-      raw: {
-        width: frameWidth,
-        height: frameHeight,
-        channels: 3,
-      },
-    })
-      .jpeg({
-        quality,
-        chromaSubsampling: "4:2:0",
-      })
-      .toBuffer();
-  }
-
-  /**
-   * Get adaptive JPEG quality based on CPU usage
-   */
-  private getAdaptiveQuality(): number {
-    const now = Date.now();
-
-    if (now - this.lastQualityAdjustment < 5000) {
-      return this.currentJpegQuality;
-    }
-
-    const cpuUsage = cpuMonitor.getCPUUsage();
-
-    if (cpuUsage > CPU_THRESHOLD_HIGH) {
-      this.currentJpegQuality = Math.max(
-        JPEG_QUALITY_MIN,
-        this.currentJpegQuality - 10
-      );
-    } else if (cpuUsage < CPU_THRESHOLD_LOW) {
-      this.currentJpegQuality = Math.min(
-        JPEG_QUALITY_MAX,
-        this.currentJpegQuality + 5
-      );
-    }
-
-    this.lastQualityAdjustment = now;
-    return this.currentJpegQuality;
   }
 
   /**

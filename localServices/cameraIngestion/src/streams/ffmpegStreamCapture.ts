@@ -10,11 +10,16 @@ import {
 } from "../utils/hardwareDecoder";
 import { RollingAverage } from "../utils/rollingAverage";
 
+// JPEG markers for frame boundary detection
+const JPEG_SOI = Buffer.from([0xff, 0xd8]); // Start of Image
+const JPEG_EOI = Buffer.from([0xff, 0xd9]); // End of Image
+
 /**
  * Base class for FFmpeg-based stream capture
  * Handles frame buffering, emission, and common FFmpeg pipeline configuration
  *
  * Note: Stream probing is now handled by CameraController, not by StreamCapture classes.
+ * Output format: MJPEG (JPEG frames) for efficient streaming and recording.
  *
  * Subclasses must implement:
  * - buildProtocolSpecificInputArgs(): Protocol-specific FFmpeg input flags
@@ -28,7 +33,6 @@ import { RollingAverage } from "../utils/rollingAverage";
 export abstract class FFmpegStreamCapture extends StreamCapture {
   private ffmpegProcess: FFmpegProcess;
   private frameBuffer: Buffer = Buffer.alloc(0);
-  private frameSize: number;
   private bufferWarningLogged: boolean = false;
 
   // Decode timing metrics (frame-to-frame interval)
@@ -37,12 +41,6 @@ export abstract class FFmpegStreamCapture extends StreamCapture {
 
   constructor(config: StreamConfig) {
     super(config);
-
-    // Calculate frame size (RGB24 = 3 bytes per pixel)
-    this.frameSize =
-      (this.config.width || 1920) *
-      (this.config.height || 1080) *
-      3;
 
     // Assign decoder for this camera (handles NVDEC slot tracking)
     assignDecoder(config.cameraId);
@@ -107,13 +105,15 @@ export abstract class FFmpegStreamCapture extends StreamCapture {
 
   /**
    * Build common FFmpeg output arguments
-   * Used by all stream types for consistent raw frame output
+   * Outputs MJPEG (JPEG frames) for efficient streaming and recording
+   * Quality: -q:v 2 = best quality (2=best, 31=worst)
    */
   protected buildCommonOutputArgs(): string[] {
     return [
       "-f", "image2pipe",               // Output as image stream
-      "-pix_fmt", "rgb24",              // RGB24 pixel format
-      "-vcodec", "rawvideo",            // Raw video output
+      "-pix_fmt", "yuvj420p",           // JPEG-compatible pixel format
+      "-vcodec", "mjpeg",               // MJPEG encoder
+      "-q:v", "2",                      // Quality (2=best, 31=worst)
       "-r", `${this.config.fps || 30}`, // Frame rate
     ];
   }
@@ -171,32 +171,54 @@ export abstract class FFmpegStreamCapture extends StreamCapture {
 
   /**
    * Handle frame data from FFmpeg stdout
-   * Buffers chunks until complete frame is received
+   * Detects JPEG frame boundaries using SOI (0xFFD8) and EOI (0xFFD9) markers
    *
    * Note: FFmpeg/pipe backpressure naturally throttles if we can't keep up.
-   * Buffer should only hold partial frame data (< frameSize). If it grows
-   * beyond 2x frameSize, something is wrong (frameSize mismatch or FFmpeg issue).
+   * Buffer should only hold partial JPEG data (typically < 200KB per frame).
+   * If it grows beyond 2MB, something is wrong.
    */
   private handleFrameData(chunk: Buffer): void {
     this.frameBuffer = Buffer.concat([this.frameBuffer, chunk]);
 
-    // Safety check: warn if buffer grows unexpectedly large
-    if (this.frameBuffer.length > this.frameSize * 2 && !this.bufferWarningLogged) {
+    // Safety check: warn if buffer grows unexpectedly large (> 2MB)
+    if (this.frameBuffer.length > 2 * 1024 * 1024 && !this.bufferWarningLogged) {
       console.warn(
-        `${this.getLogPrefix()} Buffer unexpectedly large: ${(this.frameBuffer.length / 1024 / 1024).toFixed(1)}MB ` +
-        `(expected max ~${(this.frameSize / 1024 / 1024).toFixed(1)}MB). Possible frameSize mismatch.`
+        `${this.getLogPrefix()} Buffer unexpectedly large: ${(this.frameBuffer.length / 1024 / 1024).toFixed(1)}MB. ` +
+        `Possible JPEG parsing issue or corrupted stream.`
       );
       this.bufferWarningLogged = true;
     }
 
-    // Emit complete frames
-    while (this.frameBuffer.length >= this.frameSize) {
-      const frame = this.frameBuffer.subarray(0, this.frameSize);
-      this.frameBuffer = this.frameBuffer.subarray(this.frameSize);
+    // Extract complete JPEG frames using SOI/EOI markers
+    while (true) {
+      // Find SOI marker (Start of Image: 0xFFD8)
+      const soiIndex = this.findMarker(this.frameBuffer, JPEG_SOI);
+      if (soiIndex === -1) {
+        // No valid start found, clear buffer
+        this.frameBuffer = Buffer.alloc(0);
+        break;
+      }
+
+      // Trim anything before SOI
+      if (soiIndex > 0) {
+        this.frameBuffer = this.frameBuffer.subarray(soiIndex);
+      }
+
+      // Find EOI marker (End of Image: 0xFFD9) starting after SOI
+      const eoiIndex = this.findMarker(this.frameBuffer, JPEG_EOI, 2);
+      if (eoiIndex === -1) {
+        // Incomplete frame, wait for more data
+        break;
+      }
+
+      // Extract complete JPEG frame (including EOI marker)
+      const frameEnd = eoiIndex + 2;
+      const jpegFrame = Buffer.from(this.frameBuffer.subarray(0, frameEnd));
+      this.frameBuffer = this.frameBuffer.subarray(frameEnd);
 
       const now = Date.now();
       const frameData: FrameData = {
-        frame: Buffer.from(frame), // Create new buffer from subarray
+        frame: jpegFrame,
         timestamp: now,
         width: this.config.width,
         height: this.config.height,
@@ -213,6 +235,22 @@ export abstract class FFmpegStreamCapture extends StreamCapture {
       // Reset warning flag once we successfully extract a frame
       this.bufferWarningLogged = false;
     }
+  }
+
+  /**
+   * Find a 2-byte marker in buffer
+   * @param buffer Buffer to search
+   * @param marker 2-byte marker to find
+   * @param startOffset Starting position (default 0)
+   * @returns Index of marker or -1 if not found
+   */
+  private findMarker(buffer: Buffer, marker: Buffer, startOffset = 0): number {
+    for (let i = startOffset; i <= buffer.length - 2; i++) {
+      if (buffer[i] === marker[0] && buffer[i + 1] === marker[1]) {
+        return i;
+      }
+    }
+    return -1;
   }
 
   async start(): Promise<void> {
@@ -235,18 +273,12 @@ export abstract class FFmpegStreamCapture extends StreamCapture {
   }
 
   /**
-   * Override updateConfig to recalculate frameSize when resolution changes
+   * Override updateConfig to clear buffers when config changes
    */
   public updateConfig(newConfig: Partial<StreamConfig>): void {
     super.updateConfig(newConfig);
 
-    // Recalculate frame size if resolution changed (RGB24 = 3 bytes per pixel)
-    this.frameSize =
-      (this.config.width || 1920) *
-      (this.config.height || 1080) *
-      3;
-
-    // Clear frame buffer and metrics since frameSize may have changed
+    // Clear frame buffer and metrics when config changes
     this.frameBuffer = Buffer.alloc(0);
     this.decodeMetrics.clear();
     this.lastFrameEmitTime = 0;
