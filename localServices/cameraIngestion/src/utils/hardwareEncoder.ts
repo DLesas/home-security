@@ -12,24 +12,19 @@ export interface EncoderInfo {
 
 /**
  * Hardware encoder priority order (best to worst)
- * - videotoolbox: macOS/iOS hardware encoding (Apple Silicon, Intel)
- * - nvenc: NVIDIA GPU encoding
- * - qsv: Intel Quick Sync Video
- * - vaapi: Linux VA-API (Intel/AMD)
- * - amf: AMD GPU encoding
- * - libx264: Software encoding (fallback)
+ * NVIDIA first for production servers, then platform-specific fallbacks
  */
 const ENCODER_PRIORITY: EncoderInfo[] = [
   {
-    name: "h264_videotoolbox",
-    type: "hardware",
-    description: "Apple VideoToolbox (macOS/iOS hardware acceleration)",
-  },
-  {
     name: "h264_nvenc",
     type: "hardware",
-    preset: "p1", // Fastest preset for NVENC
-    description: "NVIDIA NVENC hardware encoder",
+    preset: "p1",
+    description: "NVIDIA NVENC",
+  },
+  {
+    name: "h264_videotoolbox",
+    type: "hardware",
+    description: "Apple VideoToolbox",
   },
   {
     name: "h264_qsv",
@@ -45,7 +40,7 @@ const ENCODER_PRIORITY: EncoderInfo[] = [
   {
     name: "h264_amf",
     type: "hardware",
-    description: "AMD AMF hardware encoder",
+    description: "AMD AMF",
   },
   {
     name: "libx264",
@@ -55,94 +50,153 @@ const ENCODER_PRIORITY: EncoderInfo[] = [
   },
 ];
 
-let cachedEncoder: EncoderInfo | null = null;
+// Cached detection results
+let availableEncoders: EncoderInfo[] = [];
+let detectionComplete = false;
+
+// Per-camera encoder tracking
+const cameraEncoders = new Map<string, EncoderInfo>();
+
+// NVENC-specific tracking (only encoder with hard limits)
+const nvencCameras = new Set<string>();
+let nvencLimit: number | null = null;
 
 /**
- * Detect the best available H.264 encoder on this system
- * Tests encoders in priority order and returns the first working one
+ * Detect all available hardware encoders at startup
  */
-export async function detectBestH264Encoder(): Promise<EncoderInfo> {
-  // Return cached result if already detected
-  if (cachedEncoder) {
-    return cachedEncoder;
-  }
+export async function detectAvailableEncoders(): Promise<EncoderInfo[]> {
+  if (detectionComplete) return availableEncoders;
 
   console.log("[HardwareEncoder] Detecting available H.264 encoders...");
 
   for (const encoder of ENCODER_PRIORITY) {
     try {
-      // Test if encoder is available by running a quick encode test
-      const testCommand = `ffmpeg -hide_banner -f lavfi -i testsrc=size=64x64:duration=0.1 -c:v ${encoder.name} -f null - 2>&1`;
+      const testCmd = `ffmpeg -hide_banner -f lavfi -i testsrc=size=64x64:duration=0.1 -c:v ${encoder.name} -f null - 2>&1`;
+      const { stdout, stderr } = await execAsync(testCmd, { timeout: 5000 });
+      const output = stdout + stderr;
 
-      const { stderr } = await execAsync(testCommand, { timeout: 5000 });
+      const hasError =
+        output.includes("Unknown encoder") ||
+        output.includes("Encoder not found") ||
+        output.includes("is not supported") ||
+        output.includes("Cannot load");
 
-      // Check if the command succeeded (encoder is available)
-      if (!stderr.includes("Unknown encoder") && !stderr.includes("Encoder not found")) {
-        cachedEncoder = encoder;
-        console.log(
-          `[HardwareEncoder] ✓ Selected: ${encoder.name} (${encoder.description})`
-        );
-        return encoder;
+      if (!hasError) {
+        availableEncoders.push(encoder);
+        console.log(`[HardwareEncoder] ✓ ${encoder.name}: ${encoder.description}`);
+      } else {
+        console.log(`[HardwareEncoder] ✗ ${encoder.name}: not available`);
       }
-    } catch (error) {
-      // Encoder not available, try next one
-      continue;
+    } catch {
+      console.log(`[HardwareEncoder] ✗ ${encoder.name}: not available`);
     }
   }
 
-  // Fallback to libx264 (should always be available)
-  cachedEncoder = ENCODER_PRIORITY[ENCODER_PRIORITY.length - 1];
-  console.log(
-    `[HardwareEncoder] ⚠ Using fallback: ${cachedEncoder.name} (${cachedEncoder.description})`
+  detectionComplete = true;
+
+  if (availableEncoders.length === 0) {
+    const fallback = ENCODER_PRIORITY[ENCODER_PRIORITY.length - 1];
+    availableEncoders.push(fallback);
+    console.log(`[HardwareEncoder] Using fallback: ${fallback.name}`);
+  } else {
+    console.log(`[HardwareEncoder] ${availableEncoders.length} encoder(s) available`);
+  }
+
+  return availableEncoders;
+}
+
+function canUseNvenc(): boolean {
+  if (nvencLimit === null) return true;
+  return nvencCameras.size < nvencLimit;
+}
+
+function getFallbackEncoder(): EncoderInfo {
+  return (
+    availableEncoders.find((e) => e.name !== "h264_nvenc") ??
+    ENCODER_PRIORITY[ENCODER_PRIORITY.length - 1]
   );
-  return cachedEncoder;
 }
 
 /**
- * Get FFmpeg encoder arguments based on detected hardware
+ * Assign encoder to a camera (handles NVENC slot tracking)
  */
-export async function getEncoderArgs(): Promise<string[]> {
-  const encoder = await detectBestH264Encoder();
-  const args: string[] = ["-c:v", encoder.name];
+export function assignEncoder(cameraId: string): EncoderInfo {
+  const existing = cameraEncoders.get(cameraId);
+  if (existing !== undefined) return existing;
 
-  // Add preset if applicable
-  if (encoder.preset) {
-    args.push("-preset", encoder.preset);
+  const nvenc = availableEncoders.find((e) => e.name === "h264_nvenc");
+
+  if (nvenc && canUseNvenc()) {
+    nvencCameras.add(cameraId);
+    cameraEncoders.set(cameraId, nvenc);
+    console.log(
+      `[HardwareEncoder] Camera ${cameraId}: NVENC (${nvencCameras.size}/${nvencLimit ?? "?"} slots)`
+    );
+    return nvenc;
   }
 
-  // Add encoder-specific optimizations
+  const fallback = getFallbackEncoder();
+  cameraEncoders.set(cameraId, fallback);
+  console.log(`[HardwareEncoder] Camera ${cameraId}: ${fallback.name}`);
+  return fallback;
+}
+
+/**
+ * Handle NVENC failure - learn limit, reassign to fallback
+ */
+export function onNvencFailure(cameraId: string): EncoderInfo {
+  nvencLimit = nvencCameras.size;
+  nvencCameras.delete(cameraId);
+  console.log(`[HardwareEncoder] NVENC limit discovered: ${nvencLimit} streams`);
+
+  const fallback = getFallbackEncoder();
+  cameraEncoders.set(cameraId, fallback);
+  console.log(`[HardwareEncoder] Camera ${cameraId}: fallback to ${fallback.name}`);
+  return fallback;
+}
+
+/**
+ * Release encoder when camera stops
+ */
+export function releaseEncoder(cameraId: string): void {
+  const encoder = cameraEncoders.get(cameraId);
+  cameraEncoders.delete(cameraId);
+
+  if (encoder?.name === "h264_nvenc") {
+    nvencCameras.delete(cameraId);
+    console.log(
+      `[HardwareEncoder] Camera ${cameraId}: NVENC slot released (${nvencCameras.size}/${nvencLimit ?? "?"} in use)`
+    );
+  }
+}
+
+/**
+ * Get FFmpeg encoder args for a camera
+ */
+export function getEncoderArgs(cameraId: string): string[] {
+  const encoder = cameraEncoders.get(cameraId);
+  if (!encoder) {
+    return ["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency"];
+  }
+
+  const args = ["-c:v", encoder.name];
+  if (encoder.preset) args.push("-preset", encoder.preset);
+
   switch (encoder.name) {
     case "h264_videotoolbox":
-      // VideoToolbox-specific options
-      args.push(
-        "-allow_sw", "1", // Allow software fallback if needed
-        "-realtime", "1" // Enable realtime encoding
-      );
+      args.push("-allow_sw", "1", "-realtime", "1");
       break;
-
     case "h264_nvenc":
-      // NVENC-specific options
-      args.push(
-        "-tune", "ll", // Low latency
-        "-rc", "cbr", // Constant bitrate
-        "-zerolatency", "1"
-      );
+      args.push("-tune", "ll", "-rc", "cbr", "-zerolatency", "1");
       break;
-
     case "h264_qsv":
-      // Quick Sync-specific options
-      args.push(
-        "-look_ahead", "0", // Disable lookahead for lower latency
-        "-global_quality", "23" // Quality level (lower = better)
-      );
+      args.push("-look_ahead", "0", "-global_quality", "23");
       break;
-
+    case "h264_amf":
+      args.push("-quality", "speed");
+      break;
     case "libx264":
-      // Software encoder options
-      args.push(
-        "-tune", "zerolatency",
-        "-crf", "23" // Constant rate factor (quality)
-      );
+      args.push("-tune", "zerolatency", "-crf", "23");
       break;
   }
 
@@ -150,8 +204,24 @@ export async function getEncoderArgs(): Promise<string[]> {
 }
 
 /**
- * Get current encoder info (after detection)
+ * Check if stderr indicates NVENC failure
  */
-export function getCurrentEncoder(): EncoderInfo | null {
-  return cachedEncoder;
+export function isNvencFailure(stderr: string): boolean {
+  const patterns = [
+    /cannot.*create.*encoder/i,
+    /nvenc.*init.*failed/i,
+    /exceeded.*session/i,
+    /too many.*sessions/i,
+    /OpenEncodeSessionEx failed/i,
+    /NV_ENC_ERR_OUT_OF_MEMORY/i,
+    /Cannot load libnvidia-encode/i,
+  ];
+  return patterns.some((p) => p.test(stderr));
+}
+
+/**
+ * Get encoder assigned to a camera
+ */
+export function getCameraEncoder(cameraId: string): EncoderInfo | null {
+  return cameraEncoders.get(cameraId) ?? null;
 }

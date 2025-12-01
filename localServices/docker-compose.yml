@@ -112,6 +112,7 @@ services:
     build:
       context: .
       dockerfile: ./cameraIngestion/Dockerfile
+      # dockerfile: ./cameraIngestion/Dockerfile.nvidia  # Uncomment for NVIDIA GPU support
     environment:
       - DOCKER_ENV=true
       - POSTGRES_USER=postgres
@@ -150,6 +151,15 @@ services:
     restart: unless-stopped
     networks:
       - backend
+    # GPU access for hardware acceleration (NVDEC/NVENC)
+    # Uncomment below if USE_GPU=true in .env (requires Linux + NVIDIA GPU + NVIDIA Container Toolkit)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu, video]  # video is REQUIRED for NVDEC/NVENC
 
   event-system:
     profiles: ["core"]
@@ -167,6 +177,7 @@ services:
       - EVENTS_CHANNEL=${EVENTS_CHANNEL}
       - ACCESS_KEY=${ACCESS_KEY}
       - SECRET_KEY=${SECRET_KEY}
+    restart: always
     networks:
       - backend
     depends_on:

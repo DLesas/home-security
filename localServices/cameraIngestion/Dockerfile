@@ -1,7 +1,9 @@
-# cameraIngestion/Dockerfile
+# cameraIngestion/Dockerfile.simple
+# Simple Dockerfile for development/ARM64 Macs (no GPU acceleration)
+
 FROM node:lts-alpine
 
-# Install FFmpeg for video processing
+# Install FFmpeg from Alpine repos (works on ARM64 and x86_64)
 RUN apk add --no-cache ffmpeg
 
 WORKDIR /app

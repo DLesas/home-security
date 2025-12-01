@@ -165,6 +165,9 @@ export abstract class FFmpegProcess extends EventEmitter {
 
           // Auto-restart if process crashed unexpectedly (only if not disposed)
           if (wasRunning && code !== 0 && !this.isDisposed) {
+            // Emit beforeRestart so consumers can handle hardware failures (NVDEC/NVENC)
+            this.emit("beforeRestart", stderrData);
+
             this.reconnectAttempts++;
             const delay = this.getReconnectDelay();
 

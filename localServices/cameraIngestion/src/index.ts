@@ -6,6 +6,8 @@ import { StreamManager } from "./streamManager";
 import { connectRedis } from "./shared/redis/index";
 import { createCameraIndex } from "./shared/redis/cameras";
 import { cpuMonitor } from "./cpuMonitor";
+import { detectAvailableDecoders } from "./utils/hardwareDecoder";
+import { detectAvailableEncoders } from "./utils/hardwareEncoder";
 
 const io = new Server({
   cors: {
@@ -28,6 +30,11 @@ console.log(`Camera Ingestion Service running on port ${SERVER_PORT}`);
 // Start CPU monitoring for adaptive quality control
 cpuMonitor.start();
 console.log("[Main] CPU monitor started");
+
+// Detect available hardware codecs before starting cameras
+console.log("[Main] Detecting hardware codecs...");
+await detectAvailableDecoders();
+await detectAvailableEncoders();
 
 // Initialize StreamManager to start processing camera streams
 const streamManager = new StreamManager();

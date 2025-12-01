@@ -1,0 +1,49 @@
+# cameraIngestion/Dockerfile
+# Multi-stage build for NVIDIA NVDEC/NVENC support
+
+# Stage 1: Get FFmpeg with full NVIDIA support (NVDEC + NVENC)
+# jrottenberg/ffmpeg includes h264_cuvid, h264_nvenc, scale_npp, etc.
+FROM jrottenberg/ffmpeg:7.1-nvidia2204 AS ffmpeg
+
+# Stage 2: Build our application
+FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
+
+# Copy FFmpeg binaries from jrottenberg image
+COPY --from=ffmpeg /usr/local /usr/local
+
+# Install runtime dependencies for FFmpeg
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libva-drm2 \
+    libva2 \
+    libvdpau1 \
+    libnuma1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js LTS
+RUN apt-get update && apt-get install -y curl ca-certificates && \
+    curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+# Enable all NVIDIA capabilities (required for NVDEC/NVENC)
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+
+WORKDIR /app
+
+COPY cameraIngestion/package*.json ./
+RUN npm install
+
+COPY cameraIngestion/src ./src
+
+# Remove symlinked shared folders and replace with actual backend code
+RUN rm -rf ./src/shared/db ./src/shared/redis ./src/shared/events
+RUN mkdir -p ./src/shared/db ./src/shared/redis ./src/shared/events
+
+COPY backend/src/db ./src/shared/db/
+COPY backend/src/redis ./src/shared/redis/
+COPY backend/src/events ./src/shared/events/
+COPY cameraIngestion/tsconfig.json ./
+
+RUN npm run build
+
+CMD ["npm", "start"]
