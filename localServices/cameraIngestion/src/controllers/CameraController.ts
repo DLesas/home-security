@@ -20,6 +20,8 @@ import {
   DEFAULT_STREAM_FPS,
   DEFAULT_STREAM_WIDTH,
   DEFAULT_STREAM_HEIGHT,
+  DEFAULT_MAX_STREAM_FPS,
+  DEFAULT_MAX_RECORDING_FPS,
 } from "../config";
 
 /**
@@ -61,6 +63,11 @@ export interface CameraConfig {
   motionDetectionEnabled: boolean;
   targetWidth?: number;
   targetHeight?: number;
+  // FPS caps (act as maximum, never upscale - use MIN(detected_fps, max))
+  maxStreamFps?: number;
+  maxRecordingFps?: number;
+  // JPEG encoding quality (1-100, where 100=best, default: 95)
+  jpegQuality?: number;
 }
 
 /**
@@ -95,6 +102,9 @@ export class CameraController extends EventEmitter {
 
   // Stream properties (detected during probing)
   private streamProperties: StreamProperties | null = null;
+
+  // Effective FPS from FFmpeg output (used for stats publishing interval)
+  private effectiveStreamFps: number = DEFAULT_STREAM_FPS;
 
   // Frame processing
   private frameCount: number = 0;
@@ -279,7 +289,11 @@ export class CameraController extends EventEmitter {
       (newConfig.targetWidth !== undefined &&
         newConfig.targetWidth !== this.config.targetWidth) ||
       (newConfig.targetHeight !== undefined &&
-        newConfig.targetHeight !== this.config.targetHeight)
+        newConfig.targetHeight !== this.config.targetHeight) ||
+      (newConfig.maxStreamFps !== undefined &&
+        newConfig.maxStreamFps !== this.config.maxStreamFps) ||
+      (newConfig.maxRecordingFps !== undefined &&
+        newConfig.maxRecordingFps !== this.config.maxRecordingFps)
     );
   }
 
@@ -462,7 +476,14 @@ export class CameraController extends EventEmitter {
    */
   private async startStreamCapture(): Promise<void> {
     // Calculate effective properties
-    const fps = this.streamProperties?.fps ?? DEFAULT_STREAM_FPS;
+    const detectedFps = this.streamProperties?.fps ?? DEFAULT_STREAM_FPS;
+    const maxStreamFps = this.config.maxStreamFps ?? DEFAULT_MAX_STREAM_FPS;
+    // Apply FPS cap: MIN(detected_fps, maxStreamFps) - never upscale
+    const fps = Math.min(detectedFps, maxStreamFps);
+
+    // Store effective FPS for stats publishing interval
+    this.effectiveStreamFps = fps;
+
     const width =
       this.config.targetWidth ??
       this.streamProperties?.width ??
@@ -479,6 +500,7 @@ export class CameraController extends EventEmitter {
       fps,
       width,
       height,
+      jpegQuality: this.config.jpegQuality,
     };
 
     // Create stream capture (UDP or RTSP based on URL)
@@ -494,7 +516,7 @@ export class CameraController extends EventEmitter {
     await this.streamCapture.start();
 
     console.log(
-      `${this.logPrefix} Stream capture started: ${width}x${height} @ ${fps}fps`
+      `${this.logPrefix} Stream capture started: ${width}x${height} @ ${fps}fps (detected: ${detectedFps}, cap: ${maxStreamFps})`
     );
   }
 
@@ -515,11 +537,15 @@ export class CameraController extends EventEmitter {
    * Start recorder process
    */
   private async startRecorder(): Promise<void> {
-    const fps = this.streamProperties?.fps ?? DEFAULT_STREAM_FPS;
+    const detectedFps = this.streamProperties?.fps ?? DEFAULT_STREAM_FPS;
+    const maxRecordingFps = this.config.maxRecordingFps ?? DEFAULT_MAX_RECORDING_FPS;
+    // Apply FPS cap: MIN(detected_fps, maxRecordingFps) - never upscale
+    const fps = Math.min(detectedFps, maxRecordingFps);
+
     this.recorder = new ContinuousRecorder(this.config.cameraId, fps);
     await this.recorder.start();
 
-    console.log(`${this.logPrefix} Recorder started`);
+    console.log(`${this.logPrefix} Recorder started @ ${fps}fps (detected: ${detectedFps}, cap: ${maxRecordingFps})`);
   }
 
   /**
@@ -571,8 +597,8 @@ export class CameraController extends EventEmitter {
       const processingTime = Date.now() - startTime;
       this.trackPerformance(processingTime);
 
-      // Log and emit stats every 100 frames
-      if (this.frameCount % 100 === 0) {
+      // Log and emit stats every second (based on effective FPS)
+      if (this.frameCount % this.effectiveStreamFps === 0) {
         const avgProcessing = this.getAverageProcessingTime();
         const fps = this.getCurrentFPS();
         const jpegSizeMB = jpegBuffer.length / 1024 / 1024;
@@ -598,7 +624,7 @@ export class CameraController extends EventEmitter {
           frameCount: this.frameCount,
           fps,
           avgProcessingMs: avgProcessing,
-          jpegQuality: 95, // Fixed quality from FFmpeg -q:v 2
+          jpegQuality: this.config.jpegQuality ?? 95,
           jpegSizeMB,
           frameFlowState: this.frameFlowState,
           motionProcessingMs: this.getAverageMotionProcessingTime(),

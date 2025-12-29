@@ -30,6 +30,7 @@ export interface StreamConfig {
   fps?: number;       // Target frame rate (default: 30)
   width?: number;     // Target width (optional, for resizing)
   height?: number;    // Target height (optional, for resizing)
+  jpegQuality?: number; // JPEG quality (1-100, where 100=best, default: 95)
 }
 
 /**

@@ -104,16 +104,31 @@ export abstract class FFmpegStreamCapture extends StreamCapture {
   protected abstract buildProtocolSpecificInputArgs(): string[];
 
   /**
+   * Convert user-friendly quality (1-100) to FFmpeg -q:v scale (1-31)
+   * User scale: 100 = best, 1 = worst
+   * FFmpeg scale: 1 = best, 31 = worst
+   */
+  private userQualityToFFmpeg(userQuality: number): number {
+    // Clamp to valid range
+    const clamped = Math.max(1, Math.min(100, userQuality));
+    // Linear mapping: 100 → 1, 1 → 31
+    return Math.round(1 + (100 - clamped) * 30 / 99);
+  }
+
+  /**
    * Build common FFmpeg output arguments
    * Outputs MJPEG (JPEG frames) for efficient streaming and recording
-   * Quality: -q:v 2 = best quality (2=best, 31=worst)
+   * Quality: -q:v 1-31 (1=best, 31=worst), converted from user scale (1-100)
    */
   protected buildCommonOutputArgs(): string[] {
+    const userQuality = this.config.jpegQuality ?? 95;
+    const ffmpegQuality = this.userQualityToFFmpeg(userQuality);
+
     return [
       "-f", "image2pipe",               // Output as image stream
       "-pix_fmt", "yuvj420p",           // JPEG-compatible pixel format
       "-vcodec", "mjpeg",               // MJPEG encoder
-      "-q:v", "2",                      // Quality (2=best, 31=worst)
+      "-q:v", `${ffmpegQuality}`,       // Quality (1=best, 31=worst)
       "-r", `${this.config.fps || 30}`, // Frame rate
     ];
   }

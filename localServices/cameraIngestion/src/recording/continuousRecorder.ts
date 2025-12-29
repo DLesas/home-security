@@ -86,7 +86,7 @@ export class ContinuousRecorder {
           "-f", "hls",                                    // HLS format
           "-hls_time", `${SEGMENT_DURATION_SECONDS}`,    // Segment duration (10 min)
           "-hls_list_size", `${maxSegments}`,            // Max segments to keep in playlist
-          "-hls_flags", "delete_segments",               // Auto-delete segments when limit reached
+          "-hls_flags", "delete_segments+program_date_time", // Auto-delete + embed timestamps
           "-hls_segment_type", "mpegts",                 // Use MPEG-TS containers
           "-hls_segment_filename", path.join(this.cameraDir, "segment-%05d.ts"), // Segment naming
           "-strftime", "0",                              // Don't use strftime (use sequential numbers)

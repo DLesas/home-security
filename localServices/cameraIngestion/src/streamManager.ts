@@ -180,6 +180,9 @@ export class StreamManager {
         motionDetectionEnabled: camera.motionDetectionEnabled ?? true,
         targetWidth: camera.targetWidth,
         targetHeight: camera.targetHeight,
+        maxStreamFps: camera.maxStreamFps,
+        maxRecordingFps: camera.maxRecordingFps,
+        jpegQuality: camera.jpegQuality,
       };
 
       // Create camera controller
@@ -280,16 +283,72 @@ export class StreamManager {
   }
 
   /**
-   * Update camera configuration (restart with new config)
+   * Update camera configuration (only restart if ingestion-relevant fields changed)
    */
   async updateCamera(camera: Camera): Promise<void> {
-    console.log(`[StreamManager] Updating camera: ${camera.externalID}`);
+    const existingConfig = this.cameraConfigs.get(camera.externalID);
 
-    // Remove existing camera
-    await this.removeCamera(camera.externalID);
+    if (!existingConfig) {
+      // Camera doesn't exist, add it
+      console.log(`[StreamManager] Camera ${camera.externalID} not found, adding it`);
+      await this.addCamera(camera);
+      return;
+    }
 
-    // Add camera with new configuration
-    await this.addCamera(camera);
+    // Check if any ingestion-relevant fields changed
+    const requiresRestart = this.hasIngestionRelevantChanges(existingConfig, camera);
+
+    if (requiresRestart) {
+      console.log(`[StreamManager] Restarting camera ${camera.externalID} due to ingestion config change`);
+
+      // Remove existing camera
+      await this.removeCamera(camera.externalID);
+
+      // Add camera with new configuration
+      await this.addCamera(camera);
+    } else {
+      // Just update the stored config without restarting
+      console.log(`[StreamManager] Updating camera ${camera.externalID} config (no restart needed)`);
+      this.cameraConfigs.set(camera.externalID, camera);
+    }
+  }
+
+  /**
+   * Check if any fields that affect ingestion have changed
+   *
+   * Fields that require restart:
+   * - Stream URL: ipAddress, port, protocol, username, password, streamPath
+   * - FFmpeg pipeline: targetWidth, targetHeight, maxStreamFps, maxRecordingFps
+   * - Motion detection: motionDetectionEnabled (controls frame publishing to Redis streams)
+   *
+   * Fields that do NOT require restart:
+   * - Metadata: name, building, expectedSecondsUpdated
+   * - Motion config (handled by motion service): mog2History, mog2VarThreshold, mog2DetectShadows, motionZones
+   */
+  private hasIngestionRelevantChanges(oldConfig: Camera, newConfig: Camera): boolean {
+    // Stream URL components
+    if (oldConfig.ipAddress !== newConfig.ipAddress) return true;
+    if (oldConfig.port !== newConfig.port) return true;
+    if (oldConfig.protocol !== newConfig.protocol) return true;
+    if (oldConfig.username !== newConfig.username) return true;
+    if (oldConfig.password !== newConfig.password) return true;
+    if (oldConfig.streamPath !== newConfig.streamPath) return true;
+
+    // Resolution
+    if (oldConfig.targetWidth !== newConfig.targetWidth) return true;
+    if (oldConfig.targetHeight !== newConfig.targetHeight) return true;
+
+    // FPS caps
+    if (oldConfig.maxStreamFps !== newConfig.maxStreamFps) return true;
+    if (oldConfig.maxRecordingFps !== newConfig.maxRecordingFps) return true;
+
+    // Motion detection toggle (controls whether frames are pushed to Redis streams)
+    if (oldConfig.motionDetectionEnabled !== newConfig.motionDetectionEnabled) return true;
+
+    // JPEG encoding quality
+    if (oldConfig.jpegQuality !== newConfig.jpegQuality) return true;
+
+    return false;
   }
 
   /**

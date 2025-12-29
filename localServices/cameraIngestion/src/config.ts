@@ -45,6 +45,16 @@ export const DEFAULT_STREAM_HEIGHT = parseInt(
   10
 );
 
+// FPS caps (act as maximum, never upscale - use MIN(detected_fps, max))
+export const DEFAULT_MAX_STREAM_FPS = parseInt(
+  process.env.DEFAULT_MAX_STREAM_FPS || "30",
+  10
+);
+export const DEFAULT_MAX_RECORDING_FPS = parseInt(
+  process.env.DEFAULT_MAX_RECORDING_FPS || "15",
+  10
+);
+
 
 console.log("Camera Ingestion Service Configuration:");
 console.log("  SERVER_PORT:", SERVER_PORT);
@@ -54,3 +64,4 @@ console.log("  SEGMENT_DURATION_SECONDS:", SEGMENT_DURATION_SECONDS);
 console.log("  AI_SAMPLING_RATE:", AI_SAMPLING_RATE);
 console.log("  JPEG_QUALITY:", `Adaptive ${JPEG_QUALITY_MIN}-${JPEG_QUALITY_MAX} (CPU: ${CPU_THRESHOLD_LOW}%-${CPU_THRESHOLD_HIGH}%)`);
 console.log("  DEFAULT_STREAM:", `${DEFAULT_STREAM_WIDTH}x${DEFAULT_STREAM_HEIGHT} @ ${DEFAULT_STREAM_FPS} FPS`);
+console.log("  FPS_CAPS:", `Stream: ${DEFAULT_MAX_STREAM_FPS}, Recording: ${DEFAULT_MAX_RECORDING_FPS}`);
