@@ -34,3 +34,15 @@ export const ALARM_COOLDOWN_SECONDS = parseInt(
   10
 );
 console.log("ALARM_COOLDOWN_SECONDS:", ALARM_COOLDOWN_SECONDS);
+
+// Camera FPS caps (defaults for new cameras)
+export const DEFAULT_MAX_STREAM_FPS = parseInt(
+  process.env.DEFAULT_MAX_STREAM_FPS || "30",
+  10
+);
+export const DEFAULT_MAX_RECORDING_FPS = parseInt(
+  process.env.DEFAULT_MAX_RECORDING_FPS || "15",
+  10
+);
+console.log("DEFAULT_MAX_STREAM_FPS:", DEFAULT_MAX_STREAM_FPS);
+console.log("DEFAULT_MAX_RECORDING_FPS:", DEFAULT_MAX_RECORDING_FPS);

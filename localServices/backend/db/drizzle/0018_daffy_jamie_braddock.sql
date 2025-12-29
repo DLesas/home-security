@@ -1,0 +1,1 @@
+ALTER TABLE "camera_settings" ADD COLUMN "jpegQuality" integer DEFAULT 95;

@@ -1,11 +1,12 @@
 import { type Alarm, alarmRepository } from "./redis/alarms";
 import { raiseEvent } from "./events/notify";
+import { ResultAsync } from "neverthrow";
 
 // Type for the callback function that handles alarm state changes
 type AlarmStateChangeCallback = (
   alarms: Alarm[],
   state: "on" | "off"
-) => Promise<Boolean[]>;
+) => ResultAsync<boolean[], string>;
 
 /**
  * Singleton class for managing individual alarm timeouts.

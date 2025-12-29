@@ -1,5 +1,17 @@
 import { Repository, Schema } from "redis-om";
 import { redis } from "./index";
+import {
+  type DetectionModel,
+  type ModelSettings,
+  type SimpleDiffSettings,
+  type KNNSettings,
+  type MOG2Settings,
+  DEFAULT_MODEL_SETTINGS,
+} from "../db/schema/cameraSettings";
+
+// Re-export for convenience
+export type { DetectionModel, ModelSettings, SimpleDiffSettings, KNNSettings, MOG2Settings };
+export { DEFAULT_MODEL_SETTINGS };
 
 export enum CameraProtocol {
   UDP = "udp",
@@ -23,12 +35,17 @@ const cameraSchema = new Schema("cameras", {
   targetHeight: { type: "number" },
   // Motion detection settings
   motionDetectionEnabled: { type: "boolean" },
-  // MOG2 background subtractor settings (per-camera)
-  mog2History: { type: "number" },        // Frames for background model
-  mog2VarThreshold: { type: "number" },   // Variance threshold for foreground detection
-  mog2DetectShadows: { type: "boolean" }, // Detect and mark shadows
+  // Detection model: "simple_diff" | "knn" | "mog2"
+  detectionModel: { type: "string" },
+  // Model-specific settings as JSON string
+  modelSettings: { type: "string" },
   // Motion zones (JSON array) - empty points = full frame
   motionZones: { type: "string" },        // JSON: [{id, name, points, minContourArea, thresholdPercent}]
+  // FPS caps (optional - acts as maximum, never upscales)
+  maxStreamFps: { type: "number" },       // Max FPS for live streaming (default: 30)
+  maxRecordingFps: { type: "number" },    // Max FPS for HLS recording (default: 15)
+  // JPEG encoding quality (1-100, where 100=best, default: 95)
+  jpegQuality: { type: "number" },
 });
 
 
@@ -62,14 +79,19 @@ export interface Camera {
   // Target resolution (optional)
   targetWidth?: number;
   targetHeight?: number;
-  // Motion detection settings (all required when motion detection is enabled)
+  // Motion detection settings
   motionDetectionEnabled: boolean;
-  // MOG2 background subtractor settings
-  mog2History: number;        // Frames for background model
-  mog2VarThreshold: number;   // Variance threshold for foreground detection
-  mog2DetectShadows: boolean; // Detect and mark shadows
+  // Detection model: "simple_diff" | "knn" | "mog2"
+  detectionModel: DetectionModel;
+  // Model-specific settings (stored as JSON string in Redis)
+  modelSettings: ModelSettings;
   // Motion zones - at least one required, stored as JSON string in Redis
   motionZones: MotionZone[];
+  // FPS caps (optional - acts as maximum, never upscales)
+  maxStreamFps?: number;      // Max FPS for live streaming (default: 30)
+  maxRecordingFps?: number;   // Max FPS for HLS recording (default: 15)
+  // JPEG encoding quality (1-100, where 100=best, default: 95)
+  jpegQuality?: number;
 }
 
 export const createCameraIndex = async () => {
