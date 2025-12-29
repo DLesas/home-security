@@ -67,10 +67,9 @@ def main():
     # Initialize components with dependency injection
     config_manager = None
     try:
-        # 1. Motion detector (auto-selects strategy based on GPU)
+        # 1. Motion detector (strategies created per-camera based on detection model)
         detector = MotionDetector()
-        logger.info(f"Motion detector initialized: {detector.strategy_name}")
-        logger.info(f"  Parallel batch: {detector.supports_batch_parallel}")
+        logger.info("Motion detector initialized (per-camera strategy pattern)")
 
         # 2. Camera config manager
         config_manager = CameraConfigManager(redis_client)

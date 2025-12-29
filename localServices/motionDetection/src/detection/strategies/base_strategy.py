@@ -1,22 +1,23 @@
 """Abstract base class for motion detection processing strategies."""
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import Any, Optional
 
-from models import FrameInput, ForegroundMask, CameraState, MOG2Settings
+from models import FrameInput, ForegroundMask, CameraState, MotionDetectionSettings
 
 
 class ProcessingStrategy(ABC):
     """
     Abstract base class for motion detection processing strategies.
 
-    Strategies encapsulate the differences between CPU, GPU, and GPU batch
-    processing. MOG2 configuration comes from CameraState (via Redis).
+    Each detection model (SimpleDiff, KNN, MOG2) implements this interface.
+    Each strategy handles both CPU and GPU processing internally, auto-detecting
+    GPU availability at initialization time.
 
-    Each strategy is responsible for:
-    - Creating MOG2 detectors (CPU or CUDA version) with settings from Redis
-    - Creating processing streams (CUDA streams for GPU batch)
+    Strategies are responsible for:
+    - Creating algorithm-specific detectors
     - Processing frames and returning foreground masks
+    - Managing their own internal state (e.g., previous frames for SimpleDiff)
     """
 
     @property
@@ -25,42 +26,23 @@ class ProcessingStrategy(ABC):
         """Strategy name for logging and identification."""
         pass
 
-    @property
-    def supports_batch_parallel(self) -> bool:
-        """Whether this strategy supports true parallel batch processing."""
-        return False
-
     @abstractmethod
     def create_detector(
         self,
         camera_id: str,
         camera_name: str,
-        mog2_settings: MOG2Settings,
-    ) -> Any:
+        settings: MotionDetectionSettings,
+    ) -> Optional[Any]:
         """
-        Create a MOG2 background subtractor for a camera.
+        Create a background subtractor or detector for a camera.
 
         Args:
             camera_id: Unique camera identifier
             camera_name: Human-readable camera name for logging
-            mog2_settings: MOG2 configuration from Redis
+            settings: Motion detection settings including model-specific config
 
         Returns:
-            MOG2 detector instance (CPU or CUDA version)
-        """
-        pass
-
-    @abstractmethod
-    def create_stream(self, camera_id: str, camera_name: str) -> Optional[Any]:
-        """
-        Create a processing stream for a camera.
-
-        Args:
-            camera_id: Unique camera identifier
-            camera_name: Human-readable camera name for logging
-
-        Returns:
-            CUDA stream for GPU strategies, None for CPU
+            Detector instance (BackgroundSubtractor for MOG2/KNN, None for SimpleDiff)
         """
         pass
 
@@ -85,22 +67,13 @@ class ProcessingStrategy(ABC):
         """
         pass
 
-    @abstractmethod
-    def process_batch(
-        self,
-        frames: List[FrameInput],
-        states: Dict[str, CameraState],
-    ) -> List[ForegroundMask]:
+    def cleanup_camera(self, camera_id: str) -> None:
         """
-        Process multiple frames.
+        Clean up resources for a camera being removed.
 
-        For CPU, this is sequential. For GPU strategies, this may be parallel.
+        Override in subclasses that maintain per-camera state (e.g., SimpleDiff).
 
         Args:
-            frames: List of input frames
-            states: Dictionary of camera states keyed by camera_id
-
-        Returns:
-            List of ForegroundMask in same order as input frames
+            camera_id: ID of the camera being removed
         """
         pass

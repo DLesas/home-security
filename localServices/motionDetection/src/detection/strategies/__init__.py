@@ -1,13 +1,13 @@
 """Processing strategies for motion detection."""
 
 from .base_strategy import ProcessingStrategy
-from .cpu_strategy import CPUProcessingStrategy
-from .gpu_strategy import GPUProcessingStrategy
-from .gpu_batch_strategy import GPUBatchProcessingStrategy
+from .simple_diff_strategy import SimpleDiffStrategy
+from .knn_strategy import KNNStrategy
+from .mog2_strategy import MOG2Strategy
 
 __all__ = [
     "ProcessingStrategy",
-    "CPUProcessingStrategy",
-    "GPUProcessingStrategy",
-    "GPUBatchProcessingStrategy",
+    "SimpleDiffStrategy",
+    "KNNStrategy",
+    "MOG2Strategy",
 ]

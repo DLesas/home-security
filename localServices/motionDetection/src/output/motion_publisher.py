@@ -1,9 +1,12 @@
 """Publishes motion detection results to Redis pub/sub."""
 
+import base64
 import json
 import logging
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
+import cv2
+import numpy as np
 import redis
 
 from models import MotionResult, RedisMotionEvent, RedisZoneMotionResult
@@ -71,6 +74,7 @@ class MotionPublisher:
             pipeline = self._redis.pipeline()
 
             for result, timestamp in results:
+                # Publish motion event (includes mask if available)
                 event = self._build_event(result, timestamp)
                 channel = f"{self._channel_prefix}{result.camera_id}"
                 pipeline.publish(channel, json.dumps(event))
@@ -80,11 +84,26 @@ class MotionPublisher:
         except Exception as e:
             logger.error(f"Failed to publish motion batch: {e}")
 
+    def _encode_mask(self, mask: Optional[np.ndarray]) -> str:
+        """
+        Encode mask as base64 JPEG.
+
+        Args:
+            mask: Grayscale foreground mask, or None
+
+        Returns:
+            Base64 encoded JPEG string, or empty string if no mask
+        """
+        if mask is None:
+            return ''
+        _, jpeg_buffer = cv2.imencode('.jpg', mask, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        return base64.b64encode(jpeg_buffer).decode('utf-8')
+
     def _build_event(
         self,
         result: MotionResult,
         timestamp: int,
-    ) -> RedisMotionEvent:
+    ) -> dict:
         """Build Redis motion event from result."""
         zone_results: List[RedisZoneMotionResult] = [
             {
@@ -104,4 +123,5 @@ class MotionPublisher:
             'motion_detected': result.has_motion,
             'processing_time_ms': round(result.processing_time_ms, 2),
             'zone_results': zone_results,
+            'mask': self._encode_mask(result.mask),
         }

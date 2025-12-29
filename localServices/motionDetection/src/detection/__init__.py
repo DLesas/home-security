@@ -4,16 +4,16 @@ from .motion_detector import MotionDetector
 from .mask_analyzer import MaskAnalyzer
 from .strategies import (
     ProcessingStrategy,
-    CPUProcessingStrategy,
-    GPUProcessingStrategy,
-    GPUBatchProcessingStrategy,
+    SimpleDiffStrategy,
+    KNNStrategy,
+    MOG2Strategy,
 )
 
 __all__ = [
     "MotionDetector",
     "MaskAnalyzer",
     "ProcessingStrategy",
-    "CPUProcessingStrategy",
-    "GPUProcessingStrategy",
-    "GPUBatchProcessingStrategy",
+    "SimpleDiffStrategy",
+    "KNNStrategy",
+    "MOG2Strategy",
 ]

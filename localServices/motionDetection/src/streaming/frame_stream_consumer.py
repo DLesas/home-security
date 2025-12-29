@@ -115,8 +115,6 @@ class FrameStreamConsumer:
         logger.info("Starting frame stream consumer")
         logger.info(f"  Consumer: {self._consumer_name}")
         logger.info(f"  Group: {self._consumer_group}")
-        logger.info(f"  Strategy: {self._detector.strategy_name}")
-        logger.info(f"  Parallel batch: {self._detector.supports_batch_parallel}")
         logger.info(f"  Block timeout: {self._block_timeout_ms}ms")
 
         # Ensure consumer groups for initial cameras
@@ -185,12 +183,16 @@ class FrameStreamConsumer:
                     stream_key, msg_id, timestamp = ack_info[i]
                     camera_name = self._cameras.get(result.camera_id, result.camera_id)
 
+                    # Get detection model for logging
+                    camera_config = self._config_manager.get_camera(result.camera_id)
+                    detection_model = camera_config[1].detection_model.value if camera_config else "unknown"
+
                     # Acknowledge and delete message
                     self._redis.xack(stream_key, self._consumer_group, msg_id)
                     self._redis.xdel(stream_key, msg_id)
 
                     # Log events
-                    self._logger.log_motion_detected(result, camera_name)
+                    self._logger.log_motion_detected(result, camera_name, detection_model)
                     self._logger.log_processing_error(result, camera_name)
 
                     # Collect for batch publish

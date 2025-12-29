@@ -67,6 +67,7 @@ class MotionResult:
     processing_time_ms: float = 0.0
     error: Optional[str] = None
     zone_results: List[ZoneMotionResult] = field(default_factory=list)
+    mask: Optional[np.ndarray] = None  # Foreground mask for visualization
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -103,10 +104,11 @@ class CameraState:
     """
     Internal state for a camera's motion detector.
 
-    Each camera has its own MOG2 detector that learns the background over time.
+    Each camera has its own detector that learns the background over time.
+    The detector type depends on the selected detection model (MOG2, KNN, or None for SimpleDiff).
     """
     camera_id: str
     camera_name: str  # Human-readable name for logging
-    detector: Any  # cv2.BackgroundSubtractor (CPU or CUDA)
+    detector: Any  # cv2.BackgroundSubtractor (MOG2/KNN) or None for SimpleDiff
     settings: MotionDetectionSettings
-    stream: Optional[Any] = None  # cv2.cuda_Stream if using GPU batch strategy
+    strategy: Any = None  # ProcessingStrategy instance (set by MotionDetector)

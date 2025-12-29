@@ -16,7 +16,12 @@ class MotionLogger:
     Injected as a dependency into the frame consumer.
     """
 
-    def log_motion_detected(self, result: MotionResult, camera_name: str) -> None:
+    def log_motion_detected(
+        self,
+        result: MotionResult,
+        camera_name: str,
+        detection_model: str = "unknown",
+    ) -> None:
         """Log a motion detection event."""
         if not result.has_motion:
             return
@@ -29,7 +34,7 @@ class MotionLogger:
         )
 
         logger.info(
-            f"Motion detected: '{camera_name}' - {zone_info} "
+            f"Motion detected [{detection_model}]: '{camera_name}' - {zone_info} "
             f"({result.processing_time_ms:.1f}ms)"
         )
 

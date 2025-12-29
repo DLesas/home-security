@@ -6,7 +6,15 @@ from typing import Optional, List, Any
 
 from pydantic import ValidationError
 
-from models import RedisCameraConfig, MotionDetectionSettings, MOG2Settings
+from models import (
+    RedisCameraConfig,
+    MotionDetectionSettings,
+    DetectionModel,
+    SimpleDiffSettings,
+    KNNSettings,
+    MOG2Settings,
+    ModelSettings,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,16 +43,29 @@ class ConfigValidator:
             MotionDetectionSettings if valid, None otherwise
         """
         try:
-            # Parse MOG2 settings from flat camera data
-            mog2 = MOG2Settings.model_validate(camera_data)
+            # Get detection model (defaults to MOG2)
+            detection_model_str = camera_data.get('detectionModel', 'mog2')
+            detection_model = DetectionModel(detection_model_str)
+
+            # Parse model settings - may be JSON string from Redis-OM or dict from pub/sub
+            model_settings = self._parse_model_settings(
+                camera_data.get('modelSettings'),
+                detection_model,
+                camera_name,
+            )
+
+            if model_settings is None:
+                return None
 
             # Parse motionZones - may be a JSON string from Redis-OM or a list from pub/sub
             zones = self._parse_motion_zones(camera_data.get('motionZones', []))
 
-            # Parse full settings (zones are nested)
+            # Build full settings using Pydantic model
+            # Use Python field names since we're passing already-parsed objects
             settings = MotionDetectionSettings(
                 enabled=camera_data.get('motionDetectionEnabled', False),
-                mog2=mog2,
+                detection_model=detection_model,
+                model_settings=model_settings,
                 zones=zones,
             )
 
@@ -55,6 +76,50 @@ class ConfigValidator:
             return None
         except Exception as e:
             logger.error(f"Error parsing config for camera '{camera_name}': {e}")
+            return None
+
+    def _parse_model_settings(
+        self,
+        settings_data: Any,
+        detection_model: DetectionModel,
+        camera_name: str,
+    ) -> Optional[ModelSettings]:
+        """
+        Parse model-specific settings based on detection model type.
+
+        Args:
+            settings_data: Model settings as string or dict
+            detection_model: The detection model type
+            camera_name: Camera name for error logging
+
+        Returns:
+            Parsed ModelSettings or None if invalid
+        """
+        if settings_data is None:
+            logger.warning(f"Missing modelSettings for camera '{camera_name}'")
+            return None
+
+        # If it's a string, parse as JSON first
+        if isinstance(settings_data, str):
+            try:
+                settings_data = json.loads(settings_data)
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse modelSettings JSON for '{camera_name}': {e}")
+                return None
+
+        if not isinstance(settings_data, dict):
+            logger.warning(f"modelSettings is not a dict for '{camera_name}': {type(settings_data)}")
+            return None
+
+        try:
+            if detection_model == DetectionModel.SIMPLE_DIFF:
+                return SimpleDiffSettings.model_validate(settings_data)
+            elif detection_model == DetectionModel.KNN:
+                return KNNSettings.model_validate(settings_data)
+            else:  # MOG2 (default)
+                return MOG2Settings.model_validate(settings_data)
+        except ValidationError as e:
+            logger.warning(f"Invalid {detection_model.value} settings for '{camera_name}': {e}")
             return None
 
     def _parse_motion_zones(self, zones_data: Any) -> List[Any]:

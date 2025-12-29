@@ -43,10 +43,12 @@ class RedisCameraConfig(TypedDict, total=False):
     motionDetectionEnabled: bool
     motionZones: List[RedisMotionZone]
 
-    # MOG2 background subtractor settings (all required, per-camera)
-    mog2History: int  # Frames for background model
-    mog2VarThreshold: float  # Variance threshold for foreground detection
-    mog2DetectShadows: bool  # Detect and mark shadows
+    # Detection model: "simple_diff" | "knn" | "mog2"
+    detectionModel: str
+    # Model-specific settings (dict or JSON string depending on source)
+    # - From Redis-OM: JSON string
+    # - From pub/sub: dict
+    modelSettings: dict
 
     # Optional fields
     ipAddress: Optional[str]

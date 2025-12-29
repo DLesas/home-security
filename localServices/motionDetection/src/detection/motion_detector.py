@@ -4,21 +4,21 @@ import logging
 import time
 from typing import Dict, List, Optional
 
-from .strategies import (
-    ProcessingStrategy,
-    CPUProcessingStrategy,
-    GPUProcessingStrategy,
-    GPUBatchProcessingStrategy,
-)
+from .strategies import ProcessingStrategy
+from .strategies.simple_diff_strategy import SimpleDiffStrategy
+from .strategies.knn_strategy import KNNStrategy
+from .strategies.mog2_strategy import MOG2Strategy
 from .mask_analyzer import MaskAnalyzer
 from models import (
     FrameInput,
     MotionResult,
     CameraState,
     MotionDetectionSettings,
+    DetectionModel,
+    SimpleDiffSettings,
+    KNNSettings,
     MOG2Settings,
 )
-from utils import detect_gpu_capabilities
 
 logger = logging.getLogger(__name__)
 
@@ -27,66 +27,114 @@ class MotionDetector:
     """
     Motion detector with pluggable processing strategies.
 
-    Automatically selects the best strategy based on GPU availability:
-    - No GPU: CPUProcessingStrategy
-    - GPU without streams: GPUProcessingStrategy (deferred downloads)
-    - GPU with streams: GPUBatchProcessingStrategy (true parallel)
+    Each camera has its own strategy based on its detection model configuration.
+    Strategies are created per-camera and handle both CPU and GPU processing
+    internally.
 
     Lifecycle:
-    - add_camera(): Create MOG2 instance with settings from Redis
-    - remove_camera(): Destroy MOG2 instance, free memory
-    - update_camera(): Smart update - only resets MOG2 if MOG2 settings changed
+    - add_camera(): Create detector with settings from Redis
+    - remove_camera(): Destroy detector, free memory
+    - update_camera(): Smart update - only resets detector if model or settings changed
     """
 
-    def __init__(self, strategy: Optional[ProcessingStrategy] = None):
-        """
-        Initialize motion detector.
-
-        Args:
-            strategy: Processing strategy (auto-detected if None)
-        """
+    def __init__(self):
+        """Initialize motion detector."""
         self._states: Dict[str, CameraState] = {}
         self._analyzer = MaskAnalyzer()
 
-        # Auto-detect strategy if not provided
-        if strategy is None:
-            self._strategy = self._auto_select_strategy()
-        else:
-            self._strategy = strategy
+        # Strategy instances (one per model type, shared across cameras)
+        self._strategies: Dict[DetectionModel, ProcessingStrategy] = {}
 
-        logger.info(f"MotionDetector initialized with {self._strategy.name} strategy")
+        logger.info("MotionDetector initialized")
 
-    def _auto_select_strategy(self) -> ProcessingStrategy:
-        """Auto-select the best processing strategy based on hardware."""
-        gpu_info = detect_gpu_capabilities()
+    def _get_strategy(self, model: DetectionModel) -> ProcessingStrategy:
+        """
+        Get or create a strategy for the given detection model.
 
-        if not gpu_info.gpu_available:
-            return CPUProcessingStrategy()
-        elif gpu_info.cuda_streams_available:
-            return GPUBatchProcessingStrategy()
-        else:
-            return GPUProcessingStrategy()
+        Strategies are created lazily and cached per model type.
+        """
+        if model not in self._strategies:
+            self._strategies[model] = self._create_strategy(model)
+            logger.info(f"Created {self._strategies[model].name} strategy")
 
-    def _mog2_settings_changed(
+        return self._strategies[model]
+
+    def _create_strategy(self, model: DetectionModel) -> ProcessingStrategy:
+        """Create a strategy instance for the given detection model."""
+        if model == DetectionModel.SIMPLE_DIFF:
+            return SimpleDiffStrategy()
+        elif model == DetectionModel.KNN:
+            return KNNStrategy()
+        else:  # MOG2 (default)
+            return MOG2Strategy()
+
+    def _requires_detector_reset(
         self,
-        old_settings: MOG2Settings,
-        new_settings: MOG2Settings,
+        old_settings: MotionDetectionSettings,
+        new_settings: MotionDetectionSettings,
     ) -> bool:
         """
-        Check if MOG2 settings changed (requires detector reset).
+        Check if detector needs to be reset (model changed or model settings changed).
 
         Args:
-            old_settings: Previous MOG2 settings
-            new_settings: New MOG2 settings
+            old_settings: Previous motion detection settings
+            new_settings: New motion detection settings
 
         Returns:
             True if detector needs to be reset
         """
+        # Model changed - always reset
+        if old_settings.detection_model != new_settings.detection_model:
+            return True
+
+        # Check model-specific settings
+        old_model_settings = old_settings.model_settings
+        new_model_settings = new_settings.model_settings
+
+        logger.info(
+            f"Comparing model settings: old={old_model_settings}, new={new_model_settings}"
+        )
+
+        if new_settings.detection_model == DetectionModel.MOG2:
+            changed = self._mog2_settings_changed(old_model_settings, new_model_settings)
+            logger.info(f"MOG2 settings changed: {changed}")
+            return changed
+        elif new_settings.detection_model == DetectionModel.KNN:
+            changed = self._knn_settings_changed(old_model_settings, new_model_settings)
+            logger.info(f"KNN settings changed: {changed}")
+            return changed
+        elif new_settings.detection_model == DetectionModel.SIMPLE_DIFF:
+            changed = self._simple_diff_settings_changed(old_model_settings, new_model_settings)
+            logger.info(f"SimpleDiff settings changed: {changed}")
+            return changed
+
+        return False
+
+    def _mog2_settings_changed(self, old_settings, new_settings) -> bool:
+        """Check if MOG2 settings changed."""
+        if not isinstance(old_settings, MOG2Settings) or not isinstance(new_settings, MOG2Settings):
+            return True
         return (
             old_settings.history != new_settings.history or
             old_settings.var_threshold != new_settings.var_threshold or
             old_settings.detect_shadows != new_settings.detect_shadows
         )
+
+    def _knn_settings_changed(self, old_settings, new_settings) -> bool:
+        """Check if KNN settings changed."""
+        if not isinstance(old_settings, KNNSettings) or not isinstance(new_settings, KNNSettings):
+            return True
+        return (
+            old_settings.history != new_settings.history or
+            old_settings.dist2_threshold != new_settings.dist2_threshold or
+            old_settings.detect_shadows != new_settings.detect_shadows
+        )
+
+    def _simple_diff_settings_changed(self, old_settings, new_settings) -> bool:
+        """Check if SimpleDiff settings changed."""
+        if not isinstance(old_settings, SimpleDiffSettings) or not isinstance(new_settings, SimpleDiffSettings):
+            return True
+        return old_settings.threshold != new_settings.threshold
 
     # =========================================================================
     # Camera Lifecycle
@@ -110,29 +158,25 @@ class MotionDetector:
             logger.warning(f"Camera '{camera_name}' already exists, skipping add")
             return
 
-        # Create detector with MOG2 settings from Redis
-        detector = self._strategy.create_detector(
-            camera_id,
-            camera_name,
-            settings.mog2,
-        )
+        # Get strategy for the camera's detection model
+        strategy = self._get_strategy(settings.detection_model)
 
-        # Create stream if strategy uses them
-        stream = self._strategy.create_stream(camera_id, camera_name)
+        # Create detector with settings from Redis
+        detector = strategy.create_detector(camera_id, camera_name, settings)
 
-        # Store state
+        # Store state with strategy reference
         self._states[camera_id] = CameraState(
             camera_id=camera_id,
             camera_name=camera_name,
             detector=detector,
             settings=settings,
-            stream=stream,
+            strategy=strategy,
         )
 
         logger.info(
             f"Added camera '{camera_name}' with {len(settings.zones)} zone(s), "
-            f"MOG2: history={settings.mog2.history}, "
-            f"varThreshold={settings.mog2.var_threshold}"
+            f"model={settings.detection_model.value}, "
+            f"strategy={strategy.name}"
         )
 
     def remove_camera(self, camera_id: str) -> None:
@@ -148,6 +192,11 @@ class MotionDetector:
             return
 
         camera_name = state.camera_name
+
+        # Clean up strategy-specific state
+        if state.strategy:
+            state.strategy.cleanup_camera(camera_id)
+
         del self._states[camera_id]
         logger.info(f"Removed camera '{camera_name}'")
 
@@ -158,10 +207,10 @@ class MotionDetector:
         settings: MotionDetectionSettings,
     ) -> None:
         """
-        Update camera settings, only resetting MOG2 if necessary.
+        Update camera settings, only resetting detector if necessary.
 
-        MOG2 detector is reset only if MOG2 settings (history, var_threshold,
-        detect_shadows) changed. Zone changes don't require MOG2 reset.
+        Detector is reset only if detection model changed or model-specific
+        settings changed. Zone changes don't require detector reset.
 
         Args:
             camera_id: Camera to update
@@ -175,16 +224,15 @@ class MotionDetector:
             self.add_camera(camera_id, camera_name, settings)
             return
 
-        old_mog2 = state.settings.mog2
-        new_mog2 = settings.mog2
+        old_settings = state.settings
 
-        if self._mog2_settings_changed(old_mog2, new_mog2):
-            # MOG2 settings changed - need full reset
+        if self._requires_detector_reset(old_settings, settings):
+            # Model or model settings changed - need full reset
+            old_model = old_settings.detection_model.value
+            new_model = settings.detection_model.value
             logger.info(
-                f"MOG2 settings changed for '{camera_name}', resetting detector "
-                f"(history: {old_mog2.history}->{new_mog2.history}, "
-                f"varThreshold: {old_mog2.var_threshold}->{new_mog2.var_threshold}, "
-                f"detectShadows: {old_mog2.detect_shadows}->{new_mog2.detect_shadows})"
+                f"Detector reset required for '{camera_name}' "
+                f"(model: {old_model}->{new_model})"
             )
             self.remove_camera(camera_id)
             self.add_camera(camera_id, camera_name, settings)
@@ -194,7 +242,7 @@ class MotionDetector:
             state.camera_name = camera_name  # Name might have changed too
             logger.info(
                 f"Updated settings for '{camera_name}' "
-                f"({len(settings.zones)} zone(s), MOG2 preserved)"
+                f"({len(settings.zones)} zone(s), detector preserved)"
             )
 
     def has_camera(self, camera_id: str) -> bool:
@@ -231,8 +279,8 @@ class MotionDetector:
         start = time.time()
 
         try:
-            # Get foreground mask from strategy
-            fg_mask = self._strategy.process_frame(frame_input, state)
+            # Get foreground mask from camera's strategy
+            fg_mask = state.strategy.process_frame(frame_input, state)
 
             # Analyze mask for motion in zones
             result = self._analyzer.analyze(fg_mask, state.settings, state.camera_name)
@@ -252,7 +300,7 @@ class MotionDetector:
 
     def process_batch(self, frames: List[FrameInput]) -> List[MotionResult]:
         """
-        Process multiple frames (parallel if strategy supports it).
+        Process multiple frames sequentially.
 
         Args:
             frames: List of input frames
@@ -260,61 +308,22 @@ class MotionDetector:
         Returns:
             List of MotionResult in same order as input frames
         """
-        if not frames:
-            return []
-
-        start = time.time()
-
-        try:
-            # Get foreground masks from strategy
-            fg_masks = self._strategy.process_batch(frames, self._states)
-
-            # Calculate per-frame time
-            batch_time_ms = (time.time() - start) * 1000
-            per_frame_time = batch_time_ms / len(frames) if frames else 0
-
-            # Analyze each mask
-            results = []
-            for fg_mask in fg_masks:
-                state = self._states.get(fg_mask.camera_id)
-                if state:
-                    result = self._analyzer.analyze(
-                        fg_mask,
-                        state.settings,
-                        state.camera_name,
-                    )
-                    result.processing_time_ms = per_frame_time
-                    results.append(result)
-
-            return results
-
-        except Exception as e:
-            logger.error(f"Error in batch processing: {e}")
-            return []
+        return [self.process_frame(frame) for frame in frames]
 
     # =========================================================================
     # Stats
     # =========================================================================
 
-    @property
-    def strategy_name(self) -> str:
-        """Get the current strategy name."""
-        return self._strategy.name
-
-    @property
-    def supports_batch_parallel(self) -> bool:
-        """Check if the current strategy supports parallel batch processing."""
-        return self._strategy.supports_batch_parallel
-
     def get_stats(self) -> dict:
         """Get detector statistics."""
         return {
-            'strategy': self._strategy.name,
-            'supports_batch_parallel': self._strategy.supports_batch_parallel,
+            'active_strategies': [s.name for s in self._strategies.values()],
             'active_cameras': len(self._states),
             'cameras': {
                 state.camera_id: {
                     'name': state.camera_name,
+                    'model': state.settings.detection_model.value,
+                    'strategy': state.strategy.name if state.strategy else 'unknown',
                     'zones': len(state.settings.zones),
                 }
                 for state in self._states.values()

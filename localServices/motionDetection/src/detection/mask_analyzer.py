@@ -67,6 +67,7 @@ class MaskAnalyzer:
             camera_id=fg_mask.camera_id,
             has_motion=has_motion,
             zone_results=zone_results,
+            mask=fg_mask.mask,  # Include mask for visualization
         )
 
     def _analyze_zone(

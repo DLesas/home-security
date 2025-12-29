@@ -9,8 +9,12 @@ from .redis_types import (
     RedisFrameData,
 )
 from .config_types import (
-    MotionZone,
+    DetectionModel,
+    SimpleDiffSettings,
+    KNNSettings,
     MOG2Settings,
+    ModelSettings,
+    MotionZone,
     MotionDetectionSettings,
 )
 
@@ -34,8 +38,12 @@ __all__ = [
     "RedisMotionEvent",
     "RedisFrameData",
     # Config types
-    "MotionZone",
+    "DetectionModel",
+    "SimpleDiffSettings",
+    "KNNSettings",
     "MOG2Settings",
+    "ModelSettings",
+    "MotionZone",
     "MotionDetectionSettings",
     "ValidationError",
     # Motion types
