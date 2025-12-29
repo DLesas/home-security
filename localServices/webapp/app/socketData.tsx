@@ -37,17 +37,43 @@ export interface MotionZone {
   thresholdPercent: number;
 }
 
+// Detection model types
+export type DetectionModel = 'simple_diff' | 'knn' | 'mog2';
+
+export interface SimpleDiffSettings {
+  threshold: number;
+}
+
+export interface KNNSettings {
+  history: number;
+  dist2Threshold: number;
+  detectShadows: boolean;
+}
+
+export interface MOG2Settings {
+  history: number;
+  varThreshold: number;
+  detectShadows: boolean;
+}
+
+export type ModelSettings = SimpleDiffSettings | KNNSettings | MOG2Settings;
+
 export interface Camera {
   externalID: string;
   name: string;
   building: string;
   motionDetectionEnabled: boolean;
-  mog2History: number;
-  mog2VarThreshold: number;
-  mog2DetectShadows: boolean;
+  // Detection model and settings
+  detectionModel: DetectionModel;
+  modelSettings: ModelSettings;
   motionZones: MotionZone[];
   expectedSecondsUpdated: number;
   lastUpdated: Date;
+  // FPS caps (optional - acts as maximum, never upscales)
+  maxStreamFps?: number;
+  maxRecordingFps?: number;
+  // JPEG encoding quality (1-100, where 100=best quality)
+  jpegQuality: number;
 }
 
 interface doorSensor {

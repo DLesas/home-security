@@ -17,7 +17,7 @@
     "@aws-sdk/client-ses": "^3.609.0",
     "@aws-sdk/credential-provider-node": "^3.609.0",
     "@ducanh2912/next-pwa": "^10.2.7",
-    "@hookform/resolvers": "^3.8.0",
+    "@hookform/resolvers": "^3.10.0",
     "@nextui-org/accordion": "^2.2.7",
     "@nextui-org/badge": "^2.0.29",
     "@nextui-org/button": "^2.0.34",
@@ -68,7 +68,7 @@
     "react-aria-components": "^1.2.1",
     "react-beautiful-dnd": "^13.1.1",
     "react-dom": "18.3.1",
-    "react-hook-form": "^7.52.1",
+    "react-hook-form": "^7.67.0",
     "react-hot-toast": "^2.4.1",
     "react-icons": "^5.5.0",
     "recharts": "^3.4.1",
@@ -80,7 +80,7 @@
     "utf-8-validate": "^6.0.4",
     "validator": "^13.12.0",
     "ws": "^8.18.0",
-    "zod": "^3.23.8",
+    "zod": "^3.25.76",
     "zustand": "^4.5.4"
   },
   "devDependencies": {
