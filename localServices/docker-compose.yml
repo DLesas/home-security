@@ -59,6 +59,8 @@ services:
     profiles: ["core"]
     build:
       context: ./backend
+    volumes:
+      - camera_recordings:/recordings:ro  # Read-only access for historical playback
     environment:
       - DOCKER_ENV=true
       - POSTGRES_USER=postgres
@@ -82,6 +84,8 @@ services:
       - BONJOUR_BROADCASTING_INTERVAL=${BONJOUR_BROADCASTING_INTERVAL:-10000}
       - ALARM_COOLDOWN_SECONDS=${ALARM_COOLDOWN_SECONDS:-30}
       - CAMERA_CONFIG_CHANNEL=${CAMERA_CONFIG_CHANNEL:-camera:config}
+      - DEFAULT_MAX_STREAM_FPS=${DEFAULT_MAX_STREAM_FPS:-30}
+      - DEFAULT_MAX_RECORDING_FPS=${DEFAULT_MAX_RECORDING_FPS:-15}
     ports:
       - "${SERVER_PORT:-8080}:${SERVER_PORT:-8080}"
     depends_on:
@@ -137,6 +141,8 @@ services:
       - DEFAULT_STREAM_WIDTH=${DEFAULT_STREAM_WIDTH:-1280}
       - DEFAULT_STREAM_HEIGHT=${DEFAULT_STREAM_HEIGHT:-720}
       - CAMERA_CONFIG_CHANNEL=${CAMERA_CONFIG_CHANNEL:-camera:config}
+      - DEFAULT_MAX_STREAM_FPS=${DEFAULT_MAX_STREAM_FPS:-30}
+      - DEFAULT_MAX_RECORDING_FPS=${DEFAULT_MAX_RECORDING_FPS:-15}
     ports:
       - "8082:8082"
     volumes:
