@@ -1,6 +1,18 @@
+# =============================================================================
+# Home Security System - Docker Compose
+# =============================================================================
+# Usage:
+#   CPU Mode: docker compose --profile cpu up
+#   GPU Mode: docker compose --profile gpu up (requires NVIDIA Container Toolkit)
+# =============================================================================
+
 services:
+  # ===========================================================================
+  # CORE SERVICES (included in both cpu and gpu profiles)
+  # ===========================================================================
+
   redis:
-    profiles: ["core"]
+    profiles: ["cpu", "gpu"]
     container_name: redis
     build:
       context: ./redis
@@ -22,7 +34,7 @@ services:
       - backend
 
   postgres:
-    profiles: ["core"]
+    profiles: ["cpu", "gpu"]
     build:
       context: ./postgres
     environment:
@@ -47,7 +59,7 @@ services:
       - backend
 
   web:
-    profiles: ["core"]
+    profiles: ["cpu", "gpu"]
     build:
       context: ./webapp
     ports:
@@ -56,11 +68,11 @@ services:
       - backend
 
   backend:
-    profiles: ["core"]
+    profiles: ["cpu", "gpu"]
     build:
       context: ./backend
     volumes:
-      - camera_recordings:/recordings:ro  # Read-only access for historical playback
+      - camera_recordings:/recordings:ro
     environment:
       - DOCKER_ENV=true
       - POSTGRES_USER=postgres
@@ -86,6 +98,11 @@ services:
       - CAMERA_CONFIG_CHANNEL=${CAMERA_CONFIG_CHANNEL:-camera:config}
       - DEFAULT_MAX_STREAM_FPS=${DEFAULT_MAX_STREAM_FPS:-30}
       - DEFAULT_MAX_RECORDING_FPS=${DEFAULT_MAX_RECORDING_FPS:-15}
+      - DEFAULT_OBJECT_DETECTION_MODEL=${DEFAULT_OBJECT_DETECTION_MODEL:-yolov8n}
+      - DEFAULT_CLIP_PRE_DURATION=${DEFAULT_CLIP_PRE_DURATION:-10}
+      - DEFAULT_CLIP_POST_DURATION=${DEFAULT_CLIP_POST_DURATION:-50}
+      - DETECTION_CHANNEL_PREFIX=${DETECTION_CHANNEL_PREFIX:-detection:}
+      - CONFIG_CHANGE_CHANNEL=${CONFIG_CHANGE_CHANNEL:-config:change}
     ports:
       - "${SERVER_PORT:-8080}:${SERVER_PORT:-8080}"
     depends_on:
@@ -111,64 +128,8 @@ services:
     networks:
       - backend
 
-  camera-ingestion:
-    profiles: ["core"]
-    build:
-      context: .
-      dockerfile: ./cameraIngestion/Dockerfile
-      # dockerfile: ./cameraIngestion/Dockerfile.nvidia  # Uncomment for NVIDIA GPU support
-    environment:
-      - DOCKER_ENV=true
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
-      - REDIS_HOST=${REDIS_HOST:-redis}
-      - REDIS_PORT=${REDIS_PORT:-6379}
-      - EVENTS_CHANNEL=${EVENTS_CHANNEL}
-      - SERVER_PORT=8082
-      - RECORDING_PATH=/recordings
-      - RETENTION_DAYS=${RETENTION_DAYS:-7}
-      - SEGMENT_DURATION_SECONDS=${SEGMENT_DURATION_SECONDS:-600}
-      - AI_SAMPLING_RATE=${AI_SAMPLING_RATE:-3}
-      # Adaptive JPEG quality (adjusts based on CPU load)
-      - JPEG_QUALITY_MIN=${JPEG_QUALITY_MIN:-50}
-      - JPEG_QUALITY_MAX=${JPEG_QUALITY_MAX:-80}
-      - CPU_THRESHOLD_HIGH=${CPU_THRESHOLD_HIGH:-80}
-      - CPU_THRESHOLD_LOW=${CPU_THRESHOLD_LOW:-50}
-      - DEFAULT_STREAM_FPS=${DEFAULT_STREAM_FPS:-30}
-      - DEFAULT_STREAM_WIDTH=${DEFAULT_STREAM_WIDTH:-1280}
-      - DEFAULT_STREAM_HEIGHT=${DEFAULT_STREAM_HEIGHT:-720}
-      - CAMERA_CONFIG_CHANNEL=${CAMERA_CONFIG_CHANNEL:-camera:config}
-      - DEFAULT_MAX_STREAM_FPS=${DEFAULT_MAX_STREAM_FPS:-30}
-      - DEFAULT_MAX_RECORDING_FPS=${DEFAULT_MAX_RECORDING_FPS:-15}
-    ports:
-      - "8082:8082"
-    volumes:
-      - camera_recordings:/recordings
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      backend:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - backend
-    # GPU access for hardware acceleration (NVDEC/NVENC)
-    # Uncomment below if USE_GPU=true in .env (requires Linux + NVIDIA GPU + NVIDIA Container Toolkit)
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu, video]  # video is REQUIRED for NVDEC/NVENC
-
   event-system:
-    profiles: ["core"]
+    profiles: ["cpu", "gpu"]
     build:
       context: .
       dockerfile: ./eventService/Dockerfile
@@ -193,7 +154,7 @@ services:
         condition: service_healthy
 
   advertisement:
-    profiles: ["core"]
+    profiles: ["cpu", "gpu"]
     build:
       context: .
       dockerfile: ./advertisementService/Dockerfile
@@ -215,20 +176,15 @@ services:
       - BONJOUR_BROADCASTING_NAME=${BONJOUR_BROADCASTING_NAME}
       - BONJOUR_PORT=${BONJOUR_PORT:-4000}
       - BONJOUR_BROADCASTING_INTERVAL=${BONJOUR_BROADCASTING_INTERVAL:-10000}
-      # Add other environment variables as needed
-    # ports:
-    #   - "${UDP_BROADCAST_PORT:-41234}:${UDP_BROADCAST_PORT:-41234}/udp"
-    #   - "${CLIENT_TCP_PORT:-31337}:${CLIENT_TCP_PORT:-31337}"
-    #   - "${BONJOUR_PORT:-4000}:${BONJOUR_PORT:-4000}"
     network_mode: "host"
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
     cap_add:
-      - NET_BIND_SERVICE # Needed to bind to ports
-      - NET_BROADCAST # Needed for UDP broadcasts
-      - NET_RAW # Needed for network interface detection
+      - NET_BIND_SERVICE
+      - NET_BROADCAST
+      - NET_RAW
     read_only: true
     tmpfs:
       - /tmp
@@ -240,63 +196,8 @@ services:
       backend:
         condition: service_healthy
 
-  # video_processor:
-  #   build:
-  #     context: ./video_processing
-  #   environment:
-  #     - POSTGRES_USER=postgres
-  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-  #     - POSTGRES_DB=${POSTGRES_DB}
-  #     - POSTGRES_HOST=postgres
-  #     - POSTGRES_PORT=${POSTGRES_PORT:-5432}
-  #     - REDIS_HOST=redis-stack
-  #     - REDIS_PORT=${REDIS_PORT:-6379}
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             count: all    # Use all available GPUs
-  #             capabilities: [gpu]
-  #   depends_on:
-  #     - redis
-  #     - backend
-  #   volumes:
-  #     - ./video_processing/data:/data
-
-  motion-detection:
-    profiles: ["core"]
-    build:
-      context: ./motionDetection
-      args:
-        USE_GPU: ${USE_GPU:-false}
-    environment:
-      - REDIS_HOST=${REDIS_HOST:-redis}
-      - REDIS_PORT=${REDIS_PORT:-6379}
-      - REDIS_DB=${REDIS_DB:-0}
-      - CONSUMER_GROUP=${CONSUMER_GROUP:-motion-detectors}
-      - LOG_LEVEL=${MOTION_DETECTION_LOG_LEVEL:-DEBUG}
-      # Default motion detection settings (used when camera doesn't specify)
-      - DEFAULT_MIN_CONTOUR_AREA=${DEFAULT_MIN_CONTOUR_AREA:-1500}
-      - DEFAULT_MOTION_THRESHOLD=${DEFAULT_MOTION_THRESHOLD:-1.0}
-      - CAMERA_CONFIG_CHANNEL=${CAMERA_CONFIG_CHANNEL:-camera:config}
-    depends_on:
-      redis:
-        condition: service_healthy
-    restart: always
-    networks:
-      - backend
-    # Uncomment below if USE_GPU=true in .env (requires Linux + NVIDIA GPU)
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
-
   caddy:
-    profiles: ["core"]
+    profiles: ["cpu", "gpu"]
     build:
       context: ./caddy
     environment:
@@ -323,9 +224,189 @@ services:
     networks:
       - backend
 
+  # ===========================================================================
+  # GPU-CAPABLE SERVICES - CPU VERSIONS
+  # ===========================================================================
+
+  camera-ingestion:
+    profiles: ["cpu"]
+    container_name: camera-ingestion
+    build:
+      context: .
+      dockerfile: ./cameraIngestion/Dockerfile
+    environment: &camera-ingestion-env
+      - DOCKER_ENV=true
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - EVENTS_CHANNEL=${EVENTS_CHANNEL}
+      - SERVER_PORT=8082
+      - RECORDING_PATH=/recordings
+      - RETENTION_DAYS=${RETENTION_DAYS:-7}
+      - SEGMENT_DURATION_SECONDS=${SEGMENT_DURATION_SECONDS:-600}
+      - AI_SAMPLING_RATE=${AI_SAMPLING_RATE:-3}
+      - JPEG_QUALITY_MIN=${JPEG_QUALITY_MIN:-50}
+      - JPEG_QUALITY_MAX=${JPEG_QUALITY_MAX:-80}
+      - CPU_THRESHOLD_HIGH=${CPU_THRESHOLD_HIGH:-80}
+      - CPU_THRESHOLD_LOW=${CPU_THRESHOLD_LOW:-50}
+      - DEFAULT_STREAM_FPS=${DEFAULT_STREAM_FPS:-30}
+      - DEFAULT_STREAM_WIDTH=${DEFAULT_STREAM_WIDTH:-1280}
+      - DEFAULT_STREAM_HEIGHT=${DEFAULT_STREAM_HEIGHT:-720}
+      - CAMERA_CONFIG_CHANNEL=${CAMERA_CONFIG_CHANNEL:-camera:config}
+      - DEFAULT_MAX_STREAM_FPS=${DEFAULT_MAX_STREAM_FPS:-30}
+      - DEFAULT_MAX_RECORDING_FPS=${DEFAULT_MAX_RECORDING_FPS:-15}
+      - DETECTION_CHANNEL_PREFIX=${DETECTION_CHANNEL_PREFIX:-detection:}
+      - CLIPS_PATH=${CLIPS_PATH:-/recordings/clips}
+      - CLIP_COOLDOWN_SECONDS=${CLIP_COOLDOWN_SECONDS:-30}
+    ports:
+      - "8082:8082"
+    volumes:
+      - camera_recordings:/recordings
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+
+  motion-detection:
+    profiles: ["cpu"]
+    container_name: motion-detection
+    build:
+      context: ./motionDetection
+      args:
+        USE_GPU: "false"
+    environment: &motion-detection-env
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_DB=${REDIS_DB:-0}
+      - CONSUMER_GROUP=${CONSUMER_GROUP:-motion-detectors}
+      - LOG_LEVEL=${MOTION_DETECTION_LOG_LEVEL:-INFO}
+      - DEFAULT_MIN_CONTOUR_AREA=${DEFAULT_MIN_CONTOUR_AREA:-1500}
+      - DEFAULT_MOTION_THRESHOLD=${DEFAULT_MOTION_THRESHOLD:-1.0}
+      - CAMERA_CONFIG_CHANNEL=${CAMERA_CONFIG_CHANNEL:-camera:config}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: always
+    networks:
+      - backend
+
+  object-detection:
+    profiles: ["cpu"]
+    container_name: object-detection
+    build:
+      context: ./objectDetection
+    environment: &object-detection-env
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - CONFIG_REDIS_KEY=${CONFIG_REDIS_KEY:-config:default}
+      - CONFIG_CHANGE_CHANNEL=${CONFIG_CHANGE_CHANNEL:-config:change}
+      - CAMERA_CONFIG_CHANNEL=${CAMERA_CONFIG_CHANNEL:-camera:config}
+      - DETECTION_CHANNEL_PREFIX=${DETECTION_CHANNEL_PREFIX:-detection:}
+      - MOTION_CHANNEL_PREFIX=${MOTION_CHANNEL_PREFIX:-motion:}
+      - WEIGHTS_DIR=/app/src/models/weights
+    volumes:
+      - yolo_weights:/app/src/models/weights
+    depends_on:
+      redis:
+        condition: service_healthy
+      motion-detection:
+        condition: service_started
+    restart: always
+    networks:
+      - backend
+
+  # ===========================================================================
+  # GPU-CAPABLE SERVICES - GPU VERSIONS
+  # Requires: Linux + NVIDIA GPU + NVIDIA Container Toolkit
+  # ===========================================================================
+
+  camera-ingestion-gpu:
+    profiles: ["gpu"]
+    container_name: camera-ingestion
+    build:
+      context: .
+      dockerfile: ./cameraIngestion/Dockerfile.nvidia
+    environment: *camera-ingestion-env
+    ports:
+      - "8082:8082"
+    volumes:
+      - camera_recordings:/recordings
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, video]
+
+  motion-detection-gpu:
+    profiles: ["gpu"]
+    container_name: motion-detection
+    build:
+      context: ./motionDetection
+      args:
+        USE_GPU: "true"
+    environment: *motion-detection-env
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: always
+    networks:
+      - backend
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  object-detection-gpu:
+    profiles: ["gpu"]
+    container_name: object-detection
+    build:
+      context: ./objectDetection
+    environment: *object-detection-env
+    volumes:
+      - yolo_weights:/app/src/models/weights
+    depends_on:
+      redis:
+        condition: service_healthy
+      motion-detection-gpu:
+        condition: service_started
+    restart: always
+    networks:
+      - backend
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
 networks:
   backend:
-    # internal: true # Temporarily commented out for testing
 
 volumes:
   caddy_data:
@@ -335,4 +416,6 @@ volumes:
   redis_data:
     driver: local
   camera_recordings:
+    driver: local
+  yolo_weights:
     driver: local
