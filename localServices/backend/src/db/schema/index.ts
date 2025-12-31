@@ -11,6 +11,8 @@ import { alarmsTable } from "./alarms";
 import { camerasTable } from "./cameras";
 import { cameraSettingsTable } from "./cameraSettings";
 import { motionZonesTable } from "./motionZones";
+import { detectionsTable } from "./detections";
+import { detectionBoxesTable } from "./detectionBoxes";
 import {
   scheduleExecutionsTable,
   scheduleActionEnum,
@@ -40,6 +42,8 @@ export const alarmTable = alarmsTable;
 export const cameraTable = camerasTable;
 export const cameraSettingTable = cameraSettingsTable;
 export const motionZoneTable = motionZonesTable;
+export const detectionTable = detectionsTable;
+export const detectionBoxTable = detectionBoxesTable;
 export const scheduleExecutionTable = scheduleExecutionsTable;
 
 export const db = {
@@ -63,5 +67,7 @@ export const db = {
   cameraTable,
   cameraSettingTable,
   motionZoneTable,
+  detectionTable,
+  detectionBoxTable,
   scheduleExecutionTable,
 };

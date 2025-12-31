@@ -8,7 +8,8 @@ import {
   MotionZone,
   DEFAULT_MODEL_SETTINGS,
 } from "../../redis/cameras";
-import type { DetectionModel, ModelSettings } from "../../db/schema/cameraSettings";
+import type { DetectionModel, MotionModelSettings } from "../../db/schema/cameraSettings";
+import { DETECTION_CLASSES, DEFAULT_CLASS_CONFIGS } from "../../db/schema/cameraSettings";
 import { redis } from "../../redis/index";
 import { raiseEvent, raiseError } from "../../events/notify";
 import { emitNewData } from "../socketHandler";
@@ -38,6 +39,13 @@ export const mog2SettingsSchema = z.object({
 
 export const detectionModelSchema = z.enum(["simple_diff", "knn", "mog2"]);
 
+// Object detection class config schema (per-camera)
+// Model and clip durations are global settings in config.ts
+export const classConfigSchema = z.object({
+  class: z.enum(DETECTION_CLASSES),
+  confidence: z.number().min(0).max(1).default(0.5),
+});
+
 /**
  * Validate modelSettings based on the selected detectionModel.
  * Returns validated settings or default settings if not provided.
@@ -45,7 +53,7 @@ export const detectionModelSchema = z.enum(["simple_diff", "knn", "mog2"]);
 function validateModelSettings(
   model: DetectionModel,
   settings: unknown
-): ModelSettings {
+): MotionModelSettings {
   if (settings === undefined || settings === null) {
     return DEFAULT_MODEL_SETTINGS[model];
   }
@@ -84,7 +92,6 @@ const router = express.Router();
 router.post("/", async (req, res, next) => {
   const validationSchema = z.object({
     name: z.string().min(1, "Camera name is required"),
-    externalID: z.string().min(1, "External ID is required"),
     building: z.string().min(1, "Building is required"),
     ipAddress: z.string().min(1, "IP address is required"),
     port: z.number().int().min(1).max(65535, "Port must be between 1 and 65535"),
@@ -110,6 +117,10 @@ router.post("/", async (req, res, next) => {
     maxRecordingFps: z.number().int().min(1).max(60).default(DEFAULT_MAX_RECORDING_FPS),
     // JPEG encoding quality (1-100, where 100=best quality)
     jpegQuality: z.number().int().min(1).max(100).default(95),
+    // Object detection settings (per-camera: enabled flag and class configs only)
+    // Model and clip durations are global settings in config.ts
+    objectDetectionEnabled: z.boolean().default(false),
+    classConfigs: z.array(classConfigSchema).default(DEFAULT_CLASS_CONFIGS),
   });
 
   const { error, data } = validationSchema.safeParse(req.body);
@@ -119,17 +130,8 @@ router.post("/", async (req, res, next) => {
   }
 
   try {
-    // Check if camera with this externalID already exists
-    const existingCameras = await cameraRepository
-      .search()
-      .where("externalID")
-      .eq(data.externalID)
-      .return.all();
-
-    if (existingCameras.length > 0) {
-      next(raiseError(409, `Camera with externalID '${data.externalID}' already exists`));
-      return;
-    }
+    // Generate unique externalID
+    const externalID = makeID();
 
     // Look up building by ID and validate it exists
     const [building] = await db
@@ -155,7 +157,7 @@ router.post("/", async (req, res, next) => {
     // Use building.name for Redis (consistent with sensors), buildingId for PostgreSQL
     const camera: Camera = {
       name: data.name,
-      externalID: data.externalID,
+      externalID,
       building: building.name,
       ipAddress: data.ipAddress,
       port: data.port,
@@ -174,18 +176,22 @@ router.post("/", async (req, res, next) => {
       maxStreamFps: data.maxStreamFps,
       maxRecordingFps: data.maxRecordingFps,
       jpegQuality: data.jpegQuality,
+      // Object detection settings (per-camera only)
+      objectDetectionEnabled: data.objectDetectionEnabled,
+      classConfigs: data.classConfigs,
     };
 
-    // Save camera to Redis (zones and modelSettings stored as JSON strings via redis-om)
-    await cameraRepository.save(data.externalID, {
+    // Save camera to Redis (zones, modelSettings, classConfigs stored as JSON strings via redis-om)
+    await cameraRepository.save(externalID, {
       ...camera,
       modelSettings: JSON.stringify(validatedModelSettings),
       motionZones: JSON.stringify(motionZones),
+      classConfigs: JSON.stringify(data.classConfigs),
     });
 
     // Persist camera to PostgreSQL
     await db.insert(cameraTable).values({
-      id: data.externalID,
+      id: externalID,
       name: data.name,
       buildingId: data.building,
       ipAddress: data.ipAddress,
@@ -215,7 +221,7 @@ router.post("/", async (req, res, next) => {
     const settingsId = makeID();
     await db.insert(cameraSettingTable).values({
       id: settingsId,
-      cameraId: data.externalID,
+      cameraId: externalID,
       targetWidth: data.targetWidth || null,
       targetHeight: data.targetHeight || null,
       motionDetectionEnabled: data.motionDetectionEnabled,
@@ -224,6 +230,9 @@ router.post("/", async (req, res, next) => {
       maxStreamFps: data.maxStreamFps,
       maxRecordingFps: data.maxRecordingFps,
       jpegQuality: data.jpegQuality,
+      // Object detection settings (per-camera only)
+      objectDetectionEnabled: data.objectDetectionEnabled,
+      classConfigs: data.classConfigs,
       isCurrent: true,
       createdAt: new Date(),
     });
@@ -232,7 +241,7 @@ router.post("/", async (req, res, next) => {
     for (const zone of motionZones) {
       await db.insert(motionZoneTable).values({
         id: zone.id,
-        cameraId: data.externalID,
+        cameraId: externalID,
         name: zone.name,
         points: zone.points,
         minContourArea: zone.minContourArea,
@@ -251,13 +260,13 @@ router.post("/", async (req, res, next) => {
     // Raise event for audit trail
     await raiseEvent({
       type: "info",
-      message: `Camera '${data.name}' (${data.externalID}) created`,
+      message: `Camera '${data.name}' (${externalID}) created`,
       system: "backend:cameras",
     });
 
     res.status(201).json({
       success: true,
-      entityId: data.externalID,
+      entityId: externalID,
       camera: {
         ...camera,
         lastUpdated: camera.lastUpdated.toISOString(),
@@ -326,6 +335,9 @@ router.put("/:externalID", async (req, res, next) => {
     maxRecordingFps: z.number().int().min(1).max(60).optional(),
     // JPEG encoding quality (1-100, where 100=best quality)
     jpegQuality: z.number().int().min(1).max(100).optional(),
+    // Object detection settings (per-camera only)
+    objectDetectionEnabled: z.boolean().optional(),
+    classConfigs: z.array(classConfigSchema).optional(),
   });
 
   const { error, data: updates } = validationSchema.safeParse(req.body);
@@ -378,7 +390,7 @@ router.put("/:externalID", async (req, res, next) => {
     }
 
     // Parse existing model settings from Redis (stored as JSON string)
-    let existingModelSettings: ModelSettings;
+    let existingModelSettings: MotionModelSettings;
     if (camera.modelSettings) {
       try {
         existingModelSettings = typeof camera.modelSettings === 'string'
@@ -411,11 +423,12 @@ router.put("/:externalID", async (req, res, next) => {
       lastUpdated: new Date(),
     } as Camera;
 
-    // Save to Redis (zones and modelSettings as JSON strings)
+    // Save to Redis (zones, modelSettings, classConfigs as JSON strings)
     await cameraRepository.save(externalID, {
       ...updatedCamera,
       modelSettings: JSON.stringify(modelSettings),
       motionZones: JSON.stringify(motionZones),
+      classConfigs: JSON.stringify(updatedCamera.classConfigs),
     });
 
     // Update camera in PostgreSQL
@@ -441,7 +454,9 @@ router.put("/:externalID", async (req, res, next) => {
       updates.modelSettings !== undefined ||
       updates.maxStreamFps !== undefined ||
       updates.maxRecordingFps !== undefined ||
-      updates.jpegQuality !== undefined;
+      updates.jpegQuality !== undefined ||
+      updates.objectDetectionEnabled !== undefined ||
+      updates.classConfigs !== undefined;
 
     if (settingsUpdated) {
       // Mark old settings as not current
@@ -462,6 +477,9 @@ router.put("/:externalID", async (req, res, next) => {
         maxStreamFps: updates.maxStreamFps ?? updatedCamera.maxStreamFps ?? DEFAULT_MAX_STREAM_FPS,
         maxRecordingFps: updates.maxRecordingFps ?? updatedCamera.maxRecordingFps ?? DEFAULT_MAX_RECORDING_FPS,
         jpegQuality: updates.jpegQuality ?? updatedCamera.jpegQuality ?? 95,
+        // Object detection settings (per-camera only)
+        objectDetectionEnabled: updates.objectDetectionEnabled ?? updatedCamera.objectDetectionEnabled,
+        classConfigs: updates.classConfigs ?? updatedCamera.classConfigs,
         isCurrent: true,
         createdAt: new Date(),
       });

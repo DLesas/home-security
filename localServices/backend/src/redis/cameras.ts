@@ -2,16 +2,21 @@ import { Repository, Schema } from "redis-om";
 import { redis } from "./index";
 import {
   type DetectionModel,
-  type ModelSettings,
+  type MotionModelSettings,
   type SimpleDiffSettings,
   type KNNSettings,
   type MOG2Settings,
+  type DetectionClass,
+  type ClassConfig,
   DEFAULT_MODEL_SETTINGS,
+  DEFAULT_CLASS_CONFIGS,
+  DETECTION_CLASSES,
 } from "../db/schema/cameraSettings";
 
 // Re-export for convenience
-export type { DetectionModel, ModelSettings, SimpleDiffSettings, KNNSettings, MOG2Settings };
-export { DEFAULT_MODEL_SETTINGS };
+export type { DetectionModel, MotionModelSettings as ModelSettings, SimpleDiffSettings, KNNSettings, MOG2Settings };
+export type { DetectionClass, ClassConfig };
+export { DEFAULT_MODEL_SETTINGS, DEFAULT_CLASS_CONFIGS, DETECTION_CLASSES };
 
 export enum CameraProtocol {
   UDP = "udp",
@@ -46,6 +51,10 @@ const cameraSchema = new Schema("cameras", {
   maxRecordingFps: { type: "number" },    // Max FPS for HLS recording (default: 15)
   // JPEG encoding quality (1-100, where 100=best, default: 95)
   jpegQuality: { type: "number" },
+  // Object detection settings (per-camera: enabled flag and class configs only)
+  // Model and clip durations are global settings in config.ts
+  objectDetectionEnabled: { type: "boolean" },
+  classConfigs: { type: "string" },          // JSON: ClassConfig[]
 });
 
 
@@ -84,7 +93,7 @@ export interface Camera {
   // Detection model: "simple_diff" | "knn" | "mog2"
   detectionModel: DetectionModel;
   // Model-specific settings (stored as JSON string in Redis)
-  modelSettings: ModelSettings;
+  modelSettings: MotionModelSettings;
   // Motion zones - at least one required, stored as JSON string in Redis
   motionZones: MotionZone[];
   // FPS caps (optional - acts as maximum, never upscales)
@@ -92,6 +101,10 @@ export interface Camera {
   maxRecordingFps?: number;   // Max FPS for HLS recording (default: 15)
   // JPEG encoding quality (1-100, where 100=best, default: 95)
   jpegQuality?: number;
+  // Object detection settings (per-camera: enabled flag and class configs only)
+  // Model and clip durations are global settings in config.ts
+  objectDetectionEnabled: boolean;
+  classConfigs: ClassConfig[];
 }
 
 export const createCameraIndex = async () => {

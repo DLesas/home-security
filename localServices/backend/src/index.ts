@@ -12,6 +12,8 @@ import scheduleRoutes from "./express/routes/Schedules";
 import debugRoutes from "./express/routes/Debug";
 import cameraRoutes from "./express/routes/Cameras";
 import recordingsRoutes from "./express/routes/Recordings";
+import configRoutes from "./express/routes/Config";
+import detectionsRoutes from "./express/routes/Detections";
 import setupSocketHandlers from "./express/socketHandler";
 import { runMigrations, runCustomSQL } from "./db/db";
 import { connectRedis } from "./redis/index";
@@ -31,6 +33,7 @@ import { changeAlarmState } from "./alarmFuncs";
 import { alarmTimeoutManager } from "./alarmTimeoutManager";
 import { scheduleManager } from "./scheduleManager";
 import { changeSensorStatus } from "./sensorFuncs";
+import { detectionEventSubscriber } from "./detectionEventSubscriber";
 // import { startBonjourService } from "./express/advertisement/Bonjour";
 // import { startUdpListener } from "./express/advertisement/udpBroadcast";
 
@@ -81,6 +84,8 @@ app.use("/api/v1/cameras", cameraRoutes);
 app.use("/api/v1/recordings", recordingsRoutes);
 app.use("/api/v1/logs", logsRoutes);
 app.use("/api/v1/schedules", scheduleRoutes);
+app.use("/api/v1/config", configRoutes);
+app.use("/api/v1/detections", detectionsRoutes);
 //TODO: remove debug routes in production
 app.use("/api/v1/debug", debugRoutes);
 
@@ -114,6 +119,9 @@ server.listen(port, async () => {
   scheduleManager.setSensorStateChangeCallback(changeSensorStatus);
   await scheduleManager.start();
 
+  // Start the Detection Event Subscriber
+  await detectionEventSubscriber.start();
+
   //const cleanupBonjour = startBonjourService();
   // const cleanupUdpBroadcast = startUdpListener();
 
@@ -131,6 +139,9 @@ server.listen(port, async () => {
 
     // Stop the Schedule Manager
     scheduleManager.stop();
+
+    // Stop the Detection Event Subscriber
+    await detectionEventSubscriber.stop();
 
     //cleanupBonjour();
     //cleanupUdpBroadcast();
