@@ -84,6 +84,8 @@ class MotionDetectionSettings(BaseModel):
     detection_model: DetectionModel = Field(alias='detectionModel', default=DetectionModel.MOG2)
     model_settings: ModelSettings = Field(alias='modelSettings')
     zones: List[MotionZone] = Field(alias='motionZones')
+    # Object detection enabled flag - determines if original frame should be forwarded
+    object_detection_enabled: bool = Field(alias='objectDetectionEnabled', default=False)
 
     model_config = {'populate_by_name': True}
 

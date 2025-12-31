@@ -99,6 +99,20 @@ class MotionPublisher:
         _, jpeg_buffer = cv2.imencode('.jpg', mask, [cv2.IMWRITE_JPEG_QUALITY, 80])
         return base64.b64encode(jpeg_buffer).decode('utf-8')
 
+    def _encode_original_frame(self, frame: Optional[bytes]) -> str:
+        """
+        Encode original JPEG frame as base64.
+
+        Args:
+            frame: JPEG bytes, or None
+
+        Returns:
+            Base64 encoded JPEG string, or empty string if no frame
+        """
+        if frame is None:
+            return ''
+        return base64.b64encode(frame).decode('utf-8')
+
     def _build_event(
         self,
         result: MotionResult,
@@ -124,4 +138,5 @@ class MotionPublisher:
             'processing_time_ms': round(result.processing_time_ms, 2),
             'zone_results': zone_results,
             'mask': self._encode_mask(result.mask),
+            'original_frame': self._encode_original_frame(result.original_frame),
         }

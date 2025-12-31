@@ -187,6 +187,10 @@ class FrameStreamConsumer:
                     camera_config = self._config_manager.get_camera(result.camera_id)
                     detection_model = camera_config[1].detection_model.value if camera_config else "unknown"
 
+                    # Attach original frame if object detection is enabled and motion detected
+                    if result.has_motion and camera_config and camera_config[1].object_detection_enabled:
+                        result.original_frame = batch[i].jpeg_buffer
+
                     # Acknowledge and delete message
                     self._redis.xack(stream_key, self._consumer_group, msg_id)
                     self._redis.xdel(stream_key, msg_id)

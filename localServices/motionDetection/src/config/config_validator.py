@@ -67,6 +67,7 @@ class ConfigValidator:
                 detection_model=detection_model,
                 model_settings=model_settings,
                 zones=zones,
+                object_detection_enabled=camera_data.get('objectDetectionEnabled', False),
             )
 
             return settings

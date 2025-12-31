@@ -68,6 +68,7 @@ class MotionResult:
     error: Optional[str] = None
     zone_results: List[ZoneMotionResult] = field(default_factory=list)
     mask: Optional[np.ndarray] = None  # Foreground mask for visualization
+    original_frame: Optional[bytes] = None  # JPEG bytes for object detection forwarding
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
