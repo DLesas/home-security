@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Card } from '@nextui-org/card'
-import { Switch } from '@nextui-org/switch'
+import { Toggle } from '@/components/Toggle'
 import { useCameraStream, type CameraStats } from '@/hooks/useCameraStream'
 
 interface CameraStreamCardProps {
@@ -55,15 +55,11 @@ export function CameraStreamCard({ cameraId }: CameraStreamCardProps) {
           <div className="flex items-center gap-2">
             {/* Motion mask toggle */}
             <div className="bg-black/60 text-white px-2 py-1 rounded text-xs flex items-center gap-2">
-              <span>Motion Mask</span>
-              <Switch
+              <Toggle
                 size="sm"
                 isSelected={showMask}
-                onValueChange={setShowMask}
-                classNames={{
-                  wrapper: "h-4 w-7 group-data-[selected=true]:bg-red-500",
-                  thumb: "w-3 h-3",
-                }}
+                onChange={setShowMask}
+                label="Motion Mask"
               />
             </div>
 

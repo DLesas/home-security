@@ -58,6 +58,29 @@ export interface MOG2Settings {
 
 export type ModelSettings = SimpleDiffSettings | KNNSettings | MOG2Settings;
 
+// Supported detection classes (curated COCO subset) - synced with backend
+export const DETECTION_CLASSES = [
+  'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
+  'train', 'truck', 'boat', 'bird', 'cat', 'dog', 'horse',
+  'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe',
+] as const;
+
+export type DetectionClass = typeof DETECTION_CLASSES[number];
+
+// Per-class configuration with confidence threshold
+export interface ClassConfig {
+  class: DetectionClass;
+  confidence: number; // 0.0 - 1.0
+}
+
+// Default class configs for object detection
+export const DEFAULT_CLASS_CONFIGS: ClassConfig[] = [
+  { class: 'person', confidence: 0.5 },
+  { class: 'car', confidence: 0.5 },
+  { class: 'dog', confidence: 0.5 },
+  { class: 'cat', confidence: 0.5 },
+];
+
 export interface Camera {
   externalID: string;
   name: string;
@@ -74,6 +97,9 @@ export interface Camera {
   maxRecordingFps?: number;
   // JPEG encoding quality (1-100, where 100=best quality)
   jpegQuality: number;
+  // Object detection settings
+  objectDetectionEnabled: boolean;
+  classConfigs: ClassConfig[];
 }
 
 interface doorSensor {

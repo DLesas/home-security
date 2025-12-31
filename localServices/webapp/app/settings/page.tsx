@@ -1,15 +1,32 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Card, CardHeader, CardBody } from '@nextui-org/card'
 import { Button } from '@nextui-org/button'
 import { useSocketData } from '../socketData'
 import { useSensorOrder } from '../../hooks/useSensorOrder'
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
-import { MdDragIndicator, MdSave, MdRefresh } from 'react-icons/md'
+import { MdDragIndicator, MdSave, MdRefresh, MdAdd, MdVideocam, MdDelete } from 'react-icons/md'
+import { AddCameraModal } from '../cameras/components/AddCameraModal'
+import { useDeleteCameraMutation } from '@/hooks/mutations/useCameraMutations'
+import toast from 'react-hot-toast'
 
 export default function SettingsPage() {
-  const { sensors } = useSocketData()
+  const { sensors, cameras } = useSocketData()
+  const [isAddCameraOpen, setIsAddCameraOpen] = useState(false)
+  const deleteCamera = useDeleteCameraMutation()
+
+  const handleDeleteCamera = async (cameraId: string, cameraName: string) => {
+    if (!confirm(`Delete "${cameraName}"? This cannot be undone.`)) return
+
+    try {
+      await deleteCamera.mutateAsync(cameraId)
+      toast.success(`Camera "${cameraName}" deleted`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete camera')
+    }
+  }
+
   const {
     sensorOrder,
     hasChanges,
@@ -80,9 +97,73 @@ export default function SettingsPage() {
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold">Settings</h1>
-          <p className="text-gray-600">Configure your sensor display order</p>
+          <p className="text-gray-600">Manage cameras and configure display order</p>
         </div>
 
+        {/* Cameras Section */}
+        <Card className="w-full">
+          <CardHeader>
+            <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold">Cameras</h2>
+                <p className="text-sm text-gray-600">
+                  {cameras.length} camera{cameras.length !== 1 ? 's' : ''} configured
+                </p>
+              </div>
+              <Button
+                startContent={<MdAdd />}
+                color="primary"
+                onPress={() => setIsAddCameraOpen(true)}
+              >
+                Add Camera
+              </Button>
+            </div>
+          </CardHeader>
+          <CardBody>
+            {cameras.length === 0 ? (
+              <div className="py-8 text-center text-gray-500">
+                <MdVideocam className="mx-auto mb-2 text-4xl" />
+                <p>No cameras configured</p>
+                <p className="text-sm">Add a camera to get started</p>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {cameras.map((camera) => (
+                  <Card key={camera.externalID} className="shadow-sm">
+                    <CardBody className="flex flex-row items-center gap-3 p-3">
+                      <MdVideocam className="text-2xl text-gray-400" />
+                      <div className="flex-1">
+                        <p className="font-medium">{camera.name}</p>
+                        <p className="text-sm text-gray-500">{camera.building}</p>
+                      </div>
+                      <div
+                        className={`rounded px-2 py-1 text-xs ${
+                          camera.motionDetectionEnabled
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {camera.motionDetectionEnabled ? 'Motion On' : 'Motion Off'}
+                      </div>
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="light"
+                        color="danger"
+                        isLoading={deleteCamera.isPending}
+                        onPress={() => handleDeleteCamera(camera.externalID, camera.name)}
+                      >
+                        <MdDelete className="text-lg" />
+                      </Button>
+                    </CardBody>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+
+        {/* Sensor Order Section */}
         <Card className="w-full">
           <CardHeader>
             <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -259,6 +340,11 @@ export default function SettingsPage() {
           </CardBody>
         </Card>
       </div>
+
+      <AddCameraModal
+        isOpen={isAddCameraOpen}
+        onClose={() => setIsAddCameraOpen(false)}
+      />
     </div>
   )
 }

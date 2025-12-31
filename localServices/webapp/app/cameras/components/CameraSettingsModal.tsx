@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Input } from '@nextui-org/input'
 import { Select, SelectItem } from '@nextui-org/select'
-import { Switch } from '@nextui-org/switch'
+import { Toggle } from '@/components/Toggle'
 import {
   Modal,
   ModalContent,
@@ -382,12 +382,11 @@ export function CameraSettingsModal({ camera, isOpen, onClose }: CameraSettingsM
                 name="motionDetectionEnabled"
                 control={control}
                 render={({ field }) => (
-                  <Switch
+                  <Toggle
                     isSelected={field.value}
-                    onValueChange={field.onChange}
-                  >
-                    <span className="text-sm">Enable Motion Detection</span>
-                  </Switch>
+                    onChange={field.onChange}
+                    label="Enable Motion Detection"
+                  />
                 )}
               />
 
@@ -477,9 +476,11 @@ export function CameraSettingsModal({ camera, isOpen, onClose }: CameraSettingsM
                         name="knn.detectShadows"
                         control={control}
                         render={({ field }) => (
-                          <Switch isSelected={field.value} onValueChange={field.onChange}>
-                            <span className="text-sm">Detect Shadows</span>
-                          </Switch>
+                          <Toggle
+                            isSelected={field.value}
+                            onChange={field.onChange}
+                            label="Detect Shadows"
+                          />
                         )}
                       />
                     </>
@@ -522,9 +523,11 @@ export function CameraSettingsModal({ camera, isOpen, onClose }: CameraSettingsM
                         name="mog2.detectShadows"
                         control={control}
                         render={({ field }) => (
-                          <Switch isSelected={field.value} onValueChange={field.onChange}>
-                            <span className="text-sm">Detect Shadows</span>
-                          </Switch>
+                          <Toggle
+                            isSelected={field.value}
+                            onChange={field.onChange}
+                            label="Detect Shadows"
+                          />
                         )}
                       />
                     </>
