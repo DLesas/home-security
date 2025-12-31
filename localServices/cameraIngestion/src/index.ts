@@ -7,6 +7,7 @@ import { connectRedis } from "./shared/redis/index";
 import { createCameraIndex } from "./shared/redis/cameras";
 import { detectAvailableDecoders } from "./utils/hardwareDecoder";
 import { detectAvailableEncoders } from "./utils/hardwareEncoder";
+import { clipExtractor } from "./clips/clipExtractor";
 
 const io = new Server({
   cors: {
@@ -35,10 +36,16 @@ await detectAvailableEncoders();
 const streamManager = new StreamManager();
 await streamManager.initialize();
 
+// Start clip extractor for object detection events
+await clipExtractor.start();
+
 console.log("[Main] Camera Ingestion Service fully initialized");
 
 const shutdown = async () => {
   console.log("Shutting down gracefully...");
+
+  // Stop clip extractor
+  await clipExtractor.stop();
 
   // Stop stream manager
   await streamManager.stop();
