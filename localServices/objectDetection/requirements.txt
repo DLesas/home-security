@@ -1,0 +1,28 @@
+# Object Detection Service Dependencies
+# Based on ultralytics requirements with headless opencv
+
+# PyTorch with CUDA 12.1 support
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch>=2.1.0
+torchvision>=0.16.0
+
+# Ultralytics YOLO core dependencies
+ultralytics>=8.3.0
+ultralytics-thop>=2.0.18
+
+# Image processing (headless for server deployment)
+opencv-python-headless>=4.6.0
+pillow>=7.1.2
+
+# Numerical computing
+numpy>=1.23.0
+scipy>=1.4.1
+
+# Utilities
+matplotlib>=3.3.0
+pyyaml>=5.3.1
+requests>=2.23.0
+psutil>=5.8.0
+
+# Redis client with JSON support
+redis[json]>=5.0.0
