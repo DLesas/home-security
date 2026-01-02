@@ -71,7 +71,8 @@ export async function detectAvailableEncoders(): Promise<EncoderInfo[]> {
 
   for (const encoder of ENCODER_PRIORITY) {
     try {
-      const testCmd = `ffmpeg -hide_banner -f lavfi -i testsrc=size=64x64:duration=0.1 -c:v ${encoder.name} -f null - 2>&1`;
+      // Use 256x256 for NVENC (has minimum resolution requirements)
+      const testCmd = `ffmpeg -hide_banner -f lavfi -i testsrc=size=256x256:duration=0.1 -c:v ${encoder.name} -f null - 2>&1`;
       const { stdout, stderr } = await execAsync(testCmd, { timeout: 5000 });
       const output = stdout + stderr;
 
