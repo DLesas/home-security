@@ -88,8 +88,8 @@ export class ContinuousRecorder {
           "-hls_list_size", `${maxSegments}`,            // Max segments to keep in playlist
           "-hls_flags", "delete_segments+program_date_time", // Auto-delete + embed timestamps
           "-hls_segment_type", "mpegts",                 // Use MPEG-TS containers
-          "-hls_segment_filename", path.join(this.cameraDir, "segment-%05d.ts"), // Segment naming
-          "-strftime", "0",                              // Don't use strftime (use sequential numbers)
+          "-hls_segment_filename", path.join(this.cameraDir, "segment-%Y%m%d_%H%M%S.ts"), // Timestamp naming
+          "-strftime", "1",                              // Use strftime for timestamp filenames
 
           // Output playlist file
           path.join(this.cameraDir, "playlist.m3u8"),
@@ -182,19 +182,10 @@ export class ContinuousRecorder {
   async stop(): Promise<void> {
     console.log(`[Recorder ${this.cameraId}] Stopping recording...`);
 
-    // Close stdin to signal end of input, then stop
-    const stdin = this.ffmpegProcess.getStdin();
-    if (stdin) {
-      stdin.end();
-    }
-
-    // Give FFmpeg time to finish writing
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
     // Clear metrics
     this.encodeMetrics.clear();
 
-    // Stop the process
+    // Stop the process (handles graceful shutdown via stdin EOF)
     await this.ffmpegProcess.stop();
   }
 
@@ -210,13 +201,7 @@ export class ContinuousRecorder {
     // Clear metrics
     this.encodeMetrics.clear();
 
-    // Close stdin to signal end of input
-    const stdin = this.ffmpegProcess.getStdin();
-    if (stdin) {
-      stdin.end();
-    }
-
-    // Dispose the process (cancels any pending restarts)
+    // Dispose the process (handles graceful shutdown via stdin EOF)
     await this.ffmpegProcess.dispose();
   }
 
