@@ -194,26 +194,36 @@ export class ClipExtractor {
     // Periodically clean up old cache entries
     this.cleanupActiveClips();
 
+    // Check cooldown FIRST (before any async operations)
+    // This prevents concurrent extractions during the DB lookup delay
+    const activeClip = this.activeClips.get(camera_id);
+    if (activeClip && (timestamp - activeClip.timestamp) < cooldownMs) {
+      // Find detection record to update it with reused clip
+      const detection = await this.findDetectionWithRetry(camera_id, timestamp);
+      if (detection) {
+        await db
+          .update(detectionsTable)
+          .set({
+            clipPath: activeClip.clipPath,
+            clipStatus: "complete",
+          })
+          .where(eq(detectionsTable.id, detection.id));
+      }
+      console.log(`[ClipExtractor] Reusing clip for ${camera_id} (within cooldown)`);
+      return;
+    }
+
+    // No active clip - reserve the slot immediately to prevent concurrent extractions
+    // We'll update the path once we know the filename
+    this.activeClips.set(camera_id, {
+      clipPath: "", // Placeholder, updated in extractClip
+      timestamp,
+    });
+
     // Find detection record with retry logic
     const detection = await this.findDetectionWithRetry(camera_id, timestamp);
     if (!detection) {
       console.warn(`[ClipExtractor] Detection record not found for ${camera_id}@${timestamp} after retries`);
-      return;
-    }
-
-    // Check cooldown - is there a recent clip we can reuse?
-    const activeClip = this.activeClips.get(camera_id);
-    if (activeClip && (timestamp - activeClip.timestamp) < cooldownMs) {
-      // Reuse existing clip
-      await db
-        .update(detectionsTable)
-        .set({
-          clipPath: activeClip.clipPath,
-          clipStatus: "complete",
-        })
-        .where(eq(detectionsTable.id, detection.id));
-
-      console.log(`[ClipExtractor] Reusing clip for ${camera_id} (within cooldown)`);
       return;
     }
 
@@ -270,6 +280,17 @@ export class ClipExtractor {
     const preDuration = config.clipPreDuration || 5;
     const postDuration = config.clipPostDuration || 10;
 
+    // IMMEDIATELY set activeClip to prevent concurrent extractions during cooldown
+    // This reserves the slot - subsequent events will reuse this clip once it's ready
+    const clipFilename = `${cameraId}_${timestamp}.mp4`;
+    const clipDir = path.join(CLIPS_PATH, cameraId);
+    const fullClipPath = path.join(clipDir, clipFilename);
+
+    this.activeClips.set(cameraId, {
+      clipPath: fullClipPath,
+      timestamp,
+    });
+
     // Update status to processing
     await db
       .update(detectionsTable)
@@ -299,11 +320,6 @@ export class ClipExtractor {
       return;
     }
 
-    // Generate clip filename with timestamp
-    const clipFilename = `${cameraId}_${timestamp}.mp4`;
-    const clipDir = path.join(CLIPS_PATH, cameraId);
-    const fullClipPath = path.join(clipDir, clipFilename);
-
     // Ensure camera clips directory exists
     await fs.promises.mkdir(clipDir, { recursive: true });
 
@@ -320,12 +336,6 @@ export class ClipExtractor {
           clipStatus: "complete",
         })
         .where(eq(detectionsTable.id, detectionId));
-
-      // Update active clip cache
-      this.activeClips.set(cameraId, {
-        clipPath: fullClipPath,
-        timestamp,
-      });
 
       console.log(`[ClipExtractor] Clip saved: ${clipFilename}`);
     } catch (error) {
