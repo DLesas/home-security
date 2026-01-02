@@ -16,6 +16,7 @@ export abstract class FFmpegProcess extends EventEmitter {
   protected ffmpegProcess: ChildProcess | null = null;
   protected isRunning: boolean = false;
   protected isDisposed: boolean = false; // Prevents auto-restart after disposal
+  protected isStopping: boolean = false; // Prevents auto-restart during intentional stop
   protected reconnectAttempts: number = 0;
   protected processId: string;
 
@@ -163,8 +164,8 @@ export abstract class FFmpegProcess extends EventEmitter {
           this.isRunning = false;
           this.emit("stopped");
 
-          // Auto-restart if process crashed unexpectedly (only if not disposed)
-          if (wasRunning && code !== 0 && !this.isDisposed) {
+          // Auto-restart if process crashed unexpectedly (only if not disposed or stopping)
+          if (wasRunning && code !== 0 && !this.isDisposed && !this.isStopping) {
             // Emit beforeRestart so consumers can handle hardware failures (NVDEC/NVENC)
             this.emit("beforeRestart", stderrData);
 
@@ -227,7 +228,8 @@ export abstract class FFmpegProcess extends EventEmitter {
   }
 
   /**
-   * Stop the FFmpeg process
+   * Stop the FFmpeg process gracefully
+   * First closes stdin to signal EOF, waits for graceful exit, then SIGKILL as fallback
    */
   async stop(): Promise<void> {
     if (!this.isRunning && !this.ffmpegProcess) {
@@ -239,6 +241,9 @@ export abstract class FFmpegProcess extends EventEmitter {
 
     console.log(`[FFmpegProcess ${this.processId}] Stopping process...`);
 
+    // Set stopping flag to prevent auto-restart from SIGTERM exit code
+    this.isStopping = true;
+
     // Stop liveness monitoring
     if (this.livenessCheckInterval) {
       clearInterval(this.livenessCheckInterval);
@@ -246,16 +251,67 @@ export abstract class FFmpegProcess extends EventEmitter {
     }
 
     return new Promise((resolve) => {
-      if (this.ffmpegProcess) {
-        this.ffmpegProcess.kill("SIGKILL");
-        this.ffmpegProcess = null;
+      if (!this.ffmpegProcess) {
+        this.isRunning = false;
+        this.isStopping = false; // Reset for future starts
+        this.emit("stopped");
+        console.log(`[FFmpegProcess ${this.processId}] Stopped successfully`);
+        resolve();
+        return;
       }
 
-      this.isRunning = false;
-      this.emit("stopped");
+      const proc = this.ffmpegProcess;
+      this.ffmpegProcess = null;
 
-      console.log(`[FFmpegProcess ${this.processId}] Stopped successfully`);
-      resolve();
+      let resolved = false;
+      let sigkillTimer: NodeJS.Timeout | null = null;
+
+      const cleanup = () => {
+        if (resolved) return;
+        resolved = true;
+        if (sigkillTimer) {
+          clearTimeout(sigkillTimer);
+          sigkillTimer = null;
+        }
+        this.isRunning = false;
+        this.isStopping = false; // Reset for future starts
+        this.emit("stopped");
+        console.log(`[FFmpegProcess ${this.processId}] Stopped successfully`);
+        resolve();
+      };
+
+      // Wait for process to actually terminate
+      proc.once("close", cleanup);
+
+      // Step 1: Signal graceful shutdown
+      // - Send SIGTERM to allow FFmpeg to cleanup gracefully (works for all FFmpeg types)
+      // - Also close stdin if it exists (for processes that read from stdin like HLS recorder)
+      proc.kill("SIGTERM");
+      if (proc.stdin && !proc.stdin.destroyed) {
+        proc.stdin.end();
+      }
+      console.log(`[FFmpegProcess ${this.processId}] Sent SIGTERM, waiting for graceful exit...`);
+
+      // Step 2: Give FFmpeg time to flush and exit gracefully (10 seconds)
+      // Only send SIGKILL if it doesn't exit on its own
+      sigkillTimer = setTimeout(() => {
+        if (!resolved) {
+          console.warn(
+            `[FFmpegProcess ${this.processId}] Graceful shutdown timeout, sending SIGKILL...`
+          );
+          proc.kill("SIGKILL");
+
+          // Final timeout in case even SIGKILL doesn't work (shouldn't happen)
+          setTimeout(() => {
+            if (!resolved) {
+              console.error(
+                `[FFmpegProcess ${this.processId}] SIGKILL timeout - process may be zombie`
+              );
+              cleanup();
+            }
+          }, 5000);
+        }
+      }, 10000);
     });
   }
 
