@@ -341,27 +341,32 @@ export class ClipExtractor {
   /**
    * Run FFmpeg to extract clip from HLS recording.
    */
-  private runFFmpegExtraction(
+  private async runFFmpegExtraction(
     playlistPath: string,
     startTime: Date,
     duration: number,
     outputPath: string
   ): Promise<void> {
+    // Calculate seek offset from playlist start time
+    const seekOffset = await this.calculateSeekOffset(playlistPath, startTime);
+
     return new Promise((resolve, reject) => {
       // FFmpeg args for HLS clip extraction
-      // Using -ss before -i for fast seeking
+      // Use relative seek offset from playlist start (calculated from EXT-X-PROGRAM-DATE-TIME)
       const args = [
-        "-ss", this.formatSeekTime(startTime),
         "-i", playlistPath,
+        "-ss", seekOffset.toString(),     // Relative offset in seconds from playlist start
         "-t", duration.toString(),
         "-c:v", "libx264",
         "-preset", "fast",
         "-crf", "23",
-        "-c:a", "copy",
-        "-movflags", "+faststart", // Web-friendly MP4
-        "-y", // Overwrite
+        "-c:a", "aac",                    // Re-encode audio for compatibility
+        "-movflags", "+faststart",        // Web-friendly MP4
+        "-y",                             // Overwrite
         outputPath,
       ];
+
+      console.log(`[ClipExtractor] Extracting clip: offset=${seekOffset}s, duration=${duration}s`);
 
       const ffmpeg = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
 
@@ -385,11 +390,36 @@ export class ClipExtractor {
   }
 
   /**
-   * Format time for FFmpeg -ss seeking.
-   * For HLS with EXT-X-PROGRAM-DATE-TIME, we can use ISO format.
+   * Calculate seek offset in seconds from playlist start time.
+   * Parses EXT-X-PROGRAM-DATE-TIME from first segment to determine playlist start.
    */
-  private formatSeekTime(time: Date): string {
-    return time.toISOString();
+  private async calculateSeekOffset(playlistPath: string, targetTime: Date): Promise<number> {
+    try {
+      const content = await fs.promises.readFile(playlistPath, "utf-8");
+      const lines = content.split("\n");
+
+      // Find the first EXT-X-PROGRAM-DATE-TIME tag
+      for (const line of lines) {
+        if (line.startsWith("#EXT-X-PROGRAM-DATE-TIME:")) {
+          const dateStr = line.substring("#EXT-X-PROGRAM-DATE-TIME:".length).trim();
+          const playlistStartTime = new Date(dateStr);
+
+          // Calculate offset in seconds
+          const offsetMs = targetTime.getTime() - playlistStartTime.getTime();
+          const offsetSec = Math.max(0, offsetMs / 1000);
+
+          console.log(`[ClipExtractor] Playlist start: ${dateStr}, Target: ${targetTime.toISOString()}, Offset: ${offsetSec}s`);
+          return offsetSec;
+        }
+      }
+
+      // Fallback: if no program date time found, start from beginning
+      console.warn(`[ClipExtractor] No EXT-X-PROGRAM-DATE-TIME found in playlist, using offset 0`);
+      return 0;
+    } catch (error) {
+      console.error(`[ClipExtractor] Error parsing playlist: ${error}`);
+      return 0;
+    }
   }
 }
 
