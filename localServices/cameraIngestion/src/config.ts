@@ -3,7 +3,7 @@ export const SERVER_PORT = parseInt(process.env.SERVER_PORT || "8082", 10);
 export const RECORDING_PATH = process.env.RECORDING_PATH || "/recordings";
 export const RETENTION_DAYS = parseInt(process.env.RETENTION_DAYS || "7", 10);
 export const SEGMENT_DURATION_SECONDS = parseInt(
-  process.env.SEGMENT_DURATION_SECONDS || "600",
+  process.env.SEGMENT_DURATION_SECONDS || "120",
   10
 );
 
