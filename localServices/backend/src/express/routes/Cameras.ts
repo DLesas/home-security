@@ -403,8 +403,21 @@ router.put("/:externalID", async (req, res, next) => {
       existingModelSettings = DEFAULT_MODEL_SETTINGS.mog2;
     }
 
+    // Parse existing classConfigs from Redis (stored as JSON string)
+    let existingClassConfigs: ClassConfig[] = DEFAULT_CLASS_CONFIGS;
+    if (camera.classConfigs) {
+      try {
+        existingClassConfigs = typeof camera.classConfigs === 'string'
+          ? JSON.parse(camera.classConfigs)
+          : camera.classConfigs;
+      } catch {
+        existingClassConfigs = DEFAULT_CLASS_CONFIGS;
+      }
+    }
+
     // Use updated zones or keep existing
     const motionZones = updates.motionZones ?? existingZones;
+    const classConfigs = updates.classConfigs ?? existingClassConfigs;
 
     // Determine detection model and validate settings
     const detectionModel = updates.detectionModel ?? (camera.detectionModel as DetectionModel) ?? "mog2";
@@ -420,6 +433,7 @@ router.put("/:externalID", async (req, res, next) => {
       detectionModel,
       modelSettings,
       motionZones,
+      classConfigs,
       lastUpdated: new Date(),
     } as Camera;
 
@@ -428,7 +442,7 @@ router.put("/:externalID", async (req, res, next) => {
       ...updatedCamera,
       modelSettings: JSON.stringify(modelSettings),
       motionZones: JSON.stringify(motionZones),
-      classConfigs: JSON.stringify(updatedCamera.classConfigs),
+      classConfigs: JSON.stringify(classConfigs),
     });
 
     // Update camera in PostgreSQL
