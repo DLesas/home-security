@@ -5,9 +5,9 @@
 ARG USE_GPU=false
 
 # ============================================================================
-# Stage 1: GPU Base (Ubuntu 20.04, CUDA 11.4.1, OpenCV 4.6.0 with CUDA)
+# Stage 1: GPU Base (Ubuntu 20.04, CUDA 11.3.1, OpenCV 4.6.0 with CUDA)
 # ============================================================================
-FROM datamachines/cudnn_tensorflow_opencv:11.4.1_2.9.1_4.6.0-20220815 AS base-true
+FROM datamachines/cudnn_tensorflow_opencv:11.3.1_2.9.1_4.6.0-20220815 AS base-true
 
 # ============================================================================
 # Stage 2: CPU Base (Python 3.11 slim)
