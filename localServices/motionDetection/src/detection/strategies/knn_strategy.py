@@ -28,7 +28,12 @@ class KNNStrategy(ProcessingStrategy):
         gpu_caps = detect_gpu_capabilities()
         self._use_gpu = gpu_caps.gpu_available
 
+        # Reusable GpuMat objects per camera to prevent memory leaks
+        self._gpu_frames: dict[str, cv2.cuda_GpuMat] = {}
+        self._cuda_stream: Optional[cv2.cuda.Stream] = None
+
         if self._use_gpu:
+            self._cuda_stream = cv2.cuda.Stream()
             logger.info("KNNStrategy initialized with GPU support")
         else:
             logger.info("KNNStrategy initialized with CPU processing")
@@ -134,7 +139,7 @@ class KNNStrategy(ProcessingStrategy):
             raise ValueError(f"Failed to decode frame for '{state.camera_name}'")
 
         if self._use_gpu:
-            fg_mask = self._process_gpu(frame, state.detector)
+            fg_mask = self._process_gpu(frame, state.detector, frame_input.camera_id)
         else:
             fg_mask = self._process_cpu(frame, state.detector)
 
@@ -150,14 +155,20 @@ class KNNStrategy(ProcessingStrategy):
         fg_mask = detector.apply(frame, learningRate=-1)
         return fg_mask
 
-    def _process_gpu(self, frame: np.ndarray, detector: Any) -> np.ndarray:
-        """Process frame on GPU using CUDA."""
-        # Upload frame to GPU
-        gpu_frame = cv2.cuda_GpuMat()
+    def _process_gpu(self, frame: np.ndarray, detector: Any, camera_id: str = "") -> np.ndarray:
+        """Process frame on GPU using CUDA with reused GpuMat objects."""
+        # Get or create reusable GpuMat for this camera
+        if camera_id not in self._gpu_frames:
+            self._gpu_frames[camera_id] = cv2.cuda_GpuMat()
+
+        gpu_frame = self._gpu_frames[camera_id]
+
+        # Upload frame to GPU (reuses existing GpuMat allocation if size matches)
         gpu_frame.upload(frame)
 
         # Apply KNN background subtraction on GPU
-        gpu_mask = detector.apply(gpu_frame, learningRate=-1)
+        # Python signature: apply(image, learningRate, stream[, fgmask]) -> fgmask
+        gpu_mask = detector.apply(gpu_frame, -1, self._cuda_stream)
 
         # Download result
         fg_mask = gpu_mask.download()
