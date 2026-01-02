@@ -113,3 +113,18 @@ class CameraState:
     detector: Any  # cv2.BackgroundSubtractor (MOG2/KNN) or None for SimpleDiff
     settings: MotionDetectionSettings
     strategy: Any = None  # ProcessingStrategy instance (set by MotionDetector)
+    frames_processed: int = 0  # Counter for warm-up period
+
+    def get_warmup_frames(self) -> int:
+        """Get warm-up frame count from detector's history setting."""
+        model_settings = self.settings.model_settings
+        # Handle both object attributes and dict keys
+        if hasattr(model_settings, 'history'):
+            return model_settings.history
+        elif isinstance(model_settings, dict) and 'history' in model_settings:
+            return model_settings['history']
+        return 0  # SimpleDiff doesn't need warm-up
+
+    def is_warming_up(self) -> bool:
+        """Check if detector is still in warm-up period (building background model)."""
+        return self.frames_processed < self.get_warmup_frames()

@@ -282,6 +282,24 @@ class MotionDetector:
             # Get foreground mask from camera's strategy
             fg_mask = state.strategy.process_frame(frame_input, state)
 
+            # Increment frame counter for warm-up tracking
+            state.frames_processed += 1
+
+            # During warm-up, process frames but don't report motion
+            # This allows the background model to stabilize
+            if state.is_warming_up():
+                warmup_remaining = state.get_warmup_frames() - state.frames_processed
+                if state.frames_processed == 1 or state.frames_processed % 100 == 0:
+                    logger.info(
+                        f"'{state.camera_name}' warming up: {warmup_remaining} frames remaining"
+                    )
+                return MotionResult(
+                    camera_id=frame_input.camera_id,
+                    has_motion=False,
+                    processing_time_ms=(time.time() - start) * 1000,
+                    zone_results=[],
+                )
+
             # Analyze mask for motion in zones
             result = self._analyzer.analyze(fg_mask, state.settings, state.camera_name)
             result.processing_time_ms = (time.time() - start) * 1000
