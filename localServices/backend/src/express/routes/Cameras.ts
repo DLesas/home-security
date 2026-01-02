@@ -75,8 +75,8 @@ const motionZoneSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   points: z.array(z.tuple([z.number(), z.number()])).default([]),
-  minContourArea: z.number().int().min(1).default(1500),
-  thresholdPercent: z.number().min(0).max(100).default(1.0),
+  minContourArea: z.number().int().min(1).default(2500),
+  thresholdPercent: z.number().min(0).max(100).default(2.5),
 });
 
 const router = express.Router();
@@ -596,6 +596,6 @@ export const createDefaultMotionZone = (): MotionZone => ({
   id: makeID(),
   name: 'Full Frame',
   points: [], // Empty = full frame
-  minContourArea: 1500,
-  thresholdPercent: 1.0,
+  minContourArea: 2500,
+  thresholdPercent: 2.5,
 });

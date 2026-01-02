@@ -18,8 +18,8 @@ export const motionZonesTable = pgTable("motion_zones", {
   points: jsonb("points").$type<[number, number][]>().default([]),
 
   // Detection thresholds for this zone
-  minContourArea: integer("minContourArea").default(1500),    // Min contour area in pixels
-  thresholdPercent: real("thresholdPercent").default(1.0),    // Min % of zone area to trigger
+  minContourArea: integer("minContourArea").default(2500),    // Min contour area in pixels (filters noise)
+  thresholdPercent: real("thresholdPercent").default(2.5),    // Min % of zone area to trigger
 
   // Timestamps
   createdAt: timestamp("createdAt").defaultNow(),
