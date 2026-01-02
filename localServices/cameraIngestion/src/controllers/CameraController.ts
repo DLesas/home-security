@@ -597,7 +597,7 @@ export class CameraController extends EventEmitter {
       const processingTime = Date.now() - startTime;
       this.trackPerformance(processingTime);
 
-      // Log and emit stats every second (based on effective FPS)
+      // Emit stats every second (based on effective FPS)
       if (this.frameCount % this.effectiveStreamFps === 0) {
         const avgProcessing = this.getAverageProcessingTime();
         const fps = this.getCurrentFPS();
@@ -608,13 +608,6 @@ export class CameraController extends EventEmitter {
         const encodeMs = this.recorder?.getAverageEncodeMs() ?? 0;
         const decoder = getCameraDecoder(this.config.cameraId);
         const encoder = getCameraEncoder(this.config.cameraId);
-
-        console.log(
-          `${this.logPrefix} Frame ${this.frameCount} | ` +
-            `FPS: ${fps.toFixed(1)} | Proc: ${avgProcessing.toFixed(1)}ms | ` +
-            `Dec: ${decodeMs.toFixed(1)}ms | Enc: ${encodeMs.toFixed(1)}ms | ` +
-            `JPEG: ${(jpegBuffer.length / 1024).toFixed(1)}KB`
-        );
 
         // Emit stats to subscribed clients
         emitStats({
@@ -633,6 +626,16 @@ export class CameraController extends EventEmitter {
           decoderType: decoder?.name ?? "software",
           encoderType: encoder?.name ?? "libx264",
         });
+
+        // Log to console every minute (60 seconds)
+        if (this.frameCount % (this.effectiveStreamFps * 60) === 0) {
+          console.log(
+            `${this.logPrefix} Frame ${this.frameCount} | ` +
+              `FPS: ${fps.toFixed(1)} | Proc: ${avgProcessing.toFixed(1)}ms | ` +
+              `Dec: ${decodeMs.toFixed(1)}ms | Enc: ${encodeMs.toFixed(1)}ms | ` +
+              `JPEG: ${(jpegBuffer.length / 1024).toFixed(1)}KB`
+          );
+        }
       }
     } catch (error) {
       console.error(`${this.logPrefix} Error processing frame:`, error);
