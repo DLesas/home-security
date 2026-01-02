@@ -12,11 +12,13 @@ FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 COPY --from=ffmpeg /usr/local /usr/local
 
 # Install runtime dependencies for FFmpeg
+# Note: libnvidia-encode/decode come from host via NVIDIA Container Toolkit
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libva-drm2 \
     libva2 \
     libvdpau1 \
     libnuma1 \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js LTS
