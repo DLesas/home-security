@@ -1,0 +1,10 @@
+**/node_modules
+**/.next
+**/coverage
+**/.turbo
+**/.cache
+**/*.log
+.env
+**/.env
+recordings
+shared-camera-contracts

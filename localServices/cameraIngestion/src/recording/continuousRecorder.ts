@@ -135,6 +135,9 @@ export class ContinuousRecorder {
       // Ensure camera directory exists
       await fs.promises.mkdir(this.cameraDir, { recursive: true });
 
+      // Clean up orphaned segments from previous runs (FFmpeg only tracks its own session)
+      await this.cleanupStaleSegments();
+
       console.log(`[Recorder ${this.cameraId}] Starting recording to ${this.cameraDir}`);
       console.log(
         `[Recorder ${this.cameraId}] Configuration: ${SEGMENT_DURATION_SECONDS}s segments, ${RETENTION_DAYS} days retention`
@@ -206,16 +209,35 @@ export class ContinuousRecorder {
   }
 
   /**
-   * Note: Cleanup is handled automatically by FFmpeg
-   *
-   * FFmpeg configuration:
-   * - hls_list_size: Limits playlist to N most recent segments
-   * - hls_flags delete_segments: Auto-deletes old segment files
-   *
-   * When a new segment is created and the limit is reached,
-   * FFmpeg automatically removes the oldest segment file and
-   * updates the playlist accordingly.
+   * Remove .ts segment files older than RETENTION_DAYS.
+   * Handles orphaned files from previous FFmpeg sessions,
+   * since FFmpeg only tracks segments from its current session.
    */
+  private async cleanupStaleSegments(): Promise<void> {
+    const cutoffMs = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    let deleted = 0;
+
+    try {
+      const entries = await fs.promises.readdir(this.cameraDir);
+
+      for (const entry of entries) {
+        if (!entry.endsWith(".ts")) continue;
+
+        const filePath = path.join(this.cameraDir, entry);
+        const stat = await fs.promises.stat(filePath).catch(() => null);
+        if (stat && stat.mtimeMs < cutoffMs) {
+          await fs.promises.unlink(filePath).catch(() => {});
+          deleted++;
+        }
+      }
+
+      if (deleted > 0) {
+        console.log(`[Recorder ${this.cameraId}] Startup cleanup: removed ${deleted} stale segments`);
+      }
+    } catch (error) {
+      console.warn(`[Recorder ${this.cameraId}] Startup cleanup failed:`, error);
+    }
+  }
 
   /**
    * Check if recorder is currently recording

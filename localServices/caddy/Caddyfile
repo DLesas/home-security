@@ -29,6 +29,7 @@
         # WebSocket routes
         handle /ws/* {
             reverse_proxy backend:{$SERVER_PORT:8080} {
+                
                 header_up Host {host}
                 header_up X-Real-IP {remote_host}
                 
