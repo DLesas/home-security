@@ -22,8 +22,9 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY webapp/. .
-RUN rm -rf ./shared/camera && mkdir -p ./shared/camera
+RUN rm -rf ./shared/camera ./shared/alarm && mkdir -p ./shared/camera ./shared/alarm
 COPY backend/src/db/shared/camera ./shared/camera/
+COPY backend/src/db/shared/alarm ./shared/alarm/
 
 # Next.js collects completely anonymous telemetry data about general usage.
 # Learn more here: https://nextjs.org/telemetry

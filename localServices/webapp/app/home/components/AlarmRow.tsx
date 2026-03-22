@@ -6,6 +6,12 @@ import { StatusPill } from './StatusPill'
 import { type Alarm } from '../../socketData'
 import { IoChevronForward } from 'react-icons/io5'
 
+function isAlarmConnected(alarm: Alarm): boolean {
+  if (!alarm.lastUpdated) return false
+  const elapsedSeconds = (Date.now() - new Date(alarm.lastUpdated).getTime()) / 1000
+  return elapsedSeconds < alarm.expectedSecondsUpdated * 1.5
+}
+
 interface AlarmRowProps {
   alarms: Alarm[]
   index: number
@@ -22,7 +28,7 @@ export function AlarmRow({
   // Determine border color based on playing status - red if any alarm is playing
   const getBorderColor = () => {
     if (alarms.some(alarm => alarm.playing)) return 'border-l-danger'
-    if (alarms.some(alarm => alarm.state === 'unknown')) return 'border-l-warning'
+    if (alarms.some(alarm => !isAlarmConnected(alarm))) return 'border-l-warning'
     return 'border-l-success'
   }
 
@@ -60,12 +66,10 @@ export function AlarmRow({
               <div className="flex gap-1 flex-wrap">
                 {alarm.playing && <StatusPill type="armed">Playing</StatusPill>}
 
-                {alarm.state === 'connected' ? (
+                {isAlarmConnected(alarm) ? (
                   <StatusPill type="connected">Connected</StatusPill>
-                ) : alarm.state === 'disconnected' ? (
-                  <StatusPill type="disconnected">Disconnected</StatusPill>
                 ) : (
-                  <StatusPill type="unknown">Unknown</StatusPill>
+                  <StatusPill type="disconnected">Disconnected</StatusPill>
                 )}
               </div>
             </div>

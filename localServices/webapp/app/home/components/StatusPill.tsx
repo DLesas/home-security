@@ -1,7 +1,7 @@
 import { Chip } from '@nextui-org/chip'
 
 interface StatusPillProps {
-  type: 'armed' | 'disarmed' | 'open' | 'closed' | 'unknown' | 'connected' | 'disconnected'
+  type: 'armed' | 'disarmed' | 'open' | 'closed' | 'unknown' | 'on' | 'off' | 'connected' | 'disconnected'
   children: React.ReactNode
   startContent?: React.ReactNode
 }
@@ -13,6 +13,8 @@ export function StatusPill({ type, children, startContent }: StatusPillProps) {
     open: 'secondary' as const,
     closed: 'primary' as const,
     unknown: 'default' as const,
+    on: 'success' as const,
+    off: 'default' as const,
     connected: 'success' as const,
     disconnected: 'danger' as const,
   }

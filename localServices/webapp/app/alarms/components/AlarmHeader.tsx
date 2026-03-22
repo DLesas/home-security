@@ -43,10 +43,10 @@ export function AlarmHeader({
           </h1>
           <div className="flex items-center gap-2 flex-wrap">
             {playing && <StatusPill type="armed">Playing</StatusPill>}
-            {state === 'connected' ? (
-              <StatusPill type="connected">Connected</StatusPill>
-            ) : state === 'disconnected' ? (
-              <StatusPill type="disconnected">Disconnected</StatusPill>
+            {state === 'on' ? (
+              <StatusPill type="on">On</StatusPill>
+            ) : state === 'off' ? (
+              <StatusPill type="off">Off</StatusPill>
             ) : (
               <StatusPill type="unknown">Unknown</StatusPill>
             )}

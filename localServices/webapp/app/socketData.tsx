@@ -25,13 +25,14 @@ import {
   DEFAULT_CLASS_CONFIGS,
   DETECTION_CLASSES,
 } from '@/shared/camera'
+import type { AlarmState } from '@/shared/alarm'
 
 export interface Alarm {
   name: string;
   externalID: string;
   playing: boolean;
   building: string;
-  state: string;
+  state: AlarmState;
   ipAddress?: string;
   port: number;
   macAddress?: string;

@@ -235,7 +235,7 @@ router.post("/alarms/new", async (req, res, next) => {
     externalID: newAlarm.id,
     building: building,
     playing: false,
-    state: "connected",
+    state: "off",
     expectedSecondsUpdated: expectedSecondsUpdated,
     port: port,
     autoTurnOffSeconds: autoTurnOffSeconds,

@@ -22,6 +22,7 @@
     "paths": {
       "@/*": ["./*"],
       "@/shared/camera": ["./shared/camera", "../backend/src/db/shared/camera"],
+      "@/shared/alarm": ["./shared/alarm", "../backend/src/db/shared/alarm"],
       "auth": ["./auth.config.ts"],
     },
   },
