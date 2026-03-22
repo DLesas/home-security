@@ -10,6 +10,7 @@ import {
   type KNNSettings,
   type MOG2Settings,
 } from '../../socketData'
+import { isFullFrameMotionZone } from '@/shared/camera'
 
 interface CameraStatsCardProps {
   camera: Camera
@@ -115,6 +116,18 @@ export function CameraStatsCard({ camera, stats, clientFps }: CameraStatsCardPro
         icon: <MdVideoSettings className="text-sm" />,
         label: 'Model',
         value: getModelDisplayName(camera.detectionModel),
+      },
+      {
+        icon: <MdVideoSettings className="text-sm" />,
+        label: 'Zones',
+        value: `${camera.motionZones.length}`,
+      },
+      {
+        icon: <MdVideoSettings className="text-sm" />,
+        label: 'Coverage',
+        value: camera.motionZones.some((zone) => isFullFrameMotionZone(zone))
+          ? 'Includes full frame'
+          : 'Custom polygons',
       },
     ]
 

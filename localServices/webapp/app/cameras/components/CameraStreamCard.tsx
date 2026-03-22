@@ -1,40 +1,112 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Card } from '@nextui-org/card'
 import { Toggle } from '@/components/Toggle'
-import { useCameraStream, type CameraStats } from '@/hooks/useCameraStream'
+import { type CameraStats } from '@/hooks/useCameraStream'
+import type { Camera } from '../../socketData'
+import { MotionZoneSvgOverlay } from './MotionZoneSvgOverlay'
+import { getContainedImageRect, type Size } from './motionZoneUtils'
 
 interface CameraStreamCardProps {
-  cameraId: string
-  onStatsUpdate?: (stats: CameraStats | null) => void
+  camera: Camera
+  frame: string | null
+  stats: CameraStats | null
+  clientFps: number
+  motionOverlay: string | null
 }
 
-export function CameraStreamCard({ cameraId }: CameraStreamCardProps) {
-  const { frame, stats, clientFps, motionMask } = useCameraStream({ cameraId })
-  const [showMask, setShowMask] = useState(true)
+export function CameraStreamCard({
+  camera,
+  frame,
+  stats,
+  clientFps,
+  motionOverlay,
+}: CameraStreamCardProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [imageSize, setImageSize] = useState<Size>({ width: 0, height: 0 })
+  const [containerSize, setContainerSize] = useState<Size>({ width: 0, height: 0 })
+  const [showMotionOverlay, setShowMotionOverlay] = useState(true)
+  const [showZones, setShowZones] = useState(true)
+
+  useEffect(() => {
+    const updateSize = () => {
+      if (!containerRef.current) {
+        return
+      }
+
+      const rect = containerRef.current.getBoundingClientRect()
+      setContainerSize({ width: rect.width, height: rect.height })
+    }
+
+    updateSize()
+
+    const element = containerRef.current
+    if (!element || typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateSize)
+      return () => window.removeEventListener('resize', updateSize)
+    }
+
+    const observer = new ResizeObserver(() => updateSize())
+    observer.observe(element)
+    window.addEventListener('resize', updateSize)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', updateSize)
+    }
+  }, [])
+
+  const displayRect = useMemo(
+    () => getContainedImageRect(containerSize, imageSize),
+    [containerSize, imageSize]
+  )
 
   return (
     <Card className="mb-4 shadow-md overflow-hidden">
-      <div className="relative aspect-video bg-black">
+      <div ref={containerRef} className="relative aspect-video bg-black">
         {frame ? (
           <>
             <img
               src={`data:image/jpeg;base64,${frame}`}
               alt="Camera feed"
               className="w-full h-full object-contain"
+              onLoad={(event) =>
+                setImageSize({
+                  width: event.currentTarget.naturalWidth,
+                  height: event.currentTarget.naturalHeight,
+                })
+              }
             />
-            {/* Motion mask overlay - red tinted */}
-            {showMask && motionMask && (
+
+            {showMotionOverlay && motionOverlay && (
               <img
-                src={`data:image/jpeg;base64,${motionMask}`}
-                alt="Motion mask"
+                src={`data:image/jpeg;base64,${motionOverlay}`}
+                alt="Live motion overlay"
                 className="absolute inset-0 w-full h-full object-contain mix-blend-multiply opacity-40"
                 style={{
                   filter: 'sepia(1) saturate(10000%) hue-rotate(0deg)',
                 }}
               />
             )}
+
+            {showZones && displayRect.width > 0 && displayRect.height > 0 ? (
+              <div
+                className="pointer-events-none absolute"
+                style={{
+                  left: displayRect.x,
+                  top: displayRect.y,
+                  width: displayRect.width,
+                  height: displayRect.height,
+                }}
+              >
+                <MotionZoneSvgOverlay
+                  zones={camera.motionZones}
+                  imageSize={imageSize}
+                  className="h-full w-full"
+                />
+              </div>
+            ) : null}
           </>
         ) : (
           <div className="flex items-center justify-center h-full text-default-400 text-sm">
@@ -53,13 +125,21 @@ export function CameraStreamCard({ cameraId }: CameraStreamCardProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Motion mask toggle */}
             <div className="bg-black/60 text-white px-2 py-1 rounded text-xs flex items-center gap-2">
               <Toggle
                 size="sm"
-                isSelected={showMask}
-                onChange={setShowMask}
-                label="Motion Mask"
+                isSelected={showMotionOverlay}
+                onChange={setShowMotionOverlay}
+                label="Motion Overlay"
+              />
+            </div>
+
+            <div className="bg-black/60 text-white px-2 py-1 rounded text-xs flex items-center gap-2">
+              <Toggle
+                size="sm"
+                isSelected={showZones}
+                onChange={setShowZones}
+                label="Motion Zones"
               />
             </div>
 

@@ -9,7 +9,7 @@ interface CameraHeaderProps {
   buildingName: string
   isStreaming: boolean
   motionDetectionEnabled: boolean
-  lastUpdated?: Date
+  lastUpdated?: string | Date
   onSettingsClick: () => void
 }
 
