@@ -4,6 +4,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test:camera-zones": "node --import tsx --test app/cameras/components/motionZoneUtils.test.ts",
     "db:generate": "drizzle-kit generate:pg",
     "db:migrate": "tsx ./database/migrate.ts",
     "db:studio": "drizzle-kit studio",
@@ -81,7 +82,7 @@
     "utf-8-validate": "^6.0.4",
     "validator": "^13.12.0",
     "ws": "^8.18.0",
-    "zod": "^3.25.76",
+    "zod": "^4.3.6",
     "zustand": "^4.5.4"
   },
   "devDependencies": {
