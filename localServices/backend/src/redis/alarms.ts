@@ -1,5 +1,6 @@
 import { Repository, Schema } from "redis-om";
 import { redis } from "./index";
+import type { AlarmState } from "../shared/alarm";
 
 const alarmSchema = new Schema("alarms", {
   name: { type: "string" },
@@ -26,7 +27,7 @@ export interface Alarm {
   externalID: string;
   playing: boolean;
   building: string;
-  state: string;
+  state: AlarmState;
   ipAddress?: string;
   port: number;
   macAddress?: string;

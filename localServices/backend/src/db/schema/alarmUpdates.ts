@@ -10,8 +10,9 @@ import {
 } from "drizzle-orm/pg-core";
 import { alarmsTable } from "./alarms";
 import { InferInsertModel, InferSelectModel } from "drizzle-orm";
+import { ALARM_STATES } from "../shared/alarm";
 
-export const alarmStateEnum = pgEnum("alarmState", ["on", "off", "unknown"]);
+export const alarmStateEnum = pgEnum("alarmState", [...ALARM_STATES]);
 
 export const alarmUpdatesTable = pgTable("alarmUpdates", {
   id: bigserial("id", { mode: "number" }).notNull(),
