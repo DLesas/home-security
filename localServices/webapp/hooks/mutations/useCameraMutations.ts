@@ -1,31 +1,17 @@
 import { useMutation } from '@tanstack/react-query'
 import { useSocket } from '../../app/socketInitializer'
-import { MotionZone, DetectionModel, ModelSettings, ClassConfig } from '../../app/socketData'
+import type {
+  CameraProtocol,
+  CameraUpdatePayload,
+} from '@/shared/camera'
 
-// Base camera settings shared between create and update
-interface BaseCameraSettings {
-  name?: string
-  building?: string
-  motionDetectionEnabled?: boolean
-  detectionModel?: DetectionModel
-  modelSettings?: ModelSettings
-  maxStreamFps?: number
-  maxRecordingFps?: number
-  jpegQuality?: number
-  objectDetectionEnabled?: boolean
-  classConfigs?: ClassConfig[]
-}
-
-export interface CameraUpdatePayload extends BaseCameraSettings {
-  targetWidth?: number
-  targetHeight?: number
-  motionZones?: MotionZone[]
-}
-
-export interface CameraCreatePayload extends Required<Pick<BaseCameraSettings, 'name' | 'building'>> , Omit<BaseCameraSettings, 'name' | 'building'> {
+export type CameraCreatePayload = Required<
+  Pick<CameraUpdatePayload, 'name' | 'building'>
+> &
+  Omit<CameraUpdatePayload, 'name' | 'building' | 'motionZones'> & {
   ipAddress: string
   port: number
-  protocol: 'udp' | 'rtsp'
+  protocol: CameraProtocol
   username?: string
   password?: string
   streamPath?: string

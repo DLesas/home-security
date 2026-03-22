@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useSocketData } from '../app/socketData'
+import type { CameraMotionEvent } from '@/shared/camera'
 
 export interface CameraStats {
   cameraId: string
@@ -18,22 +19,6 @@ export interface CameraStats {
   encoderType: string
 }
 
-export interface MotionData {
-  camera_id: string
-  timestamp: number
-  motion_detected: boolean
-  processing_time_ms: number
-  zone_results: Array<{
-    zone_id: string
-    zone_name: string
-    has_motion: boolean
-    motion_percentage: number
-    motion_regions: number
-    total_motion_pixels: number
-  }>
-  mask: string // base64 encoded JPEG
-}
-
 interface UseCameraStreamOptions {
   cameraId: string
   enabled?: boolean
@@ -45,7 +30,7 @@ interface UseCameraStreamResult {
   clientFps: number
   isConnected: boolean
   motionMask: string | null
-  motionData: MotionData | null
+  motionData: CameraMotionEvent | null
 }
 
 export function useCameraStream({ cameraId, enabled = true }: UseCameraStreamOptions): UseCameraStreamResult {
@@ -54,7 +39,7 @@ export function useCameraStream({ cameraId, enabled = true }: UseCameraStreamOpt
   const [stats, setStats] = useState<CameraStats | null>(null)
   const [clientFps, setClientFps] = useState<number>(0)
   const [motionMask, setMotionMask] = useState<string | null>(null)
-  const [motionData, setMotionData] = useState<MotionData | null>(null)
+  const [motionData, setMotionData] = useState<CameraMotionEvent | null>(null)
   const frameTimestamps = useRef<number[]>([])
   // Track the currently subscribed cameraId to prevent double subscribe/unsubscribe
   const subscribedCameraId = useRef<string | null>(null)
@@ -134,7 +119,7 @@ export function useCameraStream({ cameraId, enabled = true }: UseCameraStreamOpt
       setStats(data)
     }
 
-    const handleMotion = (data: MotionData) => {
+    const handleMotion = (data: CameraMotionEvent) => {
       if (data.camera_id !== cameraId) return
       setMotionData(data)
       // Only set mask if it's not empty

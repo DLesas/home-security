@@ -21,6 +21,7 @@
     ],
     "paths": {
       "@/*": ["./*"],
+      "@/shared/camera": ["./shared/camera", "../backend/src/db/shared/camera"],
       "auth": ["./auth.config.ts"],
     },
   },

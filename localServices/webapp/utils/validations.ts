@@ -11,7 +11,7 @@ const AudioSchema = z.object({
   channelCountMode: z.string().max(255).optional(),
 });
 
-const FontsSchema = z.record(z.number().finite().nullable());
+const FontsSchema = z.record(z.string(), z.number().finite().nullable());
 
 const VideocardSchema = z.object({
   vendor: z.string().max(255).optional(),
