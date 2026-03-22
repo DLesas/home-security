@@ -53,7 +53,7 @@ router.get("/", async (req, res, next) => {
 router.put("/", async (req, res, next) => {
   const { error, data: updates } = configUpdateSchema.safeParse(req.body);
   if (error) {
-    next(raiseError(400, JSON.stringify(error.errors)));
+    next(raiseError(400, JSON.stringify(error.issues)));
     return;
   }
 

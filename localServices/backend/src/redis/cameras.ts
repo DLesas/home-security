@@ -1,21 +1,24 @@
 import { Repository, Schema } from "redis-om";
 import { redis } from "./index";
 import {
+  DEFAULT_CLASS_CONFIGS,
+  DEFAULT_MODEL_SETTINGS,
+  DETECTION_CLASSES,
+  type CameraDto,
+  type ClassConfig,
+  type DetectionClass,
   type DetectionModel,
-  type MotionModelSettings,
-  type SimpleDiffSettings,
   type KNNSettings,
   type MOG2Settings,
-  type DetectionClass,
-  type ClassConfig,
-  DEFAULT_MODEL_SETTINGS,
-  DEFAULT_CLASS_CONFIGS,
-  DETECTION_CLASSES,
-} from "../db/schema/cameraSettings";
+  type MotionModelSettings,
+  type MotionZone,
+  type SimpleDiffSettings,
+} from "../db/shared/camera";
 
 // Re-export for convenience
 export type { DetectionModel, MotionModelSettings as ModelSettings, SimpleDiffSettings, KNNSettings, MOG2Settings };
 export type { DetectionClass, ClassConfig };
+export type { MotionZone };
 export { DEFAULT_MODEL_SETTINGS, DEFAULT_CLASS_CONFIGS, DETECTION_CLASSES };
 
 export enum CameraProtocol {
@@ -60,51 +63,9 @@ const cameraSchema = new Schema("cameras", {
 
 export const cameraRepository = new Repository(cameraSchema, redis);
 
-/**
- * Motion detection zone configuration.
- * Empty points array = full frame detection.
- * Only active (non-deleted) zones are stored in Redis.
- */
-export interface MotionZone {
-  id: string;                             // Semantic ID (e.g., "default", "front-door")
-  name: string;                           // Display name
-  points: [number, number][];             // Polygon vertices, empty = full frame
-  minContourArea: number;                 // Min contour area in pixels
-  thresholdPercent: number;               // Min % of zone area to trigger
-}
-
-export interface Camera {
-  name: string;
-  externalID: string;
-  building: string; // Required
-  ipAddress?: string;
-  port: number;
+export interface Camera extends Omit<CameraDto, "lastUpdated" | "protocol"> {
   protocol?: CameraProtocol;
-  username?: string;
-  password?: string;
-  streamPath?: string;
-  expectedSecondsUpdated: number;
   lastUpdated: Date;
-  // Target resolution (optional)
-  targetWidth?: number;
-  targetHeight?: number;
-  // Motion detection settings
-  motionDetectionEnabled: boolean;
-  // Detection model: "simple_diff" | "knn" | "mog2"
-  detectionModel: DetectionModel;
-  // Model-specific settings (stored as JSON string in Redis)
-  modelSettings: MotionModelSettings;
-  // Motion zones - at least one required, stored as JSON string in Redis
-  motionZones: MotionZone[];
-  // FPS caps (optional - acts as maximum, never upscales)
-  maxStreamFps?: number;      // Max FPS for live streaming (default: 30)
-  maxRecordingFps?: number;   // Max FPS for HLS recording (default: 15)
-  // JPEG encoding quality (1-100, where 100=best, default: 95)
-  jpegQuality?: number;
-  // Object detection settings (per-camera: enabled flag and class configs only)
-  // Model and clip durations are global settings in config.ts
-  objectDetectionEnabled: boolean;
-  classConfigs: ClassConfig[];
 }
 
 export const createCameraIndex = async () => {

@@ -5,11 +5,8 @@ import {
   cameraRepository,
   CameraProtocol,
   Camera,
-  MotionZone,
-  DEFAULT_MODEL_SETTINGS,
 } from "../../redis/cameras";
-import type { DetectionModel, MotionModelSettings } from "../../db/schema/cameraSettings";
-import { DETECTION_CLASSES, DEFAULT_CLASS_CONFIGS } from "../../db/schema/cameraSettings";
+import type { DetectionModel } from "../../db/schema/cameraSettings";
 import { redis } from "../../redis/index";
 import { raiseEvent, raiseError } from "../../events/notify";
 import { emitNewData } from "../socketHandler";
@@ -18,66 +15,28 @@ import { db } from "../../db/db";
 import { cameraTable, cameraSettingTable, motionZoneTable, buildingTable } from "../../db/schema/index";
 import { makeID } from "../../utils/index";
 import { DEFAULT_MAX_STREAM_FPS, DEFAULT_MAX_RECORDING_FPS } from "../../config";
-
-// Zod schemas for detection model settings validation
-// Using .strict() to reject unknown keys - this ensures z.union() picks the correct schema
-export const simpleDiffSettingsSchema = z.object({
-  threshold: z.number().int().min(0).max(255).default(25),
-}).strict();
-
-export const knnSettingsSchema = z.object({
-  history: z.number().int().min(1).default(500),
-  dist2Threshold: z.number().min(0).default(400),
-  detectShadows: z.boolean().default(false),
-}).strict();
-
-export const mog2SettingsSchema = z.object({
-  history: z.number().int().min(1).default(500),
-  varThreshold: z.number().min(0).default(16),
-  detectShadows: z.boolean().default(false),
-}).strict();
-
-export const detectionModelSchema = z.enum(["simple_diff", "knn", "mog2"]);
-
-// Object detection class config schema (per-camera)
-// Model and clip durations are global settings in config.ts
-export const classConfigSchema = z.object({
-  class: z.enum(DETECTION_CLASSES),
-  confidence: z.number().min(0).max(1).default(0.5),
-});
-
-/**
- * Validate modelSettings based on the selected detectionModel.
- * Returns validated settings or default settings if not provided.
- */
-function validateModelSettings(
-  model: DetectionModel,
-  settings: unknown
-): MotionModelSettings {
-  if (settings === undefined || settings === null) {
-    return DEFAULT_MODEL_SETTINGS[model];
-  }
-
-  switch (model) {
-    case "simple_diff":
-      return simpleDiffSettingsSchema.parse(settings);
-    case "knn":
-      return knnSettingsSchema.parse(settings);
-    case "mog2":
-      return mog2SettingsSchema.parse(settings);
-    default:
-      return DEFAULT_MODEL_SETTINGS.mog2;
-  }
-}
-
-// Zod schema for motion zone validation
-const motionZoneSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  points: z.array(z.tuple([z.number(), z.number()])).default([]),
-  minContourArea: z.number().int().min(1).default(2500),
-  thresholdPercent: z.number().min(0).max(100).default(2.5),
-});
+import {
+  DEFAULT_CLASS_CONFIGS,
+  classConfigsSchema,
+  detectionModelSchema,
+  motionZonesSchema,
+  parseMotionModelSettings,
+  type ClassConfig,
+  type MotionZone,
+} from "../../db/shared/camera";
+import {
+  serializeCameraJsonFields,
+  type RedisCameraEntity,
+  toCameraDto,
+  parseStoredClassConfigs,
+  parseStoredModelSettings,
+  parseStoredMotionZones,
+} from "../../cameras/serializers";
+import {
+  createDefaultMotionZone,
+  resolveCreateMotionZones,
+  resolveUpdateMotionZones,
+} from "../../cameras/motionZones";
 
 const router = express.Router();
 
@@ -95,7 +54,7 @@ router.post("/", async (req, res, next) => {
     building: z.string().min(1, "Building is required"),
     ipAddress: z.string().min(1, "IP address is required"),
     port: z.number().int().min(1).max(65535, "Port must be between 1 and 65535"),
-    protocol: z.enum(["udp", "rtsp"]).default("udp"),
+    protocol: z.nativeEnum(CameraProtocol).default(CameraProtocol.UDP),
     username: z.string().optional(),
     password: z.string().optional(),
     streamPath: z.string().optional(),
@@ -107,11 +66,10 @@ router.post("/", async (req, res, next) => {
     motionDetectionEnabled: z.boolean().default(true),
     // Detection model selection (defaults to mog2)
     detectionModel: detectionModelSchema.default("mog2"),
-    // Model-specific settings (defaults to mog2 settings)
-    modelSettings: z.union([simpleDiffSettingsSchema, knnSettingsSchema, mog2SettingsSchema])
-      .default(DEFAULT_MODEL_SETTINGS.mog2),
+    // Model-specific settings (validated after detectionModel is known)
+    modelSettings: z.unknown().optional(),
     // Motion zones (optional - defaults to full frame zone)
-    motionZones: z.array(motionZoneSchema).optional(),
+    motionZones: motionZonesSchema.optional(),
     // FPS caps (optional - acts as maximum, never upscales)
     maxStreamFps: z.number().int().min(1).max(120).default(DEFAULT_MAX_STREAM_FPS),
     maxRecordingFps: z.number().int().min(1).max(60).default(DEFAULT_MAX_RECORDING_FPS),
@@ -120,12 +78,12 @@ router.post("/", async (req, res, next) => {
     // Object detection settings (per-camera: enabled flag and class configs only)
     // Model and clip durations are global settings in config.ts
     objectDetectionEnabled: z.boolean().default(false),
-    classConfigs: z.array(classConfigSchema).default(DEFAULT_CLASS_CONFIGS),
+    classConfigs: classConfigsSchema.default(DEFAULT_CLASS_CONFIGS),
   });
 
   const { error, data } = validationSchema.safeParse(req.body);
   if (error) {
-    next(raiseError(400, JSON.stringify(error.errors)));
+    next(raiseError(400, JSON.stringify(error.issues)));
     return;
   }
 
@@ -146,12 +104,13 @@ router.post("/", async (req, res, next) => {
     }
 
     // Use provided zones or create default full-frame zone
-    const motionZones: MotionZone[] = data.motionZones && data.motionZones.length > 0
-      ? data.motionZones
-      : [createDefaultMotionZone()];
+    const motionZones: MotionZone[] = resolveCreateMotionZones(data.motionZones);
 
     // Validate modelSettings matches detectionModel
-    const validatedModelSettings = validateModelSettings(data.detectionModel, data.modelSettings);
+    const validatedModelSettings = parseMotionModelSettings(
+      data.detectionModel,
+      data.modelSettings
+    );
 
     // Create camera object for Redis (stores zones as JSON string)
     // Use building.name for Redis (consistent with sensors), buildingId for PostgreSQL
@@ -184,9 +143,11 @@ router.post("/", async (req, res, next) => {
     // Save camera to Redis (zones, modelSettings, classConfigs stored as JSON strings via redis-om)
     await cameraRepository.save(externalID, {
       ...camera,
-      modelSettings: JSON.stringify(validatedModelSettings),
-      motionZones: JSON.stringify(motionZones),
-      classConfigs: JSON.stringify(data.classConfigs),
+      ...serializeCameraJsonFields({
+        modelSettings: validatedModelSettings,
+        motionZones,
+        classConfigs: data.classConfigs,
+      }),
     });
 
     // Persist camera to PostgreSQL
@@ -255,7 +216,8 @@ router.post("/", async (req, res, next) => {
     await emitNewData();
 
     // Publish camera config change for real-time updates to camera ingestion service
-    await publishCameraConfigChange("created", camera);
+    const cameraDto = toCameraDto(camera);
+    await publishCameraConfigChange("created", cameraDto);
 
     // Raise event for audit trail
     await raiseEvent({
@@ -267,10 +229,7 @@ router.post("/", async (req, res, next) => {
     res.status(201).json({
       success: true,
       entityId: externalID,
-      camera: {
-        ...camera,
-        lastUpdated: camera.lastUpdated.toISOString(),
-      },
+      camera: cameraDto,
     });
   } catch (err) {
     console.error("Error creating camera:", err);
@@ -287,12 +246,13 @@ router.post("/", async (req, res, next) => {
  */
 router.get("/", async (req, res, next) => {
   try {
-    const cameras = await cameraRepository.search().return.all();
+    const cameras = (await cameraRepository.search().return.all()) as RedisCameraEntity[];
+    const serializedCameras = cameras.map((camera) => toCameraDto(camera));
 
     res.status(200).json({
       success: true,
-      count: cameras.length,
-      cameras,
+      count: serializedCameras.length,
+      cameras: serializedCameras,
     });
   } catch (err) {
     console.error("Error fetching cameras:", err);
@@ -316,7 +276,7 @@ router.put("/:externalID", async (req, res, next) => {
     building: z.string().min(1).optional(),
     ipAddress: z.string().min(1).optional(),
     port: z.number().int().min(1).max(65535).optional(),
-    protocol: z.enum(["udp", "rtsp"]).optional(),
+    protocol: z.nativeEnum(CameraProtocol).optional(),
     username: z.string().optional(),
     password: z.string().optional(),
     streamPath: z.string().optional(),
@@ -326,10 +286,10 @@ router.put("/:externalID", async (req, res, next) => {
     motionDetectionEnabled: z.boolean().optional(),
     // Detection model selection
     detectionModel: detectionModelSchema.optional(),
-    // Model-specific settings
-    modelSettings: z.union([simpleDiffSettingsSchema, knnSettingsSchema, mog2SettingsSchema]).optional(),
+    // Model-specific settings (validated after detectionModel is known)
+    modelSettings: z.unknown().optional(),
     // Motion zones (replaces all zones if provided)
-    motionZones: z.array(motionZoneSchema).optional(),
+    motionZones: motionZonesSchema.optional(),
     // FPS caps (optional - acts as maximum, never upscales)
     maxStreamFps: z.number().int().min(1).max(120).optional(),
     maxRecordingFps: z.number().int().min(1).max(60).optional(),
@@ -337,12 +297,12 @@ router.put("/:externalID", async (req, res, next) => {
     jpegQuality: z.number().int().min(1).max(100).optional(),
     // Object detection settings (per-camera only)
     objectDetectionEnabled: z.boolean().optional(),
-    classConfigs: z.array(classConfigSchema).optional(),
+    classConfigs: classConfigsSchema.optional(),
   });
 
   const { error, data: updates } = validationSchema.safeParse(req.body);
   if (error) {
-    next(raiseError(400, JSON.stringify(error.errors)));
+    next(raiseError(400, JSON.stringify(error.issues)));
     return;
   }
 
@@ -377,52 +337,22 @@ router.put("/:externalID", async (req, res, next) => {
       buildingName = building.name;
     }
 
-    // Parse existing motion zones from Redis (stored as JSON string)
-    let existingZones: MotionZone[] = [];
-    if (camera.motionZones) {
-      try {
-        existingZones = typeof camera.motionZones === 'string'
-          ? JSON.parse(camera.motionZones)
-          : camera.motionZones;
-      } catch {
-        existingZones = [];
-      }
-    }
-
-    // Parse existing model settings from Redis (stored as JSON string)
-    let existingModelSettings: MotionModelSettings;
-    if (camera.modelSettings) {
-      try {
-        existingModelSettings = typeof camera.modelSettings === 'string'
-          ? JSON.parse(camera.modelSettings)
-          : camera.modelSettings;
-      } catch {
-        existingModelSettings = DEFAULT_MODEL_SETTINGS.mog2;
-      }
-    } else {
-      existingModelSettings = DEFAULT_MODEL_SETTINGS.mog2;
-    }
-
-    // Parse existing classConfigs from Redis (stored as JSON string)
-    let existingClassConfigs: ClassConfig[] = DEFAULT_CLASS_CONFIGS;
-    if (camera.classConfigs) {
-      try {
-        existingClassConfigs = typeof camera.classConfigs === 'string'
-          ? JSON.parse(camera.classConfigs)
-          : camera.classConfigs;
-      } catch {
-        existingClassConfigs = DEFAULT_CLASS_CONFIGS;
-      }
-    }
+    const existingZones = parseStoredMotionZones(camera.motionZones);
+    const existingClassConfigs = parseStoredClassConfigs(camera.classConfigs);
 
     // Use updated zones or keep existing
-    const motionZones = updates.motionZones ?? existingZones;
+    const motionZones = resolveUpdateMotionZones(existingZones, updates.motionZones);
     const classConfigs = updates.classConfigs ?? existingClassConfigs;
 
     // Determine detection model and validate settings
-    const detectionModel = updates.detectionModel ?? (camera.detectionModel as DetectionModel) ?? "mog2";
+    const detectionModel: DetectionModel =
+      updates.detectionModel ?? camera.detectionModel ?? "mog2";
+    const existingModelSettings = parseStoredModelSettings(
+      detectionModel,
+      camera.modelSettings
+    );
     const modelSettings = updates.modelSettings
-      ? validateModelSettings(detectionModel, updates.modelSettings)
+      ? parseMotionModelSettings(detectionModel, updates.modelSettings)
       : existingModelSettings;
 
     // Build updated camera object (use building name for Redis)
@@ -440,9 +370,11 @@ router.put("/:externalID", async (req, res, next) => {
     // Save to Redis (zones, modelSettings, classConfigs as JSON strings)
     await cameraRepository.save(externalID, {
       ...updatedCamera,
-      modelSettings: JSON.stringify(modelSettings),
-      motionZones: JSON.stringify(motionZones),
-      classConfigs: JSON.stringify(classConfigs),
+      ...serializeCameraJsonFields({
+        modelSettings,
+        motionZones,
+        classConfigs,
+      }),
     });
 
     // Update camera in PostgreSQL
@@ -524,7 +456,8 @@ router.put("/:externalID", async (req, res, next) => {
     await emitNewData();
 
     // Publish camera config change for real-time updates to camera ingestion service
-    await publishCameraConfigChange("updated", updatedCamera);
+    const updatedCameraDto = toCameraDto(updatedCamera);
+    await publishCameraConfigChange("updated", updatedCameraDto);
 
     // Raise event for audit trail
     await raiseEvent({
@@ -535,10 +468,7 @@ router.put("/:externalID", async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      camera: {
-        ...updatedCamera,
-        lastUpdated: updatedCamera.lastUpdated.toISOString(),
-      },
+      camera: updatedCameraDto,
     });
   } catch (err) {
     console.error("Error updating camera:", err);
@@ -601,15 +531,3 @@ router.delete("/:externalID", async (req, res, next) => {
 });
 
 export default router;
-
-/**
- * Create a default full-frame motion zone.
- * Used when creating new cameras with motion detection enabled.
- */
-export const createDefaultMotionZone = (): MotionZone => ({
-  id: makeID(),
-  name: 'Full Frame',
-  points: [], // Empty = full frame
-  minContourArea: 2500,
-  thresholdPercent: 2.5,
-});

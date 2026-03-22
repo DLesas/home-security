@@ -28,43 +28,25 @@ router.post("/new", async (req, res, next) => {
   const recurringScheduleSchema = z.object({
     type: z.literal("recurring"),
     name: z
-      .string({
-        required_error: "name is required",
-        invalid_type_error: "name must be a string",
-      })
+      .string()
       .min(1, "name must be at least 1 character")
       .max(255, "name must be less than 255 characters"),
     sensorIds: z
       .array(z.string())
       .min(1, "At least one sensor must be selected"),
     armTime: z
-      .string({
-        required_error: "armTime is required",
-        invalid_type_error: "armTime must be a string",
-      })
+      .string()
       .regex(/^\d{2}:\d{2}$/, "armTime must be in HH:MM format"),
     armDayOffset: z
-      .number({
-        required_error: "armDayOffset is required",
-        invalid_type_error: "armDayOffset must be a number",
-      })
+      .number()
       .int("armDayOffset must be an integer"),
     disarmTime: z
-      .string({
-        required_error: "disarmTime is required",
-        invalid_type_error: "disarmTime must be a string",
-      })
+      .string()
       .regex(/^\d{2}:\d{2}$/, "disarmTime must be in HH:MM format"),
     disarmDayOffset: z
-      .number({
-        required_error: "disarmDayOffset is required",
-        invalid_type_error: "disarmDayOffset must be a number",
-      })
+      .number()
       .int("disarmDayOffset must be an integer"),
-    recurrence: z.enum(["Daily", "Weekly"], {
-      required_error: "recurrence is required",
-      invalid_type_error: "recurrence must be either 'Daily' or 'Weekly'",
-    }),
+    recurrence: z.enum(["Daily", "Weekly"]),
     days: z.array(z.string()).optional(),
     active: z.boolean().default(true),
   });
@@ -73,26 +55,17 @@ router.post("/new", async (req, res, next) => {
   const oneTimeScheduleSchema = z.object({
     type: z.literal("oneTime"),
     name: z
-      .string({
-        required_error: "name is required",
-        invalid_type_error: "name must be a string",
-      })
+      .string()
       .min(1, "name must be at least 1 character")
       .max(255, "name must be less than 255 characters"),
     sensorIds: z
       .array(z.string())
       .min(1, "At least one sensor must be selected"),
     armDateTime: z
-      .string({
-        required_error: "armDateTime is required",
-        invalid_type_error: "armDateTime must be a string",
-      })
+      .string()
       .datetime("armDateTime must be a valid ISO datetime"),
     disarmDateTime: z
-      .string({
-        required_error: "disarmDateTime is required",
-        invalid_type_error: "disarmDateTime must be a string",
-      })
+      .string()
       .datetime("disarmDateTime must be a valid ISO datetime"),
   });
 
@@ -103,7 +76,7 @@ router.post("/new", async (req, res, next) => {
 
   const result = validationSchema.safeParse(req.body);
   if (!result.success) {
-    next(raiseError(400, JSON.stringify(result.error.errors)));
+    next(raiseError(400, JSON.stringify(result.error.issues)));
     return;
   }
 
@@ -248,14 +221,14 @@ router.put("/:scheduleId", async (req, res, next) => {
     if (isRecurring) {
       const result = recurringUpdateSchema.safeParse(req.body);
       if (!result.success) {
-        next(raiseError(400, JSON.stringify(result.error.errors)));
+        next(raiseError(400, JSON.stringify(result.error.issues)));
         return;
       }
       updates = result.data;
     } else {
       const result = oneTimeUpdateSchema.safeParse(req.body);
       if (!result.success) {
-        next(raiseError(400, JSON.stringify(result.error.errors)));
+        next(raiseError(400, JSON.stringify(result.error.issues)));
         return;
       }
       updates = result.data;
@@ -407,15 +380,12 @@ router.post("/:scheduleId/toggle", async (req, res, next) => {
   const { scheduleId } = req.params;
 
   const validationSchema = z.object({
-    active: z.boolean({
-      required_error: "active is required",
-      invalid_type_error: "active must be a boolean",
-    }),
+    active: z.boolean(),
   });
 
   const result = validationSchema.safeParse(req.body);
   if (!result.success) {
-    next(raiseError(400, JSON.stringify(result.error.errors)));
+    next(raiseError(400, JSON.stringify(result.error.issues)));
     return;
   }
 

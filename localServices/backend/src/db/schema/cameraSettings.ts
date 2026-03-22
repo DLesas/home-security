@@ -2,9 +2,33 @@ import { boolean, integer, text, timestamp, varchar, jsonb } from "drizzle-orm/p
 import { pgTable } from "drizzle-orm/pg-core";
 import { camerasTable } from "./cameras";
 import { InferInsertModel, InferSelectModel } from "drizzle-orm";
+import {
+  DETECTION_CLASSES,
+  DEFAULT_CLASS_CONFIGS,
+  DEFAULT_MODEL_SETTINGS,
+  type ClassConfig,
+  type DetectionClass,
+  type DetectionModel,
+  type KNNSettings,
+  type MOG2Settings,
+  type MotionModelSettings,
+  type SimpleDiffSettings,
+} from "../shared/camera";
 
-// Motion detection model types
-export type DetectionModel = "simple_diff" | "knn" | "mog2";
+export {
+  DETECTION_CLASSES,
+  DEFAULT_CLASS_CONFIGS,
+  DEFAULT_MODEL_SETTINGS,
+};
+export type {
+  ClassConfig,
+  DetectionClass,
+  DetectionModel,
+  KNNSettings,
+  MOG2Settings,
+  MotionModelSettings,
+  SimpleDiffSettings,
+};
 
 // Object detection model types
 export const OBJECT_DETECTION_MODELS = [
@@ -14,55 +38,6 @@ export const OBJECT_DETECTION_MODELS = [
 ] as const;
 
 export type ObjectDetectionModel = typeof OBJECT_DETECTION_MODELS[number];
-
-// Supported detection classes (curated COCO subset)
-export const DETECTION_CLASSES = [
-  "person", "bicycle", "car", "motorcycle", "airplane", "bus",
-  "train", "truck", "boat", "bird", "cat", "dog", "horse",
-  "sheep", "cow", "elephant", "bear", "zebra", "giraffe",
-] as const;
-
-export type DetectionClass = typeof DETECTION_CLASSES[number];
-
-// Per-class configuration with confidence threshold
-export interface ClassConfig {
-  class: DetectionClass;
-  confidence: number; // 0.0 - 1.0
-}
-
-// Default class configs for object detection
-export const DEFAULT_CLASS_CONFIGS: ClassConfig[] = [
-  { class: "person", confidence: 0.5 },
-  { class: "car", confidence: 0.5 },
-  { class: "dog", confidence: 0.5 },
-  { class: "cat", confidence: 0.5 },
-];
-
-// Model-specific settings types
-export interface SimpleDiffSettings {
-  threshold: number; // 0-255, default 25
-}
-
-export interface KNNSettings {
-  history: number; // default 500
-  dist2Threshold: number; // default 400
-  detectShadows: boolean; // default false
-}
-
-export interface MOG2Settings {
-  history: number; // default 500
-  varThreshold: number; // default 16
-  detectShadows: boolean; // default false
-}
-
-export type MotionModelSettings = SimpleDiffSettings | KNNSettings | MOG2Settings;
-
-// Default settings for each model
-export const DEFAULT_MODEL_SETTINGS: Record<DetectionModel, MotionModelSettings> = {
-  simple_diff: { threshold: 25 },
-  knn: { history: 500, dist2Threshold: 400, detectShadows: false },
-  mog2: { history: 500, varThreshold: 16, detectShadows: false },
-};
 
 // Camera settings table (many-to-one with cameras, one is current)
 export const cameraSettingsTable = pgTable("camera_settings", {

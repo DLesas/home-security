@@ -29,38 +29,26 @@ const router = express.Router();
 router.post("/sensors/new", async (req, res, next) => {
   const validationSchema = z.object({
     id: z
-      .string({
-        required_error: "id is required",
-        invalid_type_error: "id must be a string",
-      })
+      .string()
       .min(1, "id must be at least 1 character")
       .max(255, "id must be less than 255 characters"),
     name: z
-      .string({
-        required_error: "name is required",
-        invalid_type_error: "name must be a string",
-      })
+      .string()
       .min(1, "name must be at least 1 character")
       .max(255, "name must be less than 255 characters"),
     building: z
-      .string({
-        required_error: "building is required",
-        invalid_type_error: "building must be a string",
-      })
+      .string()
       .min(1, "building must be at least 1 character")
       .max(255, "building must be less than 255 characters"),
     expectedSecondsUpdated: z
-      .number({
-        required_error: "expectedSecondsUpdated is required",
-        invalid_type_error: "expectedSecondsUpdated must be a number",
-      })
+      .number()
       .min(0, "expectedSecondsUpdated must be more than 0 seconds")
       .max(3600 * 24, "expectedSecondsUpdated must be less than 24 hours"),
   });
 
   const result = validationSchema.safeParse(req.body);
   if (!result.success) {
-    next(raiseError(400, JSON.stringify(result.error.errors)));
+    next(raiseError(400, JSON.stringify(result.error.issues)));
     return;
   }
   const { id, name, building, expectedSecondsUpdated } = result.data;
@@ -158,45 +146,27 @@ router.post("/sensors/new", async (req, res, next) => {
 router.post("/alarms/new", async (req, res, next) => {
   const validationSchema = z.object({
     id: z
-      .string({
-        required_error: "id is required",
-        invalid_type_error: "id must be a string",
-      })
+      .string()
       .min(1, "id must be at least 1 character")
       .max(255, "id must be less than 255 characters"),
     name: z
-      .string({
-        required_error: "name is required",
-        invalid_type_error: "name must be a string",
-      })
+      .string()
       .min(1, "name must be at least 1 character")
       .max(255, "name must be less than 255 characters"),
     building: z
-      .string({
-        required_error: "building is required",
-        invalid_type_error: "building must be a string",
-      })
+      .string()
       .min(1, "building must be at least 1 character")
       .max(255, "building must be less than 255 characters"),
     expectedSecondsUpdated: z
-      .number({
-        required_error: "expectedSecondsUpdated is required",
-        invalid_type_error: "expectedSecondsUpdated must be a number",
-      })
+      .number()
       .min(0, "expectedSecondsUpdated must be more than 0 seconds")
       .max(3600 * 24, "expectedSecondsUpdated must be less than 24 hours"),
     port: z
-      .number({
-        required_error: "port is required",
-        invalid_type_error: "port must be a number",
-      })
+      .number()
       .min(1, "port must be more than 0")
       .max(65535, "port must be less than 65535"),
     autoTurnOffSeconds: z
-      .number({
-        required_error: "autoTurnOffSeconds is required",
-        invalid_type_error: "autoTurnOffSeconds must be a number",
-      })
+      .number()
       .min(0, "autoTurnOffSeconds must be 0 or greater (0 = no timeout)")
       .max(
         86400,
@@ -206,7 +176,7 @@ router.post("/alarms/new", async (req, res, next) => {
 
   const result = validationSchema.safeParse(req.body);
   if (!result.success) {
-    next(raiseError(400, JSON.stringify(result.error.errors)));
+    next(raiseError(400, JSON.stringify(result.error.issues)));
     return;
   }
   const { id, name, building, expectedSecondsUpdated, port, autoTurnOffSeconds } =

@@ -65,7 +65,7 @@ const accessLogsQuerySchema = baseQuerySchema.extend({
   /** Filter by connection type */
   connection: z.enum(["http", "socket"]).optional(),
   /** Filter by client IP (partial match) */
-  clientIp: z.string().ip().optional(),
+  clientIp: z.string().min(1).optional(),
 });
 
 /**
@@ -127,13 +127,13 @@ function validateQuery<T extends z.ZodSchema>(schema: T) {
   return (req: Request, res: Response, next: Function) => {
     try {
       const validated = schema.parse(req.query);
-      req.query = validated;
+      req.query = validated as Request["query"];
       next();
     } catch (error) {
       if (error instanceof z.ZodError) {
         const err = raiseError(
           400,
-          `Invalid query parameters: ${error.errors
+          `Invalid query parameters: ${error.issues
             .map((err) => ({
               field: err.path.join("."),
               message: err.message,

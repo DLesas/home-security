@@ -11,6 +11,7 @@ import {
   recurringScheduleRepository,
   oneTimeScheduleRepository,
 } from "../redis/schedules";
+import { toCameraDto } from "../cameras/serializers";
 
 /**
  * Fetches all data from repositories and returns formatted payload
@@ -22,44 +23,7 @@ async function getAllData() {
   const alarms = (await alarmRepository.search().returnAll()) as Alarm[];
   const camerasRaw = (await cameraRepository.search().return.all()) as Camera[];
 
-  // Map cameras to only emit necessary properties
-  // Note: modelSettings and motionZones are stored as JSON strings in Redis
-  const cameras = camerasRaw.map((c) => {
-    // Parse modelSettings if it's a string
-    let modelSettings = c.modelSettings;
-    if (typeof modelSettings === 'string') {
-      try {
-        modelSettings = JSON.parse(modelSettings);
-      } catch {
-        modelSettings = { history: 500, varThreshold: 16, detectShadows: false };
-      }
-    }
-
-    // Parse motionZones if it's a string
-    let motionZones = c.motionZones;
-    if (typeof motionZones === 'string') {
-      try {
-        motionZones = JSON.parse(motionZones);
-      } catch {
-        motionZones = [];
-      }
-    }
-
-    return {
-      externalID: c.externalID,
-      name: c.name,
-      building: c.building,
-      motionDetectionEnabled: c.motionDetectionEnabled,
-      detectionModel: c.detectionModel,
-      modelSettings,
-      motionZones,
-      expectedSecondsUpdated: c.expectedSecondsUpdated,
-      lastUpdated: c.lastUpdated,
-      maxStreamFps: c.maxStreamFps,
-      maxRecordingFps: c.maxRecordingFps,
-      jpegQuality: c.jpegQuality,
-    };
-  });
+  const cameras = camerasRaw.map((camera) => toCameraDto(camera));
 
   // Fetch schedule data
   const recurringSchedules = (await recurringScheduleRepository

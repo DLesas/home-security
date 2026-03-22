@@ -1,5 +1,9 @@
 import { redis } from "../redis/index";
-import { Camera } from "../redis/cameras";
+import type {
+  CameraConfigEvent,
+  CameraDto,
+  DeletedCameraConfigDto,
+} from "../db/shared/camera";
 
 /**
  * Camera configuration events for real-time updates to the camera ingestion service
@@ -10,14 +14,6 @@ import { Camera } from "../redis/cameras";
 
 const CAMERA_CONFIG_CHANNEL = process.env.CAMERA_CONFIG_CHANNEL || "camera:config";
 
-export type CameraConfigAction = "created" | "updated" | "deleted";
-
-export interface CameraConfigEvent {
-  timestamp: number;
-  action: CameraConfigAction;
-  camera: Camera | { externalID: string };
-}
-
 /**
  * Publish a camera configuration change event
  * The camera ingestion service subscribes to this channel to react immediately
@@ -26,8 +22,8 @@ export interface CameraConfigEvent {
  * @param camera - The camera data (full camera for create/update, just externalID for delete)
  */
 export async function publishCameraConfigChange(
-  action: CameraConfigAction,
-  camera: Camera | { externalID: string }
+  action: CameraConfigEvent["action"],
+  camera: CameraDto | DeletedCameraConfigDto
 ): Promise<void> {
   try {
     const event: CameraConfigEvent = {
@@ -37,7 +33,9 @@ export async function publishCameraConfigChange(
     };
 
     await redis.publish(CAMERA_CONFIG_CHANNEL, JSON.stringify(event));
-    console.log(`[CameraConfig] Published ${action} event for camera: ${camera.externalID || (camera as Camera).externalID}`);
+    console.log(
+      `[CameraConfig] Published ${action} event for camera: ${camera.externalID}`
+    );
   } catch (error) {
     console.error("[CameraConfig] Failed to publish config change:", error);
     // Don't throw - config changes should still work even if pub/sub fails

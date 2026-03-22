@@ -35,38 +35,23 @@ const router = express.Router();
 router.post("/new", async (req, res, next) => {
   const validationSchema = z.object({
     name: z
-      .string({
-        required_error: "name is required",
-        invalid_type_error: "name must be a string",
-      })
+      .string()
       .min(1, "name must be at least 1 character")
       .max(255, "name must be less than 255 characters"),
     building: z
-      .string({
-        required_error: "building is required",
-        invalid_type_error: "building must be a string",
-      })
+      .string()
       .min(1, "building must be at least 1 character")
       .max(255, "building must be less than 255 characters"),
     expectedSecondsUpdated: z
-      .number({
-        required_error: "expectedSecondsUpdated is required",
-        invalid_type_error: "expectedSecondsUpdated must be a number",
-      })
+      .number()
       .min(0, "expectedSecondsUpdated must be more than 0 seconds")
       .max(3600 * 24, "expectedSecondsUpdated must be less than 24 hours"),
     port: z
-      .number({
-        required_error: "port is required",
-        invalid_type_error: "port must be a number",
-      })
+      .number()
       .min(1, "port must be more than 0")
       .max(65535, "port must be less than 65535"),
     autoTurnOffSeconds: z
-      .number({
-        required_error: "autoTurnOffSeconds is required",
-        invalid_type_error: "autoTurnOffSeconds must be a number",
-      })
+      .number()
       .min(0, "autoTurnOffSeconds must be 0 or greater (0 = no timeout)")
       .max(
         86400,
@@ -75,7 +60,7 @@ router.post("/new", async (req, res, next) => {
   });
   const result = validationSchema.safeParse(req.body);
   if (!result.success) {
-    next(raiseError(400, JSON.stringify(result.error.errors)));
+    next(raiseError(400, JSON.stringify(result.error.issues)));
     return;
   }
   const { name, building, expectedSecondsUpdated, port, autoTurnOffSeconds } =
@@ -210,7 +195,7 @@ router.post("/logs", async (req, res, next) => {
 
   const result = validationSchema.safeParse(req.body);
   if (!result.success) {
-    next(raiseError(400, JSON.stringify(result.error.errors)));
+    next(raiseError(400, JSON.stringify(result.error.issues)));
     return;
   }
 
@@ -271,17 +256,14 @@ router.post("/:alarmId/handshake", async (req, res, next) => {
   const { alarmId } = req.params;
   const validationSchema = z.object({
     macAddress: z
-      .string({
-        required_error: "macAddress is required",
-        invalid_type_error: "macAddress must be a string",
-      })
+      .string()
       .min(1, "macAddress must be at least 1 character")
       .max(255, "macAddress must be less than 255 characters"),
   });
 
   const result = validationSchema.safeParse(req.body);
   if (!result.success) {
-    next(raiseError(400, JSON.stringify(result.error.errors)));
+    next(raiseError(400, JSON.stringify(result.error.issues)));
     return;
   }
   const { macAddress } = result.data;
@@ -330,33 +312,23 @@ router.post("/:alarmId/handshake", async (req, res, next) => {
  */
 router.post("/update", async (req, res, next) => {
   const validationSchema = z.object({
-    state: z.enum(["on", "off"], {
-      required_error: "state is required",
-      invalid_type_error: "state must be one of: on, off",
-    }),
+    state: z.enum(["on", "off"]),
     temperature: z
-      .number({
-        required_error: "temperature is required",
-        invalid_type_error: "temperature must be a number",
-      })
+      .number()
       .min(-100, "implausible temperature")
       .max(120, "implausible temperature"),
     voltage: z
-      .number({
-        invalid_type_error: "voltage must be a number",
-      })
+      .number()
       .optional()
       .nullable(),
     frequency: z
-      .number({
-        invalid_type_error: "frequency must be a number",
-      })
+      .number()
       .optional()
       .nullable(),
   });
   const result = validationSchema.safeParse(req.body);
   if (!result.success) {
-    next(raiseError(400, JSON.stringify(result.error.errors)));
+    next(raiseError(400, JSON.stringify(result.error.issues)));
     return;
   }
 
@@ -517,7 +489,7 @@ router.get("/:alarmId/updates", async (req, res, next) => {
 
   const result = querySchema.safeParse(req.query);
   if (!result.success) {
-    next(raiseError(400, JSON.stringify(result.error.errors)));
+    next(raiseError(400, JSON.stringify(result.error.issues)));
     return;
   }
 

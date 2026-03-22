@@ -102,13 +102,13 @@ export function changeAlarmState(
  * @param {Alarm} alarm - The redis alarm object to be updated.
  * @param {AlarmResponse} res - The response object containing the new state of the alarm relay.
  * @param {"on" | "off"} state - The state that was requested for the alarm.
- * @returns {Promise<Boolean>} A promise that resolves to true if the alarm state is successfully saved.
+ * @returns {Promise<boolean>} A promise that resolves to true if the alarm state is successfully saved.
  */
 async function saveAlarmState(
   alarm: Alarm,
   res: AlarmResponse,
   state: "on" | "off"
-): Promise<Boolean> {
+): Promise<boolean> {
   res.state == "on" ? (alarm.playing = true) : (alarm.playing = false);
   alarm.temperature = res.temperature;
   alarm.voltage = res.voltage;
