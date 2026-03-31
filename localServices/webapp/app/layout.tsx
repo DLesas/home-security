@@ -15,8 +15,8 @@ export const metadata: Metadata = {
   title: 'Home security',
   description: 'Home security system monitoring.',
   icons: [
-    { rel: 'apple-touch-icon', url: '/securityIcon.webp' },
-    { rel: 'icon', url: '/securityIcon.webp' },
+    { rel: 'apple-touch-icon', url: '/icon-192x192.png' },
+    { rel: 'icon', url: '/icon-192x192.png' },
   ],
   // ... other options
 }

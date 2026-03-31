@@ -1,10 +1,11 @@
 const withPWA = require('@ducanh2912/next-pwa').default({
   dest: 'public',
   reloadOnOnline: true,
-  //register: true, // register the PWA service worker
+  register: true,
   skipWaiting: true,
-  //disable: process.env.NODE_ENV === 'development',
-  // ... other options you like
+  disable: process.env.NODE_ENV === 'development',
+  cacheOnFrontEndNav: true,
+  aggressiveFrontEndNavCaching: true,
 })
 
 /** @type {import('next').NextConfig} */
